@@ -17,6 +17,15 @@ class GlobalOnlyAdminMixin:
     def has_view_permission(self, request, obj=None):
         return connection.schema_name == "public"
 
+    def has_add_permission(self, request):
+        return connection.schema_name == "public"
+
+    def has_change_permission(self, request, obj=None):
+        return connection.schema_name == "public"
+
+    def has_delete_permission(self, request, obj=None):
+        return connection.schema_name == "public"
+
 
 # class UserRoleInline(admin.TabularInline):
 #     model = UserRole

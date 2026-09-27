@@ -14,7 +14,7 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     # Security & Identity Management
     needs_password_change = models.BooleanField(default=False)
-    initial_password_display = models.CharField(max_length=255, null=True, blank=True)
+    initial_password_display = models.CharField(max_length=512, null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

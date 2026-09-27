@@ -5,6 +5,11 @@ from .views import (
     PortalActivationView,
     CredentialDistributionView,
     StudentDetailView,
+    PromotionCandidatesView,
+    PromotionExecuteView,
+    PromotionHistoryView,
+    PromotionPreviewView,
+    PromotionReverseView,
 )
 
 urlpatterns = [
@@ -19,4 +24,17 @@ urlpatterns = [
         "credentials/", CredentialDistributionView.as_view(), name="student-credentials"
     ),
     path("detail/<uuid:pk>/", StudentDetailView.as_view(), name="student-detail"),
+    path(
+        "promotion/candidates/",
+        PromotionCandidatesView.as_view(),
+        name="promotion-candidates",
+    ),
+    path("promotion/preview/", PromotionPreviewView.as_view(), name="promotion-preview"),
+    path("promotion/execute/", PromotionExecuteView.as_view(), name="promotion-execute"),
+    path("promotion/history/", PromotionHistoryView.as_view(), name="promotion-history"),
+    path(
+        "promotion/<uuid:record_id>/reverse/",
+        PromotionReverseView.as_view(),
+        name="promotion-reverse",
+    ),
 ]

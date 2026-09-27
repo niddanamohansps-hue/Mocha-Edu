@@ -5,6 +5,7 @@ from django.db import transaction
 from profiles.models import Profile
 from django.apps import apps
 import uuid
+from accounts.utils.crypto import encrypt_secret
 
 User = apps.get_model("accounts", "User")
 
@@ -158,7 +159,7 @@ class InstructorActivationSerializer(serializers.Serializer):
             email=email or None,
             password=password,
             needs_password_change=True,
-            initial_password_display=password,
+            initial_password_display=encrypt_secret(password),
         )
 
         # 2. Link Profile (Do this BEFORE assigning role to prevent Signal from creating a duplicate profile)
@@ -314,7 +315,7 @@ class StaffActivationSerializer(serializers.Serializer):
             email=email or None,
             password=password,
             needs_password_change=True,
-            initial_password_display=password,
+            initial_password_display=encrypt_secret(password),
         )
 
         # 2. Link Profile (Do this BEFORE assigning role to prevent Signal from creating a duplicate profile)

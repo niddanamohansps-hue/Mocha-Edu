@@ -10,6 +10,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { Sidebar } from "@/components/dashboard/Sidebar/Sidebar";
 import { cn } from "@/lib/utils";
 import { ProfileMenu } from "@/components/dashboard/ProfileMenu";
+import { NotificationBell } from "@/components/dashboard/NotificationBell";
 import { PermissionProvider } from "@/providers/PermissionProvider";
 import PasswordChangeGuard from "@/components/PasswordChangeGuard";
 
@@ -63,6 +64,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                             </div>
 
                             <div className="flex items-center gap-2 sm:gap-4">
+                                <NotificationBell />
                                 <ProfileMenu />
                             </div>
                         </header>

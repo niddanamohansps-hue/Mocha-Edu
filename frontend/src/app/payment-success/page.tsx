@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2, CheckCircle, XCircle, AlertCircle, ArrowRight, GraduationCap } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,6 +8,20 @@ import { useVerifyPayment } from "@/hooks/payments";
 import { Button } from "@/components/ui/button";
 
 export default function PaymentSuccessPage() {
+    return (
+        <Suspense
+            fallback={
+                <div className="flex min-h-screen items-center justify-center bg-linear-to-br from-blue-50 via-teal-50 to-green-50 p-4">
+                    <Loader2 className="h-12 w-12 animate-spin text-blue-600" />
+                </div>
+            }
+        >
+            <PaymentSuccessContent />
+        </Suspense>
+    );
+}
+
+function PaymentSuccessContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const dataParam = searchParams.get("data");

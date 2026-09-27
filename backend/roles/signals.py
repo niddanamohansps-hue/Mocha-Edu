@@ -52,6 +52,11 @@ def seed_roles(sender, **kwargs):
                 "description": "Teaching faculty and instructors",
             },
             {"slug": "student", "name": "Student", "description": "Enrolled students"},
+            {
+                "slug": "parent",
+                "name": "Parent",
+                "description": "Parents/guardians of enrolled students",
+            },
         ]
 
         for role_data in roles:

@@ -132,5 +132,99 @@ class EduSekaiIdentityJanitorTest(TransactionTestCase):
 
     def tearDown(self):
         connection.set_schema_to_public()
-        self.school_a.delete()
-        self.school_b.delete()
+        self.school_a.delete(force_drop=True)
+        self.school_b.delete(force_drop=True)
+
+
+class SecurityFixesTest(TransactionTestCase):
+    """
+    Phase 0 security-fix verification: JWT blacklist on logout, and real
+    password-strength validation on change-password.
+    """
+
+    def setUp(self):
+        connection.set_schema_to_public()
+        self.school = Organization.objects.create(
+            schema_name="sec_test_school", name="Security Test School"
+        )
+        Domain.objects.create(
+            domain="sectest.localhost", tenant=self.school, is_primary=True
+        )
+        self.password = "S3curePass!2024"
+        self.user = User.objects.create_user(
+            username="sectestuser", email="sec@sectest.com", password=self.password
+        )
+
+    def tearDown(self):
+        connection.set_schema_to_public()
+        self.school.delete(force_drop=True)
+
+    def test_logout_blacklists_refresh_token(self):
+        from rest_framework.test import APIClient
+
+        client = APIClient()
+        login_resp = client.post(
+            "/api/auth/login/",
+            {"username": "sectestuser", "password": self.password},
+            HTTP_HOST="sectest.localhost",
+        )
+        self.assertEqual(login_resp.status_code, 200)
+        refresh_cookie_value = client.cookies["refresh_token"].value
+
+        # Refresh works fine before logout.
+        refresh_resp = client.post("/api/auth/refresh/", HTTP_HOST="sectest.localhost")
+        self.assertEqual(refresh_resp.status_code, 200)
+
+        logout_resp = client.post("/api/auth/logout/", HTTP_HOST="sectest.localhost")
+        self.assertEqual(logout_resp.status_code, 200)
+
+        # Re-attach the (now blacklisted) refresh token and confirm it no longer works.
+        stale_client = APIClient()
+        stale_client.cookies["refresh_token"] = refresh_cookie_value
+        stale_refresh_resp = stale_client.post(
+            "/api/auth/refresh/", HTTP_HOST="sectest.localhost"
+        )
+        self.assertEqual(
+            stale_refresh_resp.status_code,
+            401,
+            "SECURITY REGRESSION: refresh token remained valid after logout",
+        )
+
+    def test_change_password_rejects_common_password(self):
+        from rest_framework.test import APIClient
+
+        client = APIClient()
+        client.post(
+            "/api/auth/login/",
+            {"username": "sectestuser", "password": self.password},
+            HTTP_HOST="sectest.localhost",
+        )
+
+        weak_resp = client.post(
+            "/api/auth/change-password/",
+            {"new_password": "password"},
+            HTTP_HOST="sectest.localhost",
+        )
+        self.assertEqual(weak_resp.status_code, 400)
+        self.assertIn("error", weak_resp.data)
+
+    def test_change_password_accepts_strong_password(self):
+        from rest_framework.test import APIClient
+
+        client = APIClient()
+        client.post(
+            "/api/auth/login/",
+            {"username": "sectestuser", "password": self.password},
+            HTTP_HOST="sectest.localhost",
+        )
+
+        strong_resp = client.post(
+            "/api/auth/change-password/",
+            {"new_password": "Tr0ub4dor&3xtra"},
+            HTTP_HOST="sectest.localhost",
+        )
+        self.assertEqual(strong_resp.status_code, 200)
+
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.needs_password_change)
+        self.assertIsNone(self.user.initial_password_display)

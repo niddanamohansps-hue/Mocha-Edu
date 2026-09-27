@@ -20,11 +20,6 @@ db.sqlite3-journal
 media/
 staticfiles/
 
-# Migrations
-*/migrations/*.py
-*/migrations/*.pyc
-!*/migrations/__init__.py
-
 # IDEs
 .vscode/
 .idea/

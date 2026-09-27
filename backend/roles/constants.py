@@ -68,6 +68,12 @@ SYSTEM_PERMISSIONS = [
         "module": "Students",
         "description": "Generate and manage student portal credentials",
     },
+    {
+        "codename": "manage_student_promotion",
+        "name": "Manage Student Promotion",
+        "module": "Students",
+        "description": "View promotion candidates, preview, execute, reverse, and view history of student promotion/retention/transfer/withdrawal/graduation",
+    },
     # Staff Management
     {
         "codename": "view_staff",
@@ -285,5 +291,215 @@ SYSTEM_PERMISSIONS = [
         "name": "Manage Subject Enrollment",
         "module": "Course Content",
         "description": "Enroll students in subjects",
+    },
+    # Attendance
+    {
+        "codename": "view_attendance",
+        "name": "View Attendance",
+        "module": "Attendance",
+        "description": "View student and section attendance records",
+    },
+    {
+        "codename": "mark_attendance",
+        "name": "Mark Attendance",
+        "module": "Attendance",
+        "description": "Record daily attendance for an assigned section",
+    },
+    {
+        "codename": "change_attendance",
+        "name": "Change Attendance",
+        "module": "Attendance",
+        "description": "Edit previously submitted attendance records",
+    },
+    {
+        "codename": "delete_attendance_session",
+        "name": "Delete Attendance Session",
+        "module": "Attendance",
+        "description": "Delete an attendance session and its records",
+    },
+    {
+        "codename": "lock_attendance",
+        "name": "Lock Attendance",
+        "module": "Attendance",
+        "description": "Lock or unlock an attendance session",
+    },
+    {
+        "codename": "edit_locked_attendance",
+        "name": "Edit Locked Attendance",
+        "module": "Attendance",
+        "description": "Override the lock to edit an already-locked session",
+    },
+    {
+        "codename": "view_attendance_reports",
+        "name": "View Attendance Reports",
+        "module": "Attendance",
+        "description": "View attendance summaries and below-threshold reports",
+    },
+    {
+        "codename": "mark_staff_attendance",
+        "name": "Mark Staff Attendance",
+        "module": "Attendance",
+        "description": "Record daily attendance for staff members",
+    },
+    {
+        "codename": "view_staff_attendance",
+        "name": "View Staff Attendance",
+        "module": "Attendance",
+        "description": "View staff attendance records",
+    },
+    # Timetable
+    {
+        "codename": "view_timetable",
+        "name": "View Timetable",
+        "module": "Timetable",
+        "description": "View weekly timetable entries",
+    },
+    {
+        "codename": "manage_timetable",
+        "name": "Manage Timetable",
+        "module": "Timetable",
+        "description": "Create, edit, and delete timetable entries",
+    },
+    {
+        "codename": "manage_periods",
+        "name": "Manage Periods",
+        "module": "Timetable",
+        "description": "Define the daily period/break sequence",
+    },
+    {
+        "codename": "manage_rooms",
+        "name": "Manage Rooms",
+        "module": "Timetable",
+        "description": "Create and edit rooms",
+    },
+    {
+        "codename": "manage_substitutions",
+        "name": "Manage Substitutions",
+        "module": "Timetable",
+        "description": "Assign substitute instructors for a specific date",
+    },
+    {
+        "codename": "view_timetable_reports",
+        "name": "View Timetable Reports",
+        "module": "Timetable",
+        "description": "View timetable summaries and reports",
+    },
+    # Examinations
+    {
+        "codename": "view_examinations",
+        "name": "View Examinations",
+        "module": "Examinations",
+        "description": "View examination and schedule definitions",
+    },
+    {
+        "codename": "manage_examinations",
+        "name": "Manage Examinations",
+        "module": "Examinations",
+        "description": "Create, edit, and delete examinations and their schedules",
+    },
+    {
+        "codename": "enter_marks",
+        "name": "Enter Marks",
+        "module": "Examinations",
+        "description": "Submit marks for an assigned exam schedule",
+    },
+    {
+        "codename": "manage_marks",
+        "name": "Manage Marks",
+        "module": "Examinations",
+        "description": "Correct or unlock marks beyond one's own assigned schedules",
+    },
+    {
+        "codename": "publish_results",
+        "name": "Publish Results",
+        "module": "Examinations",
+        "description": "Publish an examination's results",
+    },
+    {
+        "codename": "view_results",
+        "name": "View Results",
+        "module": "Examinations",
+        "description": "View published examination results tenant-wide",
+    },
+    {
+        "codename": "manage_grading",
+        "name": "Manage Grading",
+        "module": "Examinations",
+        "description": "Configure grade boundaries",
+    },
+    {
+        "codename": "view_exam_reports",
+        "name": "View Exam Reports",
+        "module": "Examinations",
+        "description": "View examination summaries and below-passing reports",
+    },
+    # Parent Portal
+    {
+        "codename": "view_own_children",
+        "name": "View Own Children",
+        "module": "Parent Portal",
+        "description": "Allows a parent to view the list of their own linked children",
+    },
+    {
+        "codename": "view_child_attendance",
+        "name": "View Child Attendance",
+        "module": "Parent Portal",
+        "description": "Allows a parent to view a linked child's attendance records",
+    },
+    {
+        "codename": "view_child_timetable",
+        "name": "View Child Timetable",
+        "module": "Parent Portal",
+        "description": "Allows a parent to view a linked child's weekly timetable",
+    },
+    {
+        "codename": "view_child_results",
+        "name": "View Child Results",
+        "module": "Parent Portal",
+        "description": "Allows a parent to view a linked child's published examination results and report card",
+    },
+    {
+        "codename": "view_child_fees",
+        "name": "View Child Fees",
+        "module": "Parent Portal",
+        "description": "Allows a parent to view a linked child's fees, payments, and outstanding balance",
+    },
+    # Fees
+    {
+        "codename": "view_fees",
+        "name": "View Fees",
+        "module": "Fees",
+        "description": "View fee structures, student fees, and payment history tenant-wide",
+    },
+    {
+        "codename": "manage_fee_structures",
+        "name": "Manage Fee Structures",
+        "module": "Fees",
+        "description": "Create/edit fee heads, fee structures, assign and cancel student fees",
+    },
+    {
+        "codename": "collect_payments",
+        "name": "Collect Payments",
+        "module": "Fees",
+        "description": "Record and reverse student fee payments",
+    },
+    {
+        "codename": "view_financial_reports",
+        "name": "View Financial Reports",
+        "module": "Fees",
+        "description": "View outstanding-balance and collection reports",
+    },
+    {
+        "codename": "view_own_fees",
+        "name": "View Own Fees",
+        "module": "Fees",
+        "description": "Allows a student to view their own fees and payment history",
+    },
+    # Dashboard
+    {
+        "codename": "view_dashboard",
+        "name": "View Dashboard",
+        "module": "Dashboard",
+        "description": "View the cross-module admin/staff dashboard summary (student/staff/academic counts, attendance, fees, promotion activity)",
     },
 ]

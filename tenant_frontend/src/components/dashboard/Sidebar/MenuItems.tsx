@@ -14,7 +14,9 @@ import {
     Bus,
     Baby,
     Receipt,
-    CalendarCheck
+    CalendarCheck,
+    CalendarRange,
+    Award
 } from "lucide-react";
 import { SidebarItemType } from "@/components/dashboard/Sidebar/SidebarItem";
 
@@ -35,6 +37,9 @@ export const getMenuItems = (user: any, can: (permission: string) => boolean): S
     }
     if (can("add_student")) {
         studentChildren.push({ label: "Admissions", href: "/dashboard/students/admissions" });
+    }
+    if (can("manage_student_promotion")) {
+        studentChildren.push({ label: "Promotion & Transfer", href: "/dashboard/students/promotion" });
     }
 
     if (studentChildren.length > 0) {
@@ -115,6 +120,73 @@ export const getMenuItems = (user: any, can: (permission: string) => boolean): S
         });
     }
 
+    // 6.5 Attendance
+    const attendanceChildren: SidebarItemType[] = [];
+    if (can("mark_attendance")) {
+        attendanceChildren.push({ label: "Mark Attendance", href: "/dashboard/attendance/mark" });
+    }
+    if (can("view_attendance") || user?.active_role === "student") {
+        attendanceChildren.push({ label: "History", href: "/dashboard/attendance/history" });
+    }
+    if (can("view_attendance_reports")) {
+        attendanceChildren.push({ label: "Reports", href: "/dashboard/attendance/reports" });
+    }
+    if (can("mark_staff_attendance")) {
+        attendanceChildren.push({ label: "Staff Attendance", href: "/dashboard/attendance/staff" });
+    }
+    if (user?.active_role === "owner") {
+        attendanceChildren.push({ label: "Attendance Settings", href: "/dashboard/attendance/settings" });
+    }
+
+    if (attendanceChildren.length > 0) {
+        menuItems.push({
+            label: "Attendance",
+            icon: CalendarCheck,
+            children: attendanceChildren
+        });
+    }
+
+    // 6.6 Timetable
+    const timetableChildren: SidebarItemType[] = [];
+    if (can("view_timetable")) {
+        timetableChildren.push({ label: "Timetable", href: "/dashboard/timetable" });
+        timetableChildren.push({ label: "My Schedule", href: "/dashboard/timetable/my-schedule" });
+    }
+    if (can("manage_substitutions")) {
+        timetableChildren.push({ label: "Substitutions", href: "/dashboard/timetable/substitutions" });
+    }
+
+    if (timetableChildren.length > 0) {
+        menuItems.push({
+            label: "Timetable",
+            icon: CalendarRange,
+            children: timetableChildren
+        });
+    }
+
+    // 6.7 Examinations
+    const examinationChildren: SidebarItemType[] = [];
+    if (can("view_examinations") || can("manage_examinations")) {
+        examinationChildren.push({ label: "Examinations", href: "/dashboard/examinations" });
+    }
+    if (can("enter_marks")) {
+        examinationChildren.push({ label: "Marks Entry", href: "/dashboard/examinations/marks" });
+    }
+    if (can("view_results") || user?.active_role === "student") {
+        examinationChildren.push({ label: "Results", href: "/dashboard/examinations/results" });
+    }
+    if (can("manage_grading")) {
+        examinationChildren.push({ label: "Grading", href: "/dashboard/examinations/grading" });
+    }
+
+    if (examinationChildren.length > 0) {
+        menuItems.push({
+            label: "Examinations",
+            icon: Award,
+            children: examinationChildren
+        });
+    }
+
     // 7. Portal Access
     const accessChildren: SidebarItemType[] = [];
     if (can("activate_student_portal")) {
@@ -129,6 +201,57 @@ export const getMenuItems = (user: any, can: (permission: string) => boolean): S
             label: "Portal Access",
             icon: Lock,
             children: accessChildren
+        });
+    }
+
+    // 7.5 Parent Portal - gated on view_own_children per spec; sub-items are
+    // further narrowed by their own permission in case a role somehow has
+    // view_own_children without one of the child-scoped permissions.
+    if (can("view_own_children")) {
+        const parentPortalChildren: SidebarItemType[] = [
+            { label: "Dashboard", href: "/dashboard/parent-portal" },
+            { label: "My Children", href: "/dashboard/parent-portal/children" },
+        ];
+        if (can("view_child_attendance")) {
+            parentPortalChildren.push({ label: "Attendance", href: "/dashboard/parent-portal/attendance" });
+        }
+        if (can("view_child_timetable")) {
+            parentPortalChildren.push({ label: "Timetable", href: "/dashboard/parent-portal/timetable" });
+        }
+        if (can("view_child_results")) {
+            parentPortalChildren.push({ label: "Results", href: "/dashboard/parent-portal/results" });
+        }
+        if (can("view_child_fees")) {
+            parentPortalChildren.push({ label: "Fees", href: "/dashboard/parent-portal/fees" });
+        }
+
+        menuItems.push({
+            label: "Parent Portal",
+            icon: Baby,
+            children: parentPortalChildren
+        });
+    }
+
+    // 7.6 Fees
+    const feesChildren: SidebarItemType[] = [];
+    if (can("view_fees")) {
+        feesChildren.push({ label: "Student Fees / Collect Payment", href: "/dashboard/fees/collect" });
+    }
+    if (can("manage_fee_structures") || can("view_fees")) {
+        feesChildren.push({ label: "Fee Structures", href: "/dashboard/fees/structures" });
+    }
+    if (can("view_financial_reports")) {
+        feesChildren.push({ label: "Outstanding Report", href: "/dashboard/fees/reports" });
+    }
+    if (can("view_own_fees")) {
+        feesChildren.push({ label: "My Fees", href: "/dashboard/fees/my-fees" });
+    }
+
+    if (feesChildren.length > 0) {
+        menuItems.push({
+            label: "Fees",
+            icon: Receipt,
+            children: feesChildren
         });
     }
 

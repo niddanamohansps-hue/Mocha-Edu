@@ -3,6 +3,8 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework import status
 from django.conf import settings
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 
 from .serializers import LoginSerializer, OrganizationRegisterSerializer, UserSerializer
 from .utils.jwt_cookies import set_jwt_cookies, clear_jwt_cookies, set_access_cookie
@@ -45,6 +47,14 @@ class LogoutView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        refresh_token = request.COOKIES.get("refresh_token")
+        if refresh_token:
+            try:
+                RefreshToken(refresh_token).blacklist()
+            except (TokenError, InvalidToken):
+                # Already invalid/expired - nothing to blacklist, logout still proceeds.
+                pass
+
         response = Response({"message": "Logout successful"}, status=status.HTTP_200_OK)
         clear_jwt_cookies(response)
         return response
@@ -195,16 +205,29 @@ class ChangePasswordView(APIView):
 
     def post(self, request):
         new_password = request.data.get("new_password")
-        if not new_password or len(new_password) < 8:
+        if not new_password:
             return Response(
-                {"error": "A valid password of at least 8 characters is required."},
+                {"error": "A new password is required."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         user = request.user
+
+        try:
+            validate_password(new_password, user=user)
+        except DjangoValidationError as e:
+            return Response(
+                {"error": " ".join(e.messages)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         user.set_password(new_password)
         user.needs_password_change = False
         user.initial_password_display = None
         user.save()
+
+        from core.audit import log_action
+
+        log_action(request, action="password_changed", model_name="User", object_id=user.id)
 
         return Response({"message": "Password updated successfully."})

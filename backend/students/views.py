@@ -1,11 +1,30 @@
+from academics.models import AcademicLevel
+from django.db.models import Q
+from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from django.db import transaction
 from roles.permissions import HasPermission
-from .serializers import StudentEnrollmentSerializer
-from .models import Student
+from .serializers import (
+    PromotionBatchInputSerializer,
+    PromotionRecordSerializer,
+    StudentEnrollmentSerializer,
+)
+from .models import PromotionRecord, Student
+from .services import (
+    execute_lifecycle_actions,
+    get_exam_warning,
+    get_fee_warning,
+    get_next_level,
+    get_promotion_candidates,
+    get_staff_member_for_user,
+    preview_lifecycle_actions,
+    reverse_promotion,
+)
+from accounts.utils.crypto import decrypt_secret
+from core.audit import log_action
 
 
 class StudentEnrollmentView(APIView):
@@ -162,9 +181,17 @@ class CredentialDistributionView(APIView):
                         "full_name": f"{s.profile.first_name} {s.profile.last_name}",
                         "enrollment_id": s.enrollment_id,
                         "username": s.profile.local_username or user.username,
-                        "initial_password": user.initial_password_display,
+                        "initial_password": decrypt_secret(user.initial_password_display),
                     }
                 )
+
+        if data:
+            log_action(
+                request,
+                action="credentials_viewed",
+                model_name="Student",
+                object_id=",".join(str(d["id"]) for d in data),
+            )
 
         return Response(data)
 
@@ -298,3 +325,227 @@ class StudentDetailView(APIView):
                     pass
 
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+# === PROMOTION & TRANSFER ===
+
+def _resolve_promotion_entries(entries_data):
+    """
+    Resolves student/target_level/target_section UUIDs (from the request
+    body) to model instances. Any entry whose student_id doesn't resolve
+    to a real Student is reported immediately as a clean per-student skip
+    - never passed into the service layer, and never surfaced as a 500.
+    """
+    from academics.models import Section
+
+    student_ids = {e["student"] for e in entries_data}
+    students = {s.id: s for s in Student.objects.filter(id__in=student_ids)}
+
+    level_ids = {e["target_level"] for e in entries_data if e.get("target_level")}
+    levels = {lvl.id: lvl for lvl in AcademicLevel.objects.filter(id__in=level_ids)}
+
+    section_ids = {e["target_section"] for e in entries_data if e.get("target_section")}
+    sections = {s.id: s for s in Section.objects.filter(id__in=section_ids)}
+
+    resolved = []
+    immediate_errors = []
+
+    for e in entries_data:
+        student = students.get(e["student"])
+        if student is None:
+            immediate_errors.append(
+                {"student": str(e["student"]), "action": e["action"], "error": "Student not found."}
+            )
+            continue
+
+        target_level_obj = None
+        if e.get("target_level"):
+            target_level_obj = levels.get(e["target_level"])
+            if target_level_obj is None:
+                immediate_errors.append(
+                    {"student": str(e["student"]), "action": e["action"], "error": "Target level not found."}
+                )
+                continue
+
+        target_section_obj = None
+        if e.get("target_section"):
+            target_section_obj = sections.get(e["target_section"])
+            if target_section_obj is None:
+                immediate_errors.append(
+                    {"student": str(e["student"]), "action": e["action"], "error": "Target section not found."}
+                )
+                continue
+
+        resolved.append(
+            {
+                "student": student,
+                "action": e["action"],
+                "target_academic_year": e.get("target_academic_year", ""),
+                "target_level_obj": target_level_obj,
+                "target_section_obj": target_section_obj,
+                "reason": e.get("reason", ""),
+            }
+        )
+
+    return resolved, immediate_errors
+
+
+class PromotionCandidatesView(APIView):
+    """GET only - no writes. Only active students appear (get_promotion_candidates
+    filters student__status="active")."""
+
+    permission_classes = [IsAuthenticated, HasPermission("manage_student_promotion")]
+
+    def get(self, request):
+        academic_year = request.query_params.get("academic_year")
+        level_id = request.query_params.get("level")
+        section_id = request.query_params.get("section")
+
+        if not academic_year or not level_id:
+            return Response(
+                {"error": "'academic_year' and 'level' query parameters are required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        candidates = get_promotion_candidates(academic_year, level_id, section_id)
+
+        data = []
+        for sl in candidates:
+            student = sl.student
+            next_level = get_next_level(sl.level) if sl.level_id else None
+            data.append(
+                {
+                    "student_id": str(student.id),
+                    "full_name": f"{student.profile.first_name} {student.profile.last_name}",
+                    "enrollment_id": student.enrollment_id,
+                    "current_level": str(sl.level_id) if sl.level_id else None,
+                    "current_level_name": sl.level.name if sl.level_id else None,
+                    "current_section": str(sl.section_id) if sl.section_id else None,
+                    "current_section_name": sl.section.name if sl.section_id else None,
+                    "default_target_level": str(next_level.id) if next_level else None,
+                    "default_target_level_name": next_level.name if next_level else None,
+                    "fee_warning": get_fee_warning(student),
+                    "exam_warning": get_exam_warning(student, academic_year),
+                }
+            )
+
+        return Response(data)
+
+
+class PromotionPreviewView(APIView):
+    """POST - pure computation, no writes."""
+
+    permission_classes = [IsAuthenticated, HasPermission("manage_student_promotion")]
+
+    def post(self, request):
+        serializer = PromotionBatchInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        resolved, immediate_errors = _resolve_promotion_entries(serializer.validated_data["entries"])
+        results = preview_lifecycle_actions(entries=resolved) if resolved else []
+
+        results += [
+            {
+                "student": e["student"],
+                "action": e["action"],
+                "eligible": False,
+                "conflicts": [e["error"]],
+                "warnings": [],
+                "source_academic_year": None,
+                "target_academic_year": None,
+                "target_level": None,
+                "target_section": None,
+            }
+            for e in immediate_errors
+        ]
+
+        return Response(results)
+
+
+class PromotionExecuteView(APIView):
+    """POST - the atomic bulk operation. One invalid student is skipped
+    and reported, never aborting the whole batch."""
+
+    permission_classes = [IsAuthenticated, HasPermission("manage_student_promotion")]
+
+    ACTION_EVENT_MAP = {
+        "promoted": "student_promoted",
+        "retained": "student_retained",
+        "transferred": "student_transferred",
+        "withdrawn": "student_withdrawn",
+        "graduated": "student_graduated",
+    }
+
+    def post(self, request):
+        serializer = PromotionBatchInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        resolved, immediate_errors = _resolve_promotion_entries(serializer.validated_data["entries"])
+        staff_member = get_staff_member_for_user(request.user)
+
+        results = execute_lifecycle_actions(entries=resolved, created_by=staff_member) if resolved else []
+        results += [
+            {"student": e["student"], "action": e["action"], "status": "skipped", "error": e["error"]}
+            for e in immediate_errors
+        ]
+
+        successes = [r for r in results if r["status"] == "success"]
+        if successes:
+            by_action = {}
+            for r in successes:
+                by_action.setdefault(r["action"], []).append(r["student"])
+
+            for action, student_ids in by_action.items():
+                log_action(
+                    request,
+                    action=self.ACTION_EVENT_MAP.get(action, action),
+                    model_name="PromotionRecord",
+                    object_id=None,
+                    changes={
+                        "source_academic_year": serializer.validated_data["source_academic_year"],
+                        "student_count": len(student_ids),
+                        "student_ids": student_ids,
+                    },
+                )
+
+        return Response({"results": results})
+
+
+class PromotionHistoryView(APIView):
+    permission_classes = [IsAuthenticated, HasPermission("manage_student_promotion")]
+
+    def get(self, request):
+        qs = PromotionRecord.objects.select_related(
+            "student__profile", "source_level", "target_level", "source_section", "target_section"
+        )
+        student_id = request.query_params.get("student")
+        academic_year = request.query_params.get("academic_year")
+        action = request.query_params.get("action")
+        if student_id:
+            qs = qs.filter(student_id=student_id)
+        if academic_year:
+            qs = qs.filter(
+                Q(source_academic_year=academic_year) | Q(target_academic_year=academic_year)
+            )
+        if action:
+            qs = qs.filter(action=action)
+        return Response(PromotionRecordSerializer(qs, many=True).data)
+
+
+class PromotionReverseView(APIView):
+    permission_classes = [IsAuthenticated, HasPermission("manage_student_promotion")]
+
+    def post(self, request, record_id):
+        record = get_object_or_404(PromotionRecord, id=record_id)
+        staff_member = get_staff_member_for_user(request.user)
+
+        reversal = reverse_promotion(record=record, created_by=staff_member)
+
+        log_action(
+            request,
+            action="promotion_reversed",
+            model_name="PromotionRecord",
+            object_id=reversal.id,
+            changes={"original_promotion_record_id": str(record.id), "student": str(record.student_id)},
+        )
+        return Response(PromotionRecordSerializer(reversal).data, status=status.HTTP_201_CREATED)

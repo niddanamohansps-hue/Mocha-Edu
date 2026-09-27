@@ -6,6 +6,7 @@ from django.utils.text import slugify
 from .models import Role, Permission
 from .serializers import RoleSerializer, PermissionSerializer
 from .permissions import HasPermission
+from core.audit import log_action
 
 
 class RoleViewSet(viewsets.ModelViewSet):
@@ -50,13 +51,32 @@ class RoleViewSet(viewsets.ModelViewSet):
             slug = f"{original_slug}-{counter}"
             counter += 1
 
-        serializer.save(slug=slug, is_system_role=False)
+        role = serializer.save(slug=slug, is_system_role=False)
+        log_action(
+            self.request,
+            action="role_created",
+            model_name="Role",
+            object_id=role.id,
+            changes={"name": role.name, "slug": role.slug},
+        )
 
     def perform_update(self, serializer):
         role = self.get_object()
         # Prevent renaming system roles (slug is read-only anyway)
         # But we allow changing permissions for system roles!
-        serializer.save()
+        updated_role = serializer.save()
+        log_action(
+            self.request,
+            action="role_updated",
+            model_name="Role",
+            object_id=updated_role.id,
+            changes={
+                "name": updated_role.name,
+                "permissions": list(
+                    updated_role.permissions.values_list("codename", flat=True)
+                ),
+            },
+        )
 
     def perform_destroy(self, serializer):
         role = self.get_object()
@@ -64,7 +84,15 @@ class RoleViewSet(viewsets.ModelViewSet):
             from rest_framework.exceptions import ValidationError
 
             raise ValidationError("System roles cannot be deleted.")
+        role_id, role_name = role.id, role.name
         role.delete()
+        log_action(
+            self.request,
+            action="role_deleted",
+            model_name="Role",
+            object_id=role_id,
+            changes={"name": role_name},
+        )
 
 
 class PermissionListView(generics.ListAPIView):

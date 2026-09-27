@@ -5,7 +5,7 @@ import SubdomainGuard from "@/components/SubdomainGuard";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body>
         <QueryProvider>
           <SubdomainGuard>

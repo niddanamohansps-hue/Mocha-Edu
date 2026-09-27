@@ -20,8 +20,8 @@ class Payment(models.Model):
     email = models.EmailField()
     phone = models.CharField(max_length=20)
     password = models.CharField(
-        max_length=255
-    )  # Hash this if storing long term, but this is transient
+        max_length=512
+    )  # Encrypted at rest via accounts.utils.crypto (see payments/views.py)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

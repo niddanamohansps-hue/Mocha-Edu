@@ -6,6 +6,7 @@ from django.db import transaction
 import uuid
 from django.apps import apps
 from django_tenants.utils import tenant_context, get_public_schema_name
+from accounts.utils.crypto import encrypt_secret
 
 User = apps.get_model("accounts", "User")
 
@@ -269,7 +270,7 @@ class BulkAccountCreationSerializer(serializers.Serializer):
             email=email or None,
             password=password,
             needs_password_change=True,
-            initial_password_display=password,
+            initial_password_display=encrypt_secret(password),
         )
 
         # Step 4: Assign Student Role
@@ -292,3 +293,65 @@ class BulkAccountCreationSerializer(serializers.Serializer):
         profile.save()
 
         return user
+
+
+# === PROMOTION & TRANSFER ===
+
+from .models import PromotionRecord  # noqa: E402
+
+
+class PromotionEntryInputSerializer(serializers.Serializer):
+    """One student's requested lifecycle action within a batch. UUID
+    fields resolved to model instances happen in the view, not here - this
+    serializer only validates shape/choices; academics.services owns the
+    cross-field business validation (target belongs to level, duplicate
+    target year, etc.)."""
+
+    student = serializers.UUIDField()
+    action = serializers.ChoiceField(
+        choices=["promoted", "retained", "transferred", "withdrawn", "graduated"]
+    )
+    target_academic_year = serializers.CharField(
+        max_length=20, required=False, allow_blank=True, default=""
+    )
+    target_level = serializers.UUIDField(required=False, allow_null=True)
+    target_section = serializers.UUIDField(required=False, allow_null=True)
+    reason = serializers.CharField(required=False, allow_blank=True, default="")
+
+
+class PromotionBatchInputSerializer(serializers.Serializer):
+    source_academic_year = serializers.CharField(max_length=20)
+    entries = PromotionEntryInputSerializer(many=True)
+
+    def validate_entries(self, value):
+        if not value:
+            raise serializers.ValidationError("At least one entry is required.")
+        return value
+
+
+class PromotionRecordSerializer(serializers.ModelSerializer):
+    student_name = serializers.SerializerMethodField()
+    enrollment_id = serializers.CharField(source="student.enrollment_id", read_only=True)
+    source_level_name = serializers.CharField(source="source_level.name", read_only=True, default=None)
+    target_level_name = serializers.CharField(source="target_level.name", read_only=True, default=None)
+    source_section_name = serializers.CharField(source="source_section.name", read_only=True, default=None)
+    target_section_name = serializers.CharField(source="target_section.name", read_only=True, default=None)
+    is_reversed = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PromotionRecord
+        fields = [
+            "id", "student", "student_name", "enrollment_id", "action",
+            "source_academic_year", "target_academic_year",
+            "source_level", "source_level_name", "target_level", "target_level_name",
+            "source_section", "source_section_name", "target_section", "target_section_name",
+            "reason", "reverses", "is_reversed", "created_by", "created_at",
+        ]
+        read_only_fields = fields
+
+    def get_student_name(self, obj):
+        profile = obj.student.profile
+        return f"{profile.first_name} {profile.last_name}"
+
+    def get_is_reversed(self, obj):
+        return hasattr(obj, "reversal")

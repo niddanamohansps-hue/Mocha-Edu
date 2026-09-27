@@ -10,7 +10,9 @@ SECRET_KEY = config("SECRET_KEY")
 DEBUG = config("DEBUG", default=False, cast=bool)
 
 # Allowed hosts
-ALLOWED_HOSTS = ["*"]
+ALLOWED_HOSTS = config(
+    "ALLOWED_HOSTS", default="localhost,127.0.0.1,.localhost", cast=Csv()
+)
 
 # Application definition
 
@@ -24,6 +26,7 @@ SHARED_APPS = (
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
+    "rest_framework_simplejwt.token_blacklist",
     "corsheaders",
     "drf_spectacular",
     "accounts",
@@ -40,6 +43,13 @@ TENANT_APPS = (
     "families",
     "academics",
     "course_content",
+    "attendance",
+    "timetable",
+    "examinations",
+    "parent_portal",
+    "fees",
+    "notifications",
+    "dashboard",
 )
 
 INSTALLED_APPS = list(SHARED_APPS) + [

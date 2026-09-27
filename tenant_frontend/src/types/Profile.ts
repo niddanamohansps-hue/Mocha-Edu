@@ -1,6 +1,8 @@
 export interface BaseProfile {
     id: string;
     email: string; // From User model
+    student_id?: string | null;
+    staff_id?: string | null;
     first_name: string;
     middle_name?: string;
     last_name: string;

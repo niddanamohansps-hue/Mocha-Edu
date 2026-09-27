@@ -19,7 +19,7 @@ interface Assignment {
     submission?: {
         id: string;
         status: "pending" | "submitted" | "graded";
-        score?: number;
+        score?: number | null;
         feedback?: string;
     };
 }

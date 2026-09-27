@@ -6,6 +6,8 @@ from django.db import connection
 class ProfileSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(source="user.email", read_only=True)
     username = serializers.CharField(source="user.username", read_only=True)
+    student_id = serializers.SerializerMethodField()
+    staff_id = serializers.SerializerMethodField()
 
     class Meta:
         model = Profile
@@ -25,10 +27,20 @@ class ProfileSerializer(serializers.ModelSerializer):
             "alt_phone",
             "address",
             "profile_image",
+            "student_id",
+            "staff_id",
             "created_at",
             "updated_at",
         )
-        read_only_fields = ("id", "user_id", "email", "username")
+        read_only_fields = ("id", "user_id", "email", "username", "student_id", "staff_id")
+
+    def get_student_id(self, obj):
+        student = getattr(obj, "student_record", None)
+        return str(student.id) if student else None
+
+    def get_staff_id(self, obj):
+        staff = getattr(obj, "staff_record", None)
+        return str(staff.id) if staff else None
 
 
 class InstitutionProfileSerializer(serializers.ModelSerializer):

@@ -9,6 +9,8 @@ from .serializers import (
     InstructorDetailSerializer,
 )
 from roles.permissions import HasPermission
+from accounts.utils.crypto import decrypt_secret
+from core.audit import log_action
 
 
 class StaffMemberViewSet(viewsets.ModelViewSet):
@@ -218,10 +220,18 @@ class CredentialDistributionView(APIView):
                         "full_name": f"{s.profile.first_name} {s.profile.last_name}",
                         "employee_id": s.employee_id,
                         "username": s.profile.local_username or user.username,
-                        "initial_password": user.initial_password_display,
+                        "initial_password": decrypt_secret(user.initial_password_display),
                         "designation": s.designation,
                     }
                 )
+
+        if data:
+            log_action(
+                request,
+                action="credentials_viewed",
+                model_name="StaffMember",
+                object_id=",".join(str(d["id"]) for d in data),
+            )
 
         return Response(data)
 

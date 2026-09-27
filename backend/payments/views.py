@@ -1,6 +1,8 @@
 import base64
+import hmac
 import json
 import uuid
+from django.conf import settings
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -9,6 +11,7 @@ from rest_framework import status
 from .models import Payment
 from .utils import generate_esewa_signature
 from accounts.serializers import OrganizationRegisterSerializer
+from accounts.utils.crypto import encrypt_secret, decrypt_secret
 
 
 class InitPaymentView(APIView):
@@ -27,7 +30,7 @@ class InitPaymentView(APIView):
             username=data.get("username"),
             email=data.get("email"),
             phone=data.get("phone"),
-            password=data.get("password"),
+            password=encrypt_secret(data.get("password")),
         )
 
         # Use product code from settings or default to EPAYTEST
@@ -38,13 +41,6 @@ class InitPaymentView(APIView):
         # Message format strictly: total_amount,transaction_uuid,product_code
         message = f"total_amount={amount},transaction_uuid={transaction_uuid},product_code={product_code}"
         signature = generate_esewa_signature(settings.ESEWA_CLIENT_SECRET, message)
-
-        # Print for debugging (will show in docker logs)
-        print(f"Signing Message: {message}")
-        print(f"Product Code (repr): {repr(product_code)}")
-        print(f"Secret Key (repr): {repr(settings.ESEWA_CLIENT_SECRET)}")
-        print(f"Secret Key Length: {len(settings.ESEWA_CLIENT_SECRET)}")
-        print(f"Transaction UUID: {transaction_uuid}")
 
         return Response(
             {
@@ -99,10 +95,30 @@ class VerifyPaymentView(APIView):
                 {"error": "Amount mismatch"}, status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Here we should technically verify the signature of the response as well using signed_field_names
-        # But verifying transaction_uuid and amount + status from the decoded payload (which came from eSewa)
-        # is often considered sufficient if the endpoint is secure, though verifying signature is best practice.
-        # Given "remove sdk" and "include only esewa V2 codes", I will assume standard verification.
+        # Verify eSewa's signature over the fields it says it signed, using the
+        # same shared secret/HMAC scheme used to sign the initial payment request.
+        # Without this, the payload above is entirely client-suppliable and anyone
+        # could forge a "COMPLETE" response for an existing transaction_uuid.
+        signed_field_names = decoded_json.get("signed_field_names")
+        provided_signature = decoded_json.get("signature")
+        if not signed_field_names or not provided_signature:
+            return Response(
+                {"error": "Missing signature"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        fields = [f.strip() for f in signed_field_names.split(",") if f.strip()]
+        try:
+            message = ",".join(f"{field}={decoded_json.get(field, '')}" for field in fields)
+        except Exception:
+            return Response(
+                {"error": "Invalid signed_field_names"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        expected_signature = generate_esewa_signature(settings.ESEWA_CLIENT_SECRET, message)
+        if not hmac.compare_digest(expected_signature, provided_signature):
+            return Response(
+                {"error": "Signature verification failed"}, status=status.HTTP_400_BAD_REQUEST
+            )
 
         # Proceed to register organization
         # We need to use the data stored in Payment
@@ -114,7 +130,7 @@ class VerifyPaymentView(APIView):
             "subdomain": payment.subdomain,
             "username": payment.username,
             "email": payment.email,
-            "password": payment.password,
+            "password": decrypt_secret(payment.password),
             "phone": payment.phone,
         }
 
