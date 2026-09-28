@@ -39,3 +39,20 @@ def cleanup_user_tenant_data(sender, instance, **kwargs):
                     f"Could not purge data for user {user_id} in schema {tenant.schema_name}: {str(e)}"
                 )
                 continue
+
+            try:
+                # UserRole.user is now on_delete=DO_NOTHING / db_constraint=False
+                # (the cross-schema FK to accounts.User was removed - see
+                # roles/models.py and roles/migrations/0002_alter_userrole_user.py)
+                # specifically because Postgres cannot enforce a real FK across
+                # tenant schemas. That means neither the database nor Django's
+                # ORM will auto-remove UserRole rows for a deleted user anymore -
+                # this explicit per-tenant purge is now the ONLY cleanup path,
+                # mirroring the Profile purge immediately above.
+                UserRoleModel = apps.get_model("roles", "UserRole")
+                UserRoleModel.objects.using(db).filter(user_id=user_id).delete()
+            except Exception as e:
+                logger.warning(
+                    f"Could not purge UserRole rows for user {user_id} in schema {tenant.schema_name}: {str(e)}"
+                )
+                continue

@@ -39,7 +39,8 @@ class UserRole(models.Model):
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
+        on_delete=models.DO_NOTHING,
+        db_constraint=False,
         related_name="user_roles",
     )
     role = models.ForeignKey(
