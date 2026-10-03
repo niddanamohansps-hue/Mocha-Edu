@@ -7,6 +7,7 @@ from rest_framework import serializers
 from accounts.utils.crypto import encrypt_secret
 from profiles.models import Profile
 from profiles.serializers import ProfileSerializer
+from students.models import Student
 from .models import Parent, StudentParentRelation
 
 User = apps.get_model("accounts", "User")
@@ -16,6 +17,33 @@ class StudentParentRelationSerializer(serializers.ModelSerializer):
     class Meta:
         model = StudentParentRelation
         fields = "__all__"
+
+
+class _ChildSummarySerializer(serializers.ModelSerializer):
+    """
+    Minimal, read-only student summary embedded in ParentSerializer.children.
+
+    Deliberately NOT a full student serializer: no canonical "StudentSerializer"
+    exists anywhere in students.serializers to reuse (confirmed by inspection -
+    that module only defines StudentEnrollmentSerializer, BulkAccountCreationSerializer,
+    and the promotion-related serializers). The previous implementation imported
+    a `StudentSerializer` that never existed, which made GET /api/families/parents/
+    raise ImportError on every request. Rather than inventing a broad serializer
+    that exposes fields a parent-list caller has no need for (date_of_birth,
+    admission_date, status, etc.), this mirrors the exact "id + enrollment_id +
+    full_name" student-summary shape already used for this same nested-embedding
+    purpose elsewhere in the project (e.g. students.serializers.PromotionRecordSerializer's
+    student_name/enrollment_id fields, examinations.serializers.ExamMarkSerializer).
+    """
+
+    full_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Student
+        fields = ("id", "enrollment_id", "full_name")
+
+    def get_full_name(self, obj):
+        return f"{obj.profile.first_name} {obj.profile.last_name}"
 
 
 class ParentSerializer(serializers.ModelSerializer):
@@ -35,14 +63,16 @@ class ParentSerializer(serializers.ModelSerializer):
         )
 
     def get_children(self, obj):
-        from students.serializers import StudentSerializer
-
-        relations = obj.student_links.all()
+        # select_related avoids one extra query per child for its profile
+        # (needed by _ChildSummarySerializer.get_full_name) - a direct,
+        # local fix to the existing N+1 this loop already had, not a
+        # broader optimization pass.
+        relations = obj.student_links.select_related("student__profile").all()
         return [
             {
                 "relation_type": rel.relation_type,
                 "is_primary": rel.is_primary_contact,
-                "student": StudentSerializer(rel.student).data,
+                "student": _ChildSummarySerializer(rel.student).data,
             }
             for rel in relations
         ]
