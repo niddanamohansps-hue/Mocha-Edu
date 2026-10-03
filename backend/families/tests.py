@@ -1,3 +1,5 @@
+import uuid as uuid_module
+
 from django.db import connection
 from django.test import TransactionTestCase
 from django_tenants.utils import tenant_context
@@ -7,7 +9,7 @@ from accounts.models import User
 from academics.models import AcademicLevel, Program, Section
 from organizations.models import Domain, Organization
 from profiles.models import Profile
-from roles.models import Role, UserRole
+from roles.models import Permission, Role, UserRole
 from students.models import Student, StudentLevel
 
 from .models import Parent, StudentParentRelation
@@ -47,6 +49,17 @@ class FamilyFixtureMixin:
         )
         assert resp.status_code == 200, resp.data
         return client
+
+    def _give_role_only(self, user, codenames):
+        with tenant_context(self.school):
+            unique_suffix = uuid_module.uuid4().hex[:8]
+            role = Role.objects.create(
+                name=f"custom-{unique_suffix}", slug=f"custom-{unique_suffix}", is_system_role=False
+            )
+            role.permissions.set(Permission.objects.filter(codename__in=codenames))
+            UserRole.objects.filter(user=user).delete()
+            UserRole.objects.create(user=user, role=role)
+        return role
 
     def _make_student(self, enrollment_id, first_name, last_name):
         with tenant_context(self.school):
@@ -206,18 +219,307 @@ class ParentListEndpointTest(FamilyFixtureMixin, TransactionTestCase):
 
     def test_non_owner_without_permission_is_rejected(self):
         """
-        Existing RBAC behavior, verified as it actually currently works:
-        ParentViewSet is gated by HasPermission("manage_students"), a
-        codename that is not present anywhere in roles.constants.SYSTEM_PERMISSIONS
-        (the real student-management codenames are view_student/add_student/
-        change_student/delete_student - singular "student", not "manage_students").
-        This means the permission check can only ever be satisfied by the
-        owner-role bypass - no grantable permission currently unlocks this
-        endpoint for a non-owner user. This test documents that actual
-        behavior (a pre-existing, separate issue - see final report) rather
-        than assuming a working non-owner grant would succeed.
+        ParentViewSet is now gated by the existing, already-seeded Families
+        permissions (view_family/add_family/change_family/delete_family)
+        rather than the nonexistent "manage_students" codename. A non-owner
+        role holding none of these permissions must still be rejected.
         """
         limited_user = self._build_user("fam_limited", "staff")
+        self._give_role_only(limited_user, [])
         client = self._client_as(limited_user)
         resp = client.get("/api/families/parents/", HTTP_HOST=self.DOMAIN)
         self.assertEqual(resp.status_code, 403)
+
+
+class ParentViewSetRBACTest(FamilyFixtureMixin, TransactionTestCase):
+    """
+    Focused RBAC coverage for ParentViewSet's action-specific permissions
+    (view_family/add_family/change_family/delete_family), replacing the
+    previously-unsatisfiable "manage_students" check.
+    """
+
+    def _make_unlinked_profile(self, first_name="New", last_name="Parent"):
+        with tenant_context(self.school):
+            return Profile.objects.create(first_name=first_name, last_name=last_name)
+
+    def test_view_family_allows_list_and_retrieve(self):
+        with tenant_context(self.school):
+            parent = self._make_parent("Asha", "Sharma")
+        user = self._build_user("fam_viewer", "staff")
+        self._give_role_only(user, ["view_family"])
+        client = self._client_as(user)
+
+        resp = client.get("/api/families/parents/", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.status_code, 200)
+
+        resp = client.get(f"/api/families/parents/{parent.id}/", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.status_code, 200)
+
+    def test_view_family_does_not_allow_write_actions(self):
+        with tenant_context(self.school):
+            parent = self._make_parent("Asha", "Sharma")
+        profile = self._make_unlinked_profile()
+        user = self._build_user("fam_viewer2", "staff")
+        self._give_role_only(user, ["view_family"])
+        client = self._client_as(user)
+
+        resp = client.post(
+            "/api/families/parents/",
+            {"profile": str(profile.id), "occupation": "Engineer"},
+            HTTP_HOST=self.DOMAIN, format="json",
+        )
+        self.assertEqual(resp.status_code, 403)
+
+        resp = client.patch(
+            f"/api/families/parents/{parent.id}/",
+            {"occupation": "Doctor"},
+            HTTP_HOST=self.DOMAIN, format="json",
+        )
+        self.assertEqual(resp.status_code, 403)
+
+        resp = client.delete(f"/api/families/parents/{parent.id}/", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.status_code, 403)
+
+    def test_add_family_allows_create_only(self):
+        profile = self._make_unlinked_profile()
+        with tenant_context(self.school):
+            other_parent = self._make_parent("Other", "Parent")
+        user = self._build_user("fam_creator", "staff")
+        self._give_role_only(user, ["add_family"])
+        client = self._client_as(user)
+
+        resp = client.post(
+            "/api/families/parents/",
+            {"profile": str(profile.id), "occupation": "Engineer"},
+            HTTP_HOST=self.DOMAIN, format="json",
+        )
+        self.assertEqual(resp.status_code, 201, resp.data)
+
+        resp = client.patch(
+            f"/api/families/parents/{other_parent.id}/",
+            {"occupation": "Doctor"},
+            HTTP_HOST=self.DOMAIN, format="json",
+        )
+        self.assertEqual(resp.status_code, 403)
+
+        resp = client.delete(f"/api/families/parents/{other_parent.id}/", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.status_code, 403)
+
+    def test_change_family_allows_update_only(self):
+        with tenant_context(self.school):
+            parent = self._make_parent("Asha", "Sharma")
+        profile = self._make_unlinked_profile()
+        user = self._build_user("fam_updater", "staff")
+        self._give_role_only(user, ["change_family"])
+        client = self._client_as(user)
+
+        resp = client.patch(
+            f"/api/families/parents/{parent.id}/",
+            {"occupation": "Doctor"},
+            HTTP_HOST=self.DOMAIN, format="json",
+        )
+        self.assertEqual(resp.status_code, 200, resp.data)
+
+        resp = client.post(
+            "/api/families/parents/",
+            {"profile": str(profile.id), "occupation": "Engineer"},
+            HTTP_HOST=self.DOMAIN, format="json",
+        )
+        self.assertEqual(resp.status_code, 403)
+
+        resp = client.delete(f"/api/families/parents/{parent.id}/", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.status_code, 403)
+
+    def test_delete_family_allows_destroy_only(self):
+        with tenant_context(self.school):
+            parent = self._make_parent("Asha", "Sharma")
+            other_parent = self._make_parent("Other", "Parent")
+        profile = self._make_unlinked_profile()
+        user = self._build_user("fam_deleter", "staff")
+        self._give_role_only(user, ["delete_family"])
+        client = self._client_as(user)
+
+        resp = client.post(
+            "/api/families/parents/",
+            {"profile": str(profile.id), "occupation": "Engineer"},
+            HTTP_HOST=self.DOMAIN, format="json",
+        )
+        self.assertEqual(resp.status_code, 403)
+
+        resp = client.patch(
+            f"/api/families/parents/{other_parent.id}/",
+            {"occupation": "Doctor"},
+            HTTP_HOST=self.DOMAIN, format="json",
+        )
+        self.assertEqual(resp.status_code, 403)
+
+        resp = client.delete(f"/api/families/parents/{parent.id}/", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.status_code, 204, resp.data)
+
+
+class StudentParentRelationViewSetRBACTest(FamilyFixtureMixin, TransactionTestCase):
+    """Same action-specific RBAC coverage, for StudentParentRelationViewSet."""
+
+    def test_view_family_allows_list_and_retrieve(self):
+        with tenant_context(self.school):
+            parent = self._make_parent("Asha", "Sharma")
+            student = self._make_student("ENR-REL-1", "Riya", "Sharma")
+        relation = self._link(student, parent)
+        user = self._build_user("rel_viewer", "staff")
+        self._give_role_only(user, ["view_family"])
+        client = self._client_as(user)
+
+        resp = client.get("/api/families/relations/", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.status_code, 200)
+
+        resp = client.get(f"/api/families/relations/{relation.id}/", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.status_code, 200)
+
+    def test_view_family_does_not_allow_write_actions(self):
+        with tenant_context(self.school):
+            parent = self._make_parent("Asha", "Sharma")
+            student = self._make_student("ENR-REL-1", "Riya", "Sharma")
+        relation = self._link(student, parent)
+        user = self._build_user("rel_viewer2", "staff")
+        self._give_role_only(user, ["view_family"])
+        client = self._client_as(user)
+
+        resp = client.patch(
+            f"/api/families/relations/{relation.id}/",
+            {"relation_type": "mother"},
+            HTTP_HOST=self.DOMAIN, format="json",
+        )
+        self.assertEqual(resp.status_code, 403)
+
+        resp = client.delete(f"/api/families/relations/{relation.id}/", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.status_code, 403)
+
+    def test_add_family_allows_create_only(self):
+        with tenant_context(self.school):
+            parent = self._make_parent("Asha", "Sharma")
+            student = self._make_student("ENR-REL-1", "Riya", "Sharma")
+        relation = self._link(student, parent)
+        user = self._build_user("rel_creator", "staff")
+        self._give_role_only(user, ["add_family"])
+        client = self._client_as(user)
+
+        with tenant_context(self.school):
+            other_student = self._make_student("ENR-REL-2", "Vikram", "Sharma")
+        resp = client.post(
+            "/api/families/relations/",
+            {
+                "student": str(other_student.id), "parent": str(parent.id),
+                "relation_type": "guardian", "is_primary_contact": False,
+            },
+            HTTP_HOST=self.DOMAIN, format="json",
+        )
+        self.assertEqual(resp.status_code, 201, resp.data)
+
+        resp = client.patch(
+            f"/api/families/relations/{relation.id}/",
+            {"relation_type": "mother"},
+            HTTP_HOST=self.DOMAIN, format="json",
+        )
+        self.assertEqual(resp.status_code, 403)
+
+        resp = client.delete(f"/api/families/relations/{relation.id}/", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.status_code, 403)
+
+    def test_change_family_allows_update_only(self):
+        with tenant_context(self.school):
+            parent = self._make_parent("Asha", "Sharma")
+            student = self._make_student("ENR-REL-1", "Riya", "Sharma")
+        relation = self._link(student, parent)
+        user = self._build_user("rel_updater", "staff")
+        self._give_role_only(user, ["change_family"])
+        client = self._client_as(user)
+
+        resp = client.patch(
+            f"/api/families/relations/{relation.id}/",
+            {"relation_type": "mother"},
+            HTTP_HOST=self.DOMAIN, format="json",
+        )
+        self.assertEqual(resp.status_code, 200, resp.data)
+
+        with tenant_context(self.school):
+            other_student = self._make_student("ENR-REL-2", "Vikram", "Sharma")
+        resp = client.post(
+            "/api/families/relations/",
+            {
+                "student": str(other_student.id), "parent": str(parent.id),
+                "relation_type": "guardian", "is_primary_contact": False,
+            },
+            HTTP_HOST=self.DOMAIN, format="json",
+        )
+        self.assertEqual(resp.status_code, 403)
+
+        resp = client.delete(f"/api/families/relations/{relation.id}/", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.status_code, 403)
+
+    def test_delete_family_allows_destroy_only(self):
+        with tenant_context(self.school):
+            parent = self._make_parent("Asha", "Sharma")
+            student = self._make_student("ENR-REL-1", "Riya", "Sharma")
+            other_student = self._make_student("ENR-REL-2", "Vikram", "Sharma")
+        relation = self._link(student, parent)
+        other_relation = self._link(other_student, parent, relation_type="guardian", is_primary=False)
+        user = self._build_user("rel_deleter", "staff")
+        self._give_role_only(user, ["delete_family"])
+        client = self._client_as(user)
+
+        resp = client.patch(
+            f"/api/families/relations/{other_relation.id}/",
+            {"relation_type": "mother"},
+            HTTP_HOST=self.DOMAIN, format="json",
+        )
+        self.assertEqual(resp.status_code, 403)
+
+        resp = client.delete(f"/api/families/relations/{relation.id}/", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.status_code, 204, resp.data)
+
+
+class FamilyPermissionBypassTest(FamilyFixtureMixin, TransactionTestCase):
+    """
+    Confirms the owner-role and superuser bypasses in HasPermission still
+    work unchanged after switching ParentViewSet/StudentParentRelationViewSet
+    to action-specific Families permissions - these bypasses are evaluated
+    before any codename lookup, so they must be unaffected by this fix.
+    """
+
+    def test_owner_bypass_allows_all_actions(self):
+        with tenant_context(self.school):
+            parent = self._make_parent("Asha", "Sharma")
+            profile = Profile.objects.create(first_name="New", last_name="Parent")
+        client = self._client_as(self.owner_user)
+
+        self.assertEqual(
+            client.get("/api/families/parents/", HTTP_HOST=self.DOMAIN).status_code, 200
+        )
+        resp = client.post(
+            "/api/families/parents/",
+            {"profile": str(profile.id), "occupation": "Engineer"},
+            HTTP_HOST=self.DOMAIN, format="json",
+        )
+        self.assertEqual(resp.status_code, 201, resp.data)
+        new_parent_id = resp.data["id"]
+
+        resp = client.patch(
+            f"/api/families/parents/{new_parent_id}/",
+            {"occupation": "Doctor"},
+            HTTP_HOST=self.DOMAIN, format="json",
+        )
+        self.assertEqual(resp.status_code, 200)
+
+        resp = client.delete(f"/api/families/parents/{new_parent_id}/", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.status_code, 204)
+
+    def test_superuser_bypass_allows_access_without_any_role(self):
+        superuser = User.objects.create_user(
+            username="fam_superuser", email="fam_superuser@familytest.com", password="Pass1234!"
+        )
+        superuser.is_superuser = True
+        superuser.save()
+
+        client = self._client_as(superuser)
+        resp = client.get("/api/families/parents/", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.status_code, 200)

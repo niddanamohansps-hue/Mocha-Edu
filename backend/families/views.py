@@ -20,15 +20,37 @@ class ParentViewSet(viewsets.ModelViewSet):
         "profile__first_name", "profile__last_name"
     )
     serializer_class = ParentSerializer
-    permission_classes = [permissions.IsAuthenticated, HasPermission("manage_students")]
+    permission_classes = [permissions.IsAuthenticated]
     pagination_class = StandardResultsPagination
+
+    def get_permissions(self):
+        if self.action in ["list", "retrieve"]:
+            return [permissions.IsAuthenticated(), HasPermission("view_family")]
+        if self.action == "create":
+            return [permissions.IsAuthenticated(), HasPermission("add_family")]
+        if self.action in ["update", "partial_update"]:
+            return [permissions.IsAuthenticated(), HasPermission("change_family")]
+        if self.action == "destroy":
+            return [permissions.IsAuthenticated(), HasPermission("delete_family")]
+        return [permissions.IsAuthenticated(), HasPermission("view_family")]
 
 
 class StudentParentRelationViewSet(viewsets.ModelViewSet):
     queryset = StudentParentRelation.objects.all().order_by("-id")
     serializer_class = StudentParentRelationSerializer
-    permission_classes = [permissions.IsAuthenticated, HasPermission("manage_students")]
+    permission_classes = [permissions.IsAuthenticated]
     pagination_class = StandardResultsPagination
+
+    def get_permissions(self):
+        if self.action in ["list", "retrieve"]:
+            return [permissions.IsAuthenticated(), HasPermission("view_family")]
+        if self.action == "create":
+            return [permissions.IsAuthenticated(), HasPermission("add_family")]
+        if self.action in ["update", "partial_update"]:
+            return [permissions.IsAuthenticated(), HasPermission("change_family")]
+        if self.action == "destroy":
+            return [permissions.IsAuthenticated(), HasPermission("delete_family")]
+        return [permissions.IsAuthenticated(), HasPermission("view_family")]
 
 
 class ParentPortalActivationView(APIView):
