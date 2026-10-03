@@ -27,6 +27,7 @@ import {
     TableRow
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Pagination } from "@/components/ui/pagination";
 import { useRouter } from "next/navigation";
 import Unauthorized from "@/components/Unauthorized";
 import { cn } from "@/lib/utils";
@@ -47,9 +48,13 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+const PAGE_SIZE = 20;
+
 export default function StudentsPage() {
     const { can, isOwner } = usePermissions();
-    const { data: students, isLoading } = useStudents();
+    const [page, setPage] = useState(1);
+    const { data, isLoading } = useStudents({ page, pageSize: PAGE_SIZE });
+    const students = data?.results;
     const { mutate: deleteStudent } = useDeleteStudent();
     const [studentToDelete, setStudentToDelete] = useState<string | null>(null);
     const router = useRouter();
@@ -215,6 +220,15 @@ export default function StudentsPage() {
                         </TableBody>
                     </Table>
                 </div>
+                {data && (
+                    <Pagination
+                        page={page}
+                        pageSize={PAGE_SIZE}
+                        count={data.count}
+                        onPageChange={setPage}
+                        className="border-t border-slate-200 dark:border-slate-800"
+                    />
+                )}
             </div>
 
             <AlertDialog open={!!studentToDelete} onOpenChange={(open) => !open && setStudentToDelete(null)}>

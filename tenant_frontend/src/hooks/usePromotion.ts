@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axiosInstance from "@/lib/axios";
 import { toast } from "sonner";
+import type { PaginatedResponse } from "@/types/Pagination";
 import {
     PromotionBatchInput,
     PromotionCandidate,
@@ -67,17 +68,22 @@ export const useExecutePromotion = () => {
     });
 };
 
-export const usePromotionHistory = (filters?: { student?: string; academic_year?: string; action?: string }) => {
+export const usePromotionHistory = (
+    filters?: { student?: string; academic_year?: string; action?: string },
+    page: number = 1,
+    pageSize: number = 20
+) => {
     return useQuery({
-        queryKey: ["promotion", "history", filters],
+        queryKey: ["promotion", "history", filters, page, pageSize],
         queryFn: async () => {
             const params = new URLSearchParams();
             if (filters?.student) params.set("student", filters.student);
             if (filters?.academic_year) params.set("academic_year", filters.academic_year);
             if (filters?.action) params.set("action", filters.action);
-            const qs = params.toString();
-            const response = await axiosInstance.get(`/students/promotion/history/${qs ? `?${qs}` : ""}`);
-            return response.data as PromotionRecord[];
+            params.set("page", String(page));
+            params.set("page_size", String(pageSize));
+            const response = await axiosInstance.get(`/students/promotion/history/?${params.toString()}`);
+            return response.data as PaginatedResponse<PromotionRecord>;
         },
     });
 };

@@ -51,7 +51,11 @@ interface ActivationTabProps {
 
 export default function StaffActivationTab({ onSuccess }: ActivationTabProps) {
     // Queries
-    const { data: allStaff, isLoading: loadingStaff } = useStaffMembers();
+    // Bulk-activation screen needs the full staff roster to filter for
+    // unactivated accounts, not one page of it - see the equivalent
+    // pageSize=100 choice in students/ActivationTab.tsx.
+    const { data: staffData, isLoading: loadingStaff } = useStaffMembers({ pageSize: 100 });
+    const allStaff = staffData?.results;
     const { data: roles, isLoading: loadingRoles } = useRoles();
     const { mutateAsync: activatePortal, isPending } = useActivateStaff();
 

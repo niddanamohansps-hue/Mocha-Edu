@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axiosInstance from "@/lib/axios";
 import { toast } from "sonner";
+import type { PaginatedResponse } from "@/types/Pagination";
 import {
     BelowPassingReport,
     Examination,
@@ -101,9 +102,15 @@ export const useExamSchedules = (examinationId?: string) => {
     return useQuery({
         queryKey: ["examinations", "schedules", examinationId],
         queryFn: async () => {
-            const params = examinationId ? `?examination=${examinationId}` : "";
-            const response = await axiosInstance.get(`/examinations/schedules/${params}`);
-            return response.data as ExamSchedule[];
+            // Always scoped to one examination in practice (both current
+            // consumers pass examinationId), which structurally bounds the
+            // result to that exam's subject x section count - well under
+            // the backend's max page_size, so a single page_size=100
+            // request covers it without needing visible pagination UI here.
+            const params: Record<string, string | number> = { page_size: 100 };
+            if (examinationId) params.examination = examinationId;
+            const response = await axiosInstance.get(`/examinations/schedules/`, { params });
+            return (response.data as PaginatedResponse<ExamSchedule>).results;
         },
     });
 };

@@ -29,7 +29,11 @@ export default function StaffAttendancePage() {
         return <Unauthorized />;
     }
 
-    const { data: staffMembers, isLoading } = useStaffMembers();
+    // This screen marks attendance for the whole staff roster at once, so
+    // it needs the full list rather than one page of it - pageSize is set
+    // to the backend's maximum (100).
+    const { data: staffData, isLoading } = useStaffMembers({ pageSize: 100 });
+    const staffMembers = staffData?.results;
     const [date, setDate] = useState(todayISO());
     const [marks, setMarks] = useState<Record<string, AttendanceStatus>>({});
     const { mutate: submit, isPending } = useSubmitStaffAttendance();

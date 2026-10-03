@@ -22,7 +22,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Pagination } from "@/components/ui/pagination";
 import Unauthorized from "@/components/Unauthorized";
+
+const HISTORY_PAGE_SIZE = 20;
 
 function currentYear() {
     return String(new Date().getFullYear());
@@ -72,7 +75,9 @@ export default function PromotionPage() {
     const { mutate: preview, data: previewResults, isPending: previewing } = usePreviewPromotion();
     const { mutate: execute, data: executeResponse, isPending: executing } = useExecutePromotion();
     const { mutate: reverse } = useReversePromotion();
-    const { data: history } = usePromotionHistory({ academic_year: sourceYear });
+    const [historyPage, setHistoryPage] = useState(1);
+    const { data: historyData } = usePromotionHistory({ academic_year: sourceYear }, historyPage, HISTORY_PAGE_SIZE);
+    const history = historyData?.results;
 
     const [showPreview, setShowPreview] = useState(false);
 
@@ -128,7 +133,13 @@ export default function PromotionPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl">
                 <div>
                     <label className="text-xs font-medium text-slate-500 mb-1 block">Academic Year</label>
-                    <Input value={sourceYear} onChange={(e) => setSourceYear(e.target.value)} />
+                    <Input
+                        value={sourceYear}
+                        onChange={(e) => {
+                            setSourceYear(e.target.value);
+                            setHistoryPage(1); // changing the filter must reset pagination, not reuse a stale page number
+                        }}
+                    />
                 </div>
                 <div>
                     <label className="text-xs font-medium text-slate-500 mb-1 block">Level</label>
@@ -387,6 +398,15 @@ export default function PromotionPage() {
                                 ))}
                             </TableBody>
                         </Table>
+                        {historyData && (
+                            <Pagination
+                                page={historyPage}
+                                pageSize={HISTORY_PAGE_SIZE}
+                                count={historyData.count}
+                                onPageChange={setHistoryPage}
+                                className="border-t border-slate-200 dark:border-slate-800"
+                            />
+                        )}
                     </div>
                 </div>
             )}

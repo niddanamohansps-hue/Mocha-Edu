@@ -831,6 +831,14 @@ class PreviewEndpointTests(PromotionFixtureMixin, TransactionTestCase):
 
 
 class HistoryEndpointTests(PromotionFixtureMixin, TransactionTestCase):
+    """
+    PromotionHistoryView now paginates (see the pagination-audit task) -
+    resp.data is {"count", "next", "previous", "results"}, not a bare
+    list. These two tests were written against the pre-pagination shape
+    and are updated here to read resp.data["results"] accordingly; no
+    other test in this file touches this endpoint's response shape.
+    """
+
     def test_history_filters_by_student(self):
         with tenant_context(self.school):
             execute_lifecycle_actions(
@@ -842,11 +850,11 @@ class HistoryEndpointTests(PromotionFixtureMixin, TransactionTestCase):
         resp = client.get(
             f"/api/students/promotion/history/?student={self.student1.id}", HTTP_HOST=self.DOMAIN
         )
-        self.assertEqual(len(resp.data), 1)
+        self.assertEqual(resp.data["count"], 1)
         # PromotionRecordSerializer's "student" is a ModelSerializer FK
         # field, so resp.data holds the raw UUID (not yet JSON-rendered to
         # a string) - compare UUID to UUID, not UUID to str.
-        self.assertEqual(resp.data[0]["student"], self.student1.id)
+        self.assertEqual(resp.data["results"][0]["student"], self.student1.id)
 
     def test_history_filters_by_action(self):
         with tenant_context(self.school):
@@ -857,4 +865,128 @@ class HistoryEndpointTests(PromotionFixtureMixin, TransactionTestCase):
         self._give_role_only(self.admin_user, ["manage_student_promotion"])
         client = self._client_as(self.admin_user)
         resp = client.get("/api/students/promotion/history/?action=withdrawn", HTTP_HOST=self.DOMAIN)
-        self.assertEqual(len(resp.data), 1)
+        self.assertEqual(resp.data["count"], 1)
+
+
+class StudentListPaginationTest(PromotionFixtureMixin, TransactionTestCase):
+    """
+    Focused tests for StudentListView's pagination (added as part of the
+    full-application pagination audit). The fixture's own setUp() already
+    creates 5 students (student1/2/3/final_student/inactive_student) -
+    20 more are added here so there are 25 total, enough to exercise two
+    full pages at the endpoint's page_size=20 default.
+    """
+
+    def setUp(self):
+        super().setUp()
+        with tenant_context(self.school):
+            for i in range(20):
+                self._make_student(
+                    f"ENR-PAGE-{i:02d}", f"Extra{i:02d}", "Student",
+                    self.level_9, self.section_9a, "2026",
+                )
+
+    def test_default_page_returns_bounded_results_with_correct_count(self):
+        client = self._client_as(self.owner_user)
+        resp = client.get("/api/students/list/", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data["count"], 25)
+        self.assertEqual(len(resp.data["results"]), 20)
+        self.assertIsNotNone(resp.data["next"])
+        self.assertIsNone(resp.data["previous"])
+
+    def test_second_page_returns_the_remaining_distinct_records(self):
+        client = self._client_as(self.owner_user)
+        page1 = client.get("/api/students/list/?page=1", HTTP_HOST=self.DOMAIN)
+        page2 = client.get("/api/students/list/?page=2", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(page2.status_code, 200)
+        self.assertEqual(len(page2.data["results"]), 5)
+        self.assertIsNone(page2.data["next"])
+        self.assertIsNotNone(page2.data["previous"])
+
+        page1_ids = {row["id"] for row in page1.data["results"]}
+        page2_ids = {row["id"] for row in page2.data["results"]}
+        self.assertEqual(len(page1_ids & page2_ids), 0, "page 1 and page 2 must not overlap")
+
+    def test_invalid_page_returns_404_not_a_crash(self):
+        client = self._client_as(self.owner_user)
+        resp = client.get("/api/students/list/?page=9999", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.status_code, 404)
+
+    def test_page_size_is_capped_at_maximum(self):
+        client = self._client_as(self.owner_user)
+        resp = client.get("/api/students/list/?page_size=100000", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data["count"], 25)
+        self.assertEqual(len(resp.data["results"]), 25)  # all 25 fit under the max_page_size=100 cap
+
+    def test_empty_result_set_is_well_formed(self):
+        """A tenant with zero students must get a clean, well-formed empty
+        page - not an error, not a null results list."""
+        empty_school = self._build_school(schema_name="promo_test_school_empty", domain="promotestempty.localhost")
+        try:
+            empty_owner = self._build_user("empty_owner", "owner")
+            with tenant_context(empty_school):
+                role, _ = Role.objects.get_or_create(
+                    slug="owner", defaults={"name": "Owner", "is_system_role": True}
+                )
+                UserRole.objects.create(user=empty_owner, role=role)
+
+            client = APIClient()
+            login = client.post(
+                "/api/auth/login/", {"username": empty_owner.username, "password": "Pass1234!"},
+                HTTP_HOST="promotestempty.localhost",
+            )
+            assert login.status_code == 200, login.data
+
+            resp = client.get("/api/students/list/", HTTP_HOST="promotestempty.localhost")
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(resp.data["count"], 0)
+            self.assertEqual(resp.data["results"], [])
+            self.assertIsNone(resp.data["next"])
+            self.assertIsNone(resp.data["previous"])
+        finally:
+            connection.set_schema_to_public()
+            empty_school.delete(force_drop=True)
+
+    def test_permission_still_enforced_with_pagination(self):
+        limited_user = self._build_user("page_limited", "staff")
+        self._give_role_only(limited_user, [])
+        client = self._client_as(limited_user)
+        resp = client.get("/api/students/list/", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.status_code, 403)
+
+    def test_tenant_isolation_preserved_across_pages(self):
+        """A second tenant's students must never appear in this tenant's
+        paginated response, on any page."""
+        other_school = self._build_school(schema_name="promo_test_school_b", domain="promotestb.localhost")
+        try:
+            with tenant_context(other_school):
+                program = Program.objects.create(name="Other Program", code="OTHPR")
+                level = AcademicLevel.objects.create(program=program, name="Grade 9", order=1)
+                section = Section.objects.create(level=level, name="A", capacity=40)
+                for i in range(5):
+                    profile = Profile.objects.create(first_name=f"Other{i}", last_name="Student")
+                    other_student = Student.objects.create(
+                        profile=profile, enrollment_id=f"ENR-OTHER-{i}", status="active"
+                    )
+                    StudentLevel.objects.create(
+                        student=other_student, level=level, section=section,
+                        academic_year="2026", is_current=True,
+                    )
+
+            client = self._client_as(self.owner_user)
+            all_ids = set()
+            resp = client.get("/api/students/list/?page=1", HTTP_HOST=self.DOMAIN)
+            all_ids.update(row["id"] for row in resp.data["results"])
+            resp2 = client.get("/api/students/list/?page=2", HTTP_HOST=self.DOMAIN)
+            all_ids.update(row["id"] for row in resp2.data["results"])
+
+            self.assertEqual(resp.data["count"], 25, "tenant B's students must not inflate tenant A's count")
+            for enrollment_id in [f"ENR-OTHER-{i}" for i in range(5)]:
+                self.assertNotIn(
+                    enrollment_id, [r["enrollment_id"] for r in resp.data["results"] + resp2.data["results"]]
+                )
+        finally:
+            connection.set_schema_to_public()
+            other_school.delete(force_drop=True)

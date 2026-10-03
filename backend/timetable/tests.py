@@ -691,5 +691,7 @@ class TimetableSectionAndInstructorViewTest(TimetableFixtureMixin, TransactionTe
             "/api/timetable/entries/?academic_year=2027", HTTP_HOST=self.DOMAIN
         )
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(len(resp.data), 1)
-        self.assertEqual(resp.data[0]["academic_year"], "2027")
+        # TimetableEntryViewSet now paginates (see the pagination-audit
+        # task) - resp.data is {"count", "next", "previous", "results"}.
+        self.assertEqual(resp.data["count"], 1)
+        self.assertEqual(resp.data["results"][0]["academic_year"], "2027")

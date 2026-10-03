@@ -43,7 +43,15 @@ interface ActivationTabProps {
 
 export default function ActivationTab({ onSuccess }: ActivationTabProps) {
     // Queries
-    const { data: unenrolledStudents, isLoading: loadingStudents } = useStudents(true);
+    // This screen's "select all" action (addAllStudents below) needs the
+    // full unenrolled roster, not one page of it - pageSize is set to the
+    // backend's maximum (100) rather than paginating here. Unenrolled
+    // students (no portal account yet) are expected to be a bounded
+    // subset of the student body in normal use; a school with more than
+    // 100 simultaneously-unactivated students would need this screen
+    // revisited (out of scope for this pagination-audit task).
+    const { data: unenrolledData, isLoading: loadingStudents } = useStudents({ unenrolled: true, pageSize: 100 });
+    const unenrolledStudents = unenrolledData?.results;
     const { mutate: activatePortal, isPending } = usePortalActivation();
 
     const [selections, setSelections] = useState<AccountCreationData[]>([]);

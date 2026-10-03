@@ -25,6 +25,7 @@ import {
     TableRow
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Pagination } from "@/components/ui/pagination";
 import { useRouter } from "next/navigation";
 import Unauthorized from "@/components/Unauthorized";
 import {
@@ -44,9 +45,13 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+const PAGE_SIZE = 20;
+
 export default function StaffPage() {
     const { can, isOwner } = usePermissions();
-    const { data: staff, isLoading } = useStaffMembers();
+    const [page, setPage] = useState(1);
+    const { data, isLoading } = useStaffMembers({ page, pageSize: PAGE_SIZE });
+    const staff = data?.results;
     const { mutate: deleteStaff } = useDeleteStaff();
     const [staffToDelete, setStaffToDelete] = useState<string | null>(null);
     const router = useRouter();
@@ -216,6 +221,15 @@ export default function StaffPage() {
                         </TableBody>
                     </Table>
                 </div>
+                {data && (
+                    <Pagination
+                        page={page}
+                        pageSize={PAGE_SIZE}
+                        count={data.count}
+                        onPageChange={setPage}
+                        className="border-t border-slate-200 dark:border-slate-800"
+                    />
+                )}
             </div>
 
             <AlertDialog open={!!staffToDelete} onOpenChange={(open) => !open && setStaffToDelete(null)}>

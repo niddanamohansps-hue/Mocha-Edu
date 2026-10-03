@@ -1,6 +1,7 @@
 from rest_framework import viewsets, permissions, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from core.pagination import StandardResultsPagination
 from .models import StaffMember, Instructor
 from .serializers import (
     StaffMemberSerializer,
@@ -14,8 +15,11 @@ from core.audit import log_action
 
 
 class StaffMemberViewSet(viewsets.ModelViewSet):
-    queryset = StaffMember.objects.all().select_related("profile")
+    queryset = StaffMember.objects.all().select_related("profile").order_by(
+        "profile__first_name", "profile__last_name"
+    )
     serializer_class = StaffMemberSerializer
+    pagination_class = StandardResultsPagination
 
     def get_permissions(self):
         if self.action in ["list", "retrieve"]:
@@ -74,8 +78,11 @@ class StaffMemberViewSet(viewsets.ModelViewSet):
 
 
 class InstructorViewSet(viewsets.ModelViewSet):
-    queryset = Instructor.objects.all().select_related("staff_member__profile")
+    queryset = Instructor.objects.all().select_related("staff_member__profile").order_by(
+        "staff_member__profile__first_name", "staff_member__profile__last_name"
+    )
     serializer_class = InstructorDetailSerializer
+    pagination_class = StandardResultsPagination
 
     def get_permissions(self):
         if self.action in ["list", "retrieve"]:

@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axiosInstance from "@/lib/axios";
 import { toast } from "sonner";
 import { InstructorOnboardingData, InstructorActivationData, Instructor, StaffMember, StaffActivationData, StaffOnboardingData } from "../types/Staff";
+import type { PaginatedResponse } from "@/types/Pagination";
 export type { InstructorOnboardingData, InstructorActivationData, Instructor, StaffMember, StaffActivationData, StaffOnboardingData };
 
 // === ONBOARDING (HIRING) ===
@@ -89,12 +90,15 @@ export const useActivateStaff = () => {
 
 // === LISTING ===
 
-export const useInstructors = () => {
+export const useInstructors = (options: { page?: number; pageSize?: number } = {}) => {
+    const { page = 1, pageSize = 20 } = options;
     return useQuery({
-        queryKey: ["instructors"],
+        queryKey: ["instructors", { page, pageSize }],
         queryFn: async () => {
-            const response = await axiosInstance.get("/staff/instructors/");
-            return response.data as Instructor[];
+            const response = await axiosInstance.get("/staff/instructors/", {
+                params: { page, page_size: pageSize }
+            });
+            return response.data as PaginatedResponse<Instructor>;
         }
     });
 };
@@ -110,12 +114,15 @@ export const useInstructor = (id: string) => {
     });
 };
 
-export const useStaffMembers = () => {
+export const useStaffMembers = (options: { page?: number; pageSize?: number } = {}) => {
+    const { page = 1, pageSize = 20 } = options;
     return useQuery({
-        queryKey: ["staff"],
+        queryKey: ["staff", { page, pageSize }],
         queryFn: async () => {
-            const response = await axiosInstance.get("/staff/members/");
-            return response.data as StaffMember[];
+            const response = await axiosInstance.get("/staff/members/", {
+                params: { page, page_size: pageSize }
+            });
+            return response.data as PaginatedResponse<StaffMember>;
         }
     });
 };

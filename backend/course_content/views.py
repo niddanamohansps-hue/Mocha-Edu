@@ -6,6 +6,8 @@ from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 
+from core.pagination import StandardResultsPagination
+
 from .models import CourseContent, SubjectEnrollment, Assignment, AssignmentSubmission
 from .serializers import (
     CourseContentSerializer,
@@ -60,6 +62,7 @@ class CourseContentViewSet(viewsets.ModelViewSet):
     search_fields = ["title", "description"]
     ordering_fields = ["created_at", "updated_at", "publish_date"]
     ordering = ["-is_pinned", "-created_at"]
+    pagination_class = StandardResultsPagination
 
     def get_permissions(self):
         if self.action in ["list", "retrieve"]:
@@ -204,6 +207,7 @@ class AssignmentViewSet(viewsets.ModelViewSet):
     filterset_fields = ["submission_type", "allow_late_submission"]
     ordering_fields = ["due_date", "total_points"]
     ordering = ["due_date"]
+    pagination_class = StandardResultsPagination
 
     def get_permissions(self):
         if self.action in ["list", "retrieve"]:
@@ -353,6 +357,7 @@ class AssignmentSubmissionViewSet(viewsets.ModelViewSet):
     filterset_fields = ["assignment", "student", "status"]
     ordering_fields = ["submitted_at", "score"]
     ordering = ["-submitted_at"]
+    pagination_class = StandardResultsPagination
 
     def get_permissions(self):
         if self.action == "submit":

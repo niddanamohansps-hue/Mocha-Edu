@@ -4,6 +4,7 @@ from rest_framework.views import APIView
 
 from accounts.utils.crypto import decrypt_secret
 from core.audit import log_action
+from core.pagination import StandardResultsPagination
 from roles.permissions import HasPermission
 
 from .models import Parent, StudentParentRelation
@@ -15,15 +16,19 @@ from .serializers import (
 
 
 class ParentViewSet(viewsets.ModelViewSet):
-    queryset = Parent.objects.all().select_related("profile")
+    queryset = Parent.objects.all().select_related("profile").order_by(
+        "profile__first_name", "profile__last_name"
+    )
     serializer_class = ParentSerializer
     permission_classes = [permissions.IsAuthenticated, HasPermission("manage_students")]
+    pagination_class = StandardResultsPagination
 
 
 class StudentParentRelationViewSet(viewsets.ModelViewSet):
-    queryset = StudentParentRelation.objects.all()
+    queryset = StudentParentRelation.objects.all().order_by("-id")
     serializer_class = StudentParentRelationSerializer
     permission_classes = [permissions.IsAuthenticated, HasPermission("manage_students")]
+    pagination_class = StandardResultsPagination
 
 
 class ParentPortalActivationView(APIView):

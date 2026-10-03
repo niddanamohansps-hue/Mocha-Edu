@@ -6,13 +6,14 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from django.db import transaction
+from core.pagination import StandardResultsPagination
 from roles.permissions import HasPermission
 from .serializers import (
     PromotionBatchInputSerializer,
     PromotionRecordSerializer,
     StudentEnrollmentSerializer,
 )
-from .models import PromotionRecord, Student
+from .models import PromotionRecord, Student, StudentLevel
 from .services import (
     execute_lifecycle_actions,
     get_exam_warning,
@@ -52,21 +53,45 @@ class StudentEnrollmentView(APIView):
 
 
 class StudentListView(APIView):
+    """
+    Paginated (StandardResultsPagination - page_size=20, max 100 via
+    ?page_size=) directory of students. Ordered by name so pagination is
+    deterministic across pages (previously unordered, which for a UUID
+    primary key has no guaranteed stable order - a latent bug that only
+    didn't matter while every row was returned in one response).
+
+    Current enrollment (level/section) is resolved via one bulk query over
+    the current PAGE's students, not one query per student - the previous
+    version called `s.enrollments.filter(...)` inside the loop, an N+1
+    that paginating down to 20 rows/page mostly masks but doesn't excuse.
+    """
+
     permission_classes = [IsAuthenticated, HasPermission("view_student")]
+    pagination_class = StandardResultsPagination
 
     def get(self, request):
         unenrolled_only = request.query_params.get("unenrolled") == "true"
 
-        students = Student.objects.select_related("profile")
+        students = Student.objects.select_related("profile").order_by(
+            "profile__first_name", "profile__last_name", "enrollment_id"
+        )
         if unenrolled_only:
             students = students.filter(profile__user_id__isnull=True)
-        else:
-            students = students.all()
+
+        paginator = self.pagination_class()
+        page = paginator.paginate_queryset(students, request, view=self)
+        page_students = page if page is not None else students
+
+        current_by_student_id = {
+            sl.student_id: sl
+            for sl in StudentLevel.objects.filter(
+                student_id__in=[s.id for s in page_students], is_current=True
+            ).select_related("level", "section")
+        }
 
         data = []
-        for s in students:
-            # Finding current level
-            current = s.enrollments.filter(is_current=True).first()
+        for s in page_students:
+            current = current_by_student_id.get(s.id)
             data.append(
                 {
                     "id": s.id,
@@ -83,6 +108,9 @@ class StudentListView(APIView):
                     "has_account": s.profile.user_id is not None,
                 }
             )
+
+        if page is not None:
+            return paginator.get_paginated_response(data)
         return Response(data)
 
 
@@ -512,12 +540,18 @@ class PromotionExecuteView(APIView):
 
 
 class PromotionHistoryView(APIView):
+    """Paginated (StandardResultsPagination) - this grows by design (one
+    row per student per lifecycle event, append-only, never deleted), so
+    an unpaginated response here would grow unbounded over the school's
+    lifetime even though today's demo dataset is a modest 437 rows."""
+
     permission_classes = [IsAuthenticated, HasPermission("manage_student_promotion")]
+    pagination_class = StandardResultsPagination
 
     def get(self, request):
         qs = PromotionRecord.objects.select_related(
             "student__profile", "source_level", "target_level", "source_section", "target_section"
-        )
+        ).order_by("-created_at")
         student_id = request.query_params.get("student")
         academic_year = request.query_params.get("academic_year")
         action = request.query_params.get("action")
@@ -529,6 +563,11 @@ class PromotionHistoryView(APIView):
             )
         if action:
             qs = qs.filter(action=action)
+
+        paginator = self.pagination_class()
+        page = paginator.paginate_queryset(qs, request, view=self)
+        if page is not None:
+            return paginator.get_paginated_response(PromotionRecordSerializer(page, many=True).data)
         return Response(PromotionRecordSerializer(qs, many=True).data)
 
 

@@ -7,6 +7,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.audit import log_action
+from core.pagination import StandardResultsPagination
 from roles.permissions import HasPermission
 
 from .models import ExamResult, ExamSchedule, Examination, ExamType, GradeBoundary
@@ -104,6 +105,7 @@ class ExaminationViewSet(viewsets.ModelViewSet):
 class ExamScheduleViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["examination", "section", "subject", "academic_year"]
+    pagination_class = StandardResultsPagination
 
     def get_permissions(self):
         # A custom get_permissions() override shadows @action's own

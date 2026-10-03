@@ -7,6 +7,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.audit import log_action
+from core.pagination import StandardResultsPagination
 from roles.permissions import HasPermission
 
 from .models import Period, Room, TimetableEntry, TimetableSubstitution
@@ -56,6 +57,7 @@ class RoomViewSet(viewsets.ModelViewSet):
 class TimetableEntryViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["academic_year", "section", "day_of_week"]
+    pagination_class = StandardResultsPagination
 
     def get_permissions(self):
         if self.action in ("list", "retrieve"):

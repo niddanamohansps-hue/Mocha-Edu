@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axiosInstance from "@/lib/axios";
 import { toast } from "sonner";
+import type { PaginatedResponse } from "@/types/Pagination";
 import {
     CourseContent,
     Assignment,
@@ -19,12 +20,17 @@ export const useCourseContent = (contentType?: string, excludeAssignments?: bool
     return useQuery({
         queryKey: ["course-content", contentType, excludeAssignments],
         queryFn: async () => {
-            const params: any = {};
+            // page_size=100: backend now paginates this endpoint (see the
+            // pagination audit) - 100 safely covers today's library size
+            // without requiring this screen to grow visible pagination UI
+            // in the same change. Revisit with real Previous/Next controls
+            // if the library grows past 100 items.
+            const params: any = { page_size: 100 };
             if (contentType) params.content_type = contentType;
             if (excludeAssignments) params.exclude_assignments = 'true';
 
             const response = await axiosInstance.get("/course-content/content/", { params });
-            return response.data as CourseContent[];
+            return (response.data as PaginatedResponse<CourseContent>).results;
         }
     });
 };
@@ -33,8 +39,10 @@ export const useMyCourseContent = () => {
     return useQuery({
         queryKey: ["my-course-content"],
         queryFn: async () => {
-            const response = await axiosInstance.get("/course-content/content/my_content/");
-            return response.data as CourseContent[];
+            const response = await axiosInstance.get("/course-content/content/my_content/", {
+                params: { page_size: 100 },
+            });
+            return (response.data as PaginatedResponse<CourseContent>).results;
         }
     });
 };
@@ -109,8 +117,10 @@ export const useAssignments = () => {
     return useQuery({
         queryKey: ["assignments"],
         queryFn: async () => {
-            const response = await axiosInstance.get("/course-content/assignments/");
-            return response.data as Assignment[];
+            const response = await axiosInstance.get("/course-content/assignments/", {
+                params: { page_size: 100 },
+            });
+            return (response.data as PaginatedResponse<Assignment>).results;
         }
     });
 };
@@ -188,9 +198,10 @@ export const useSubmissions = (assignmentId?: string) => {
     return useQuery({
         queryKey: ["submissions", assignmentId],
         queryFn: async () => {
-            const params = assignmentId ? { assignment: assignmentId } : {};
+            const params: Record<string, string | number> = { page_size: 100 };
+            if (assignmentId) params.assignment = assignmentId;
             const response = await axiosInstance.get("/course-content/submissions/", { params });
-            return response.data as AssignmentSubmission[];
+            return (response.data as PaginatedResponse<AssignmentSubmission>).results;
         }
     });
 };
@@ -199,8 +210,10 @@ export const useMySubmissions = () => {
     return useQuery({
         queryKey: ["my-submissions"],
         queryFn: async () => {
-            const response = await axiosInstance.get("/course-content/submissions/");
-            return response.data as AssignmentSubmission[];
+            const response = await axiosInstance.get("/course-content/submissions/", {
+                params: { page_size: 100 },
+            });
+            return (response.data as PaginatedResponse<AssignmentSubmission>).results;
         }
     });
 };

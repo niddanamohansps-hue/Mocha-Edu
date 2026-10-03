@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { UserPlus, ArrowRight } from "lucide-react";
 import { useInstructors } from "@/hooks/useStaff";
@@ -12,9 +13,14 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { Pagination } from "@/components/ui/pagination";
+
+const PAGE_SIZE = 20;
 
 export default function FacultyDirectoryPage() {
-    const { data: instructors, isLoading } = useInstructors();
+    const [page, setPage] = useState(1);
+    const { data, isLoading } = useInstructors({ page, pageSize: PAGE_SIZE });
+    const instructors = data?.results;
 
     return (
         <div className="space-y-6">
@@ -73,6 +79,15 @@ export default function FacultyDirectoryPage() {
                         )}
                     </TableBody>
                 </Table>
+                {data && (
+                    <Pagination
+                        page={page}
+                        pageSize={PAGE_SIZE}
+                        count={data.count}
+                        onPageChange={setPage}
+                        className="border-t border-slate-200 dark:border-slate-800"
+                    />
+                )}
             </div>
         </div>
     );

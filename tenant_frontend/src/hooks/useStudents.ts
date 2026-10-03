@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axiosInstance from "@/lib/axios";
 import { toast } from "sonner";
+import type { PaginatedResponse } from "@/types/Pagination";
 
 export interface StudentEnrollmentData {
     first_name: string;
@@ -95,14 +96,15 @@ export const usePortalActivation = () => {
     });
 };
 
-export const useStudents = (unenrolled: boolean = false) => {
+export const useStudents = (options: { page?: number; unenrolled?: boolean; pageSize?: number } = {}) => {
+    const { page = 1, unenrolled = false, pageSize = 20 } = options;
     return useQuery({
-        queryKey: ["students", { unenrolled }],
+        queryKey: ["students", { page, unenrolled, pageSize }],
         queryFn: async () => {
             const response = await axiosInstance.get(`/students/list/`, {
-                params: { unenrolled }
+                params: { unenrolled, page, page_size: pageSize }
             });
-            return response.data as Student[];
+            return response.data as PaginatedResponse<Student>;
         }
     });
 };
