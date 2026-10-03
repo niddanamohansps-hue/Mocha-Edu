@@ -1,6 +1,7 @@
 from pathlib import Path
 from datetime import timedelta
 from decouple import config, Csv
+from django.core.exceptions import ImproperlyConfigured
 import os
 import sys
 
@@ -9,6 +10,24 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Load secret key and debug
 SECRET_KEY = config("SECRET_KEY")
 DEBUG = config("DEBUG", default=False, cast=bool)
+
+_RUNNING_TESTS = len(sys.argv) > 1 and sys.argv[1] == "test"
+
+# Key used to encrypt secrets at rest (see accounts/utils/crypto.py) -
+# temporary account passwords shown once for distribution, and the
+# signup password held by payments.Payment until a transaction completes.
+# Kept independent of SECRET_KEY so it can be rotated on its own (rotating
+# SECRET_KEY, e.g. after a leak, must not also silently break decryption
+# of every already-encrypted password). Required whenever DEBUG=False;
+# accounts.utils.crypto falls back to deriving a key from SECRET_KEY only
+# for local/dev convenience when this is unset.
+FIELD_ENCRYPTION_KEY = config("FIELD_ENCRYPTION_KEY", default=None)
+if not DEBUG and not FIELD_ENCRYPTION_KEY and not _RUNNING_TESTS:
+    raise ImproperlyConfigured(
+        "FIELD_ENCRYPTION_KEY must be set when DEBUG=False. Generate one with: "
+        "python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\" "
+        "and set it in the environment - see .env.example."
+    )
 
 # JWT cookie security: forces the `Secure` flag on JWT cookies. Defaults to
 # True whenever DEBUG=False so production is secure by default, while local

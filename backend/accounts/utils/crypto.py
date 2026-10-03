@@ -13,10 +13,10 @@ def _get_fernet() -> Fernet:
     Builds a Fernet cipher for encrypting transient secrets at rest
     (e.g. temporary passwords shown once to an admin for distribution).
 
-    Uses FIELD_ENCRYPTION_KEY from the environment if set (recommended for
-    production, so the key can be rotated independently of SECRET_KEY).
-    Otherwise derives a stable key from SECRET_KEY so this works out of the
-    box in local/dev environments without requiring a new .env value.
+    Uses FIELD_ENCRYPTION_KEY from the environment if set. settings.py
+    requires this to be set whenever DEBUG=False, so the SECRET_KEY-derived
+    fallback below only ever runs in local/dev - it exists purely so this
+    works out of the box there without requiring a new .env value.
     """
     key = getattr(settings, "FIELD_ENCRYPTION_KEY", None)
     if not key:
