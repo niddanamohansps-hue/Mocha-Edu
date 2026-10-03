@@ -279,6 +279,33 @@ CELERY_TASK_TIME_LIMIT = 30
 CELERY_TASK_ALWAYS_EAGER = len(sys.argv) > 1 and sys.argv[1] == "test"
 CELERY_TASK_EAGER_PROPAGATES = True
 
+# Beat schedule: periodic tasks only, no per-run business logic lives here.
+# recover_stale_outbox_events (notifications/tasks.py) re-dispatches any
+# EmailOutboxEvent stuck in PENDING/RETRYING for longer than that module's
+# own STALE_THRESHOLD_MINUTES (15) - the task's docstring already called
+# for "every 10 minutes" before Beat was wired up; kept as-is here so a
+# stuck event waits at most ~25 minutes (15 to go stale + up to 10 for the
+# next tick) before being retried, without re-scanning every tenant schema
+# more often than that. No explicit "queue" override is set here - Beat
+# sends tasks through the same apply_async() path as .delay(), so this
+# inherits CELERY_TASK_DEFAULT_QUEUE ("edusekai") exactly like every other
+# task in this project, none of which set a queue explicitly either.
+#
+# Operational requirement: exactly ONE `celery -A config beat` process may
+# run against this broker at a time. A second concurrent Beat instance
+# (e.g. one left running on an old deploy) would re-trigger this same
+# schedule independently, causing duplicate recovery runs - not harmful by
+# itself (send_outbox_email is idempotent against SENT/FAILED events), but
+# wasted work and confusing logs. Supervise Beat as a single long-running
+# process (one instance per environment), separate from, and in addition
+# to, the `celery -A config worker` process(es) that actually execute tasks.
+CELERY_BEAT_SCHEDULE = {
+    "recover-stale-outbox-events": {
+        "task": "notifications.tasks.recover_stale_outbox_events",
+        "schedule": timedelta(minutes=10),
+    },
+}
+
 # CORS
 CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOWED_ORIGIN_REGEXES = [

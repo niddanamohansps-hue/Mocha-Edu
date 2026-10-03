@@ -3,9 +3,10 @@ import uuid as uuid_module
 from datetime import timedelta
 from unittest import mock
 
+from django.conf import settings
 from django.core import mail
 from django.db import connection, transaction
-from django.test import TransactionTestCase
+from django.test import TestCase, TransactionTestCase
 from django.utils import timezone
 from django_tenants.utils import tenant_context
 from rest_framework.test import APIClient
@@ -851,3 +852,42 @@ class EmailOutboxTest(TransactionTestCase):
         with tenant_context(self.other_school):
             event_b.refresh_from_db()
             self.assertEqual(event_b.status, EmailOutboxEvent.Status.SENT)
+
+
+class CeleryBeatScheduleTest(TestCase):
+    """
+    Focused coverage for the Beat wiring itself (settings.CELERY_BEAT_SCHEDULE)
+    - not the recovery task's own behavior, which is covered above. Confirms
+    recover_stale_outbox_events is actually scheduled, under the correct task
+    name and interval, and that wiring Beat didn't disturb the existing
+    queue/broker configuration the outbox tasks depend on.
+    """
+
+    def test_recover_stale_outbox_events_is_scheduled(self):
+        schedule = settings.CELERY_BEAT_SCHEDULE
+        self.assertIn("recover-stale-outbox-events", schedule)
+
+    def test_scheduled_entry_points_at_the_real_task(self):
+        entry = settings.CELERY_BEAT_SCHEDULE["recover-stale-outbox-events"]
+        self.assertEqual(entry["task"], recover_stale_outbox_events.name)
+        self.assertEqual(entry["task"], "notifications.tasks.recover_stale_outbox_events")
+
+    def test_scheduled_interval_is_ten_minutes(self):
+        entry = settings.CELERY_BEAT_SCHEDULE["recover-stale-outbox-events"]
+        self.assertEqual(entry["schedule"], timedelta(minutes=10))
+
+    def test_existing_celery_queue_and_broker_config_untouched(self):
+        self.assertEqual(settings.CELERY_TASK_DEFAULT_QUEUE, "edusekai")
+        self.assertTrue(settings.CELERY_BROKER_URL)
+        self.assertTrue(settings.CELERY_RESULT_BACKEND)
+
+    def test_no_explicit_queue_override_on_the_beat_entry(self):
+        """
+        No queue is set on the schedule entry itself - it must inherit
+        CELERY_TASK_DEFAULT_QUEUE ("edusekai") through the normal
+        apply_async() path, same as every other task in this project.
+        An explicit queue override here would be a silent behavior change
+        this task was never asked to make.
+        """
+        entry = settings.CELERY_BEAT_SCHEDULE["recover-stale-outbox-events"]
+        self.assertNotIn("options", entry)
