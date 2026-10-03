@@ -47,3 +47,73 @@ class Notification(models.Model):
 
     def __str__(self):
         return f"{self.recipient_user_id} - {self.title}"
+
+
+class EmailOutboxEvent(models.Model):
+    """
+    Transactional outbox for async email delivery. A row is written in the
+    same database transaction as whatever triggered it (e.g. a password
+    reset request); the Celery task that actually sends the email is only
+    dispatched via transaction.on_commit() (see services.queue_email()),
+    so a task can never be queued for an event that ends up rolled back.
+
+    Tenant-scoped like every other model in this app - the Celery task
+    receives the schema name explicitly and enters it via schema_context()
+    before touching this table, since a worker process has no per-request
+    tenant context the way TenantMainMiddleware provides one.
+
+    Lifecycle: PENDING -> (failure) -> RETRYING -> (failure) -> RETRYING
+    -> ... -> SENT or FAILED (terminal, either after a permanent error or
+    after max_attempts temporary failures). See tasks.send_outbox_email.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        RETRYING = "retrying", "Retrying"
+        SENT = "sent", "Sent"
+        FAILED = "failed", "Failed"
+
+    class ErrorType(models.TextChoices):
+        """
+        Set on the most recent failure. TEMPORARY (connection errors,
+        timeouts, transient SMTP codes) is retried with backoff; PERMANENT
+        (bad recipient address, auth failure, malformed header) is moved
+        straight to FAILED - retrying it would just burn through attempts
+        against an error that can never succeed. See tasks._is_permanent_error.
+        """
+
+        TEMPORARY = "temporary", "Temporary"
+        PERMANENT = "permanent", "Permanent"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    to_email = models.EmailField()
+    subject = models.CharField(max_length=255)
+    body = models.TextField()
+
+    status = models.CharField(
+        max_length=10, choices=Status.choices, default=Status.PENDING, db_index=True
+    )
+    attempts = models.PositiveIntegerField(default=0)
+    max_attempts = models.PositiveIntegerField(default=3)
+    last_error = models.TextField(blank=True)
+    error_type = models.CharField(max_length=10, choices=ErrorType.choices, blank=True)
+
+    # When the next retry is scheduled for (set on RETRYING, cleared on
+    # SENT/FAILED) - operational visibility into backoff timing, and the
+    # signal recover_stale_outbox_events uses to find retries whose
+    # countdown fired but were never picked up (see tasks.py).
+    next_attempt_at = models.DateTimeField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["status", "created_at"], name="outbox_status_created_idx"),
+            models.Index(fields=["status", "updated_at"], name="outbox_status_updated_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.to_email} [{self.status}]"

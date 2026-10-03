@@ -9,15 +9,15 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-sky-600 hover:bg-teal-600 shadow-lg shadow-sky-500/25 transition-all text-base font-bold text-white duration-300 ease-in-out",
+        default: "bg-sky-600 hover:bg-teal-600 shadow-lg shadow-sky-500/25 hover:shadow-xl hover:shadow-teal-500/30 hover:scale-[1.03] active:scale-100 transition-all text-base font-bold text-white duration-300 ease-out",
         destructive:
-          "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
+          "bg-destructive text-white hover:bg-destructive/90 hover:scale-[1.03] active:scale-100 transition-all duration-300 ease-out focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
         outline:
-          "border bg-background shadow-lg hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 border-[#1A82C4] text-[#1A82C4]",
+          "border bg-background shadow-lg hover:bg-accent hover:text-accent-foreground hover:scale-[1.03] active:scale-100 transition-all duration-300 ease-out dark:bg-input/30 dark:border-input dark:hover:bg-input/50 border-[#1A82C4] text-[#1A82C4]",
         secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+          "bg-secondary text-secondary-foreground hover:bg-secondary/80 hover:scale-[1.03] active:scale-100 transition-all duration-300 ease-out",
         ghost:
-          "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
+          "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50 transition-colors duration-200",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {

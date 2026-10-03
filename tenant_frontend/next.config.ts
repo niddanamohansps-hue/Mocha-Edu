@@ -1,4 +1,5 @@
 const nextConfig = {
+  turbopack: {},
   webpack: (config: any) => {
     config.watchOptions = {
       poll: 1000,

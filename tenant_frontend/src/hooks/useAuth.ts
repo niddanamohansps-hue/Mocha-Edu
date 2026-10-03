@@ -75,3 +75,27 @@ export function useChangePassword() {
         }
     });
 }
+
+export function useForgotPassword() {
+    return useMutation({
+        mutationFn: async (email: string) => {
+            const { data } = await axiosInstance.post("/auth/forgot-password/", { email });
+            return data;
+        },
+        onError: (error: any) => {
+            toast.error(error.response?.data?.error || "Something went wrong. Please try again.");
+        }
+    });
+}
+
+export function useResetPasswordConfirm() {
+    return useMutation({
+        mutationFn: async (payload: { uid: string; token: string; new_password: string }) => {
+            const { data } = await axiosInstance.post("/auth/reset-password-confirm/", payload);
+            return data;
+        },
+        onError: (error: any) => {
+            toast.error(error.response?.data?.error || "Failed to reset password.");
+        }
+    });
+}

@@ -1,7 +1,12 @@
+import smtplib
 import uuid as uuid_module
+from datetime import timedelta
+from unittest import mock
 
-from django.db import connection
+from django.core import mail
+from django.db import connection, transaction
 from django.test import TransactionTestCase
+from django.utils import timezone
 from django_tenants.utils import tenant_context
 from rest_framework.test import APIClient
 
@@ -13,8 +18,9 @@ from roles.models import Role, UserRole
 from staff.models import Instructor, StaffMember
 from students.models import Student
 
-from .models import Notification
-from .services import notify, notify_many
+from .models import Notification, EmailOutboxEvent
+from .services import notify, notify_many, queue_email
+from .tasks import _backoff_seconds, recover_stale_outbox_events, send_outbox_email
 
 
 class NotificationFixtureMixin:
@@ -413,3 +419,435 @@ class NotificationSecurityTests(NotificationFixtureMixin, TransactionTestCase):
 
             notif_permissions = Permission.objects.filter(module__icontains="notification")
             self.assertEqual(notif_permissions.count(), 0)
+
+
+class EmailOutboxTest(TransactionTestCase):
+    """
+    Focused tests for the transactional email outbox itself
+    (EmailOutboxEvent + queue_email + tasks.send_outbox_email), as opposed
+    to accounts.tests.PasswordResetFlowTest, which already exercises the
+    full integration (a real request ending in a delivered email) end to
+    end. CELERY_TASK_ALWAYS_EAGER=True during tests (see config/settings.py)
+    means .delay() runs the task synchronously in-process - no real worker
+    or Redis connection is exercised by these tests.
+    """
+
+    SCHEMA_NAME = "outbox_test_school"
+    DOMAIN = "outboxtest.localhost"
+
+    OTHER_SCHEMA_NAME = "outbox_other_school"
+    OTHER_DOMAIN = "outboxother.localhost"
+
+    def setUp(self):
+        connection.set_schema_to_public()
+        mail.outbox = []
+        self.school = Organization.objects.create(
+            schema_name=self.SCHEMA_NAME, name="Outbox Test School"
+        )
+        Domain.objects.create(domain=self.DOMAIN, tenant=self.school, is_primary=True)
+
+        self.other_school = Organization.objects.create(
+            schema_name=self.OTHER_SCHEMA_NAME, name="Outbox Other School"
+        )
+        Domain.objects.create(
+            domain=self.OTHER_DOMAIN, tenant=self.other_school, is_primary=True
+        )
+
+    def tearDown(self):
+        connection.set_schema_to_public()
+        self.school.delete(force_drop=True)
+        self.other_school.delete(force_drop=True)
+
+    def test_queue_email_defers_dispatch_until_transaction_commits(self):
+        """
+        The core transactional-outbox guarantee: inside a still-open
+        transaction.atomic() block, the event exists but has NOT been
+        dispatched yet (still PENDING, no email sent). Only once that
+        block exits (commits) does on_commit() fire the Celery task -
+        which, in eager test mode, runs synchronously at that point.
+        """
+        with tenant_context(self.school):
+            with transaction.atomic():
+                event = queue_email(
+                    to_email="someone@example.com", subject="Test", body="Body"
+                )
+                event.refresh_from_db()
+                self.assertEqual(event.status, EmailOutboxEvent.Status.PENDING)
+                self.assertEqual(len(mail.outbox), 0)
+
+            event.refresh_from_db()
+            self.assertEqual(event.status, EmailOutboxEvent.Status.SENT)
+            self.assertIsNotNone(event.sent_at)
+            self.assertEqual(len(mail.outbox), 1)
+            self.assertEqual(mail.outbox[0].to, ["someone@example.com"])
+
+    def test_outbox_event_not_dispatched_if_transaction_rolls_back(self):
+        """
+        If the surrounding transaction rolls back, the EmailOutboxEvent
+        row itself must never have been committed either - there is
+        nothing left to send, and nothing for a worker to ever pick up.
+        """
+        with tenant_context(self.school):
+            try:
+                with transaction.atomic():
+                    queue_email(to_email="x@example.com", subject="Test", body="Body")
+                    raise RuntimeError("simulated failure after queuing")
+            except RuntimeError:
+                pass
+
+            self.assertEqual(EmailOutboxEvent.objects.count(), 0)
+            self.assertEqual(len(mail.outbox), 0)
+
+    def test_send_outbox_email_marks_failed_after_max_attempts(self):
+        """
+        A persistently-failing send (e.g. SMTP down) must not retry
+        forever - once attempts reaches max_attempts, the task stops
+        retrying and the event is marked FAILED for operator visibility
+        (see EmailOutboxEventAdmin), rather than disappearing silently.
+
+        self.retry() raises celery.exceptions.Retry straight out of
+        .apply() in eager mode - a real worker consuming from Redis would
+        reschedule the task automatically on that signal; a bare .apply()
+        call has no broker to do that, so the retry loop is simulated
+        explicitly here (the standard way to unit-test Celery retry logic
+        without a running broker).
+        """
+        from celery.exceptions import Retry
+
+        with tenant_context(self.school):
+            event = EmailOutboxEvent.objects.create(
+                to_email="fails@example.com", subject="Test", body="Body", max_attempts=2
+            )
+
+        with mock.patch(
+            "notifications.tasks.send_mail", side_effect=Exception("smtp down")
+        ):
+            for _ in range(event.max_attempts):
+                try:
+                    send_outbox_email.apply(args=[self.SCHEMA_NAME, str(event.id)])
+                except Retry:
+                    continue
+
+        with tenant_context(self.school):
+            event.refresh_from_db()
+            self.assertEqual(event.status, EmailOutboxEvent.Status.FAILED)
+            self.assertEqual(event.attempts, 2)
+            self.assertIn("smtp down", event.last_error)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_send_outbox_email_is_idempotent_once_sent(self):
+        """Re-running the task against an already-SENT event (e.g. a
+        duplicate/late dispatch) must not send a second email."""
+        with tenant_context(self.school):
+            event = queue_email(to_email="once@example.com", subject="Test", body="Body")
+        self.assertEqual(len(mail.outbox), 1)
+
+        send_outbox_email.apply(args=[self.SCHEMA_NAME, str(event.id)])
+        self.assertEqual(len(mail.outbox), 1, "Event was sent a second time")
+
+    def test_send_outbox_email_is_tenant_scoped(self):
+        """
+        An event created in one tenant schema must not be reachable by
+        the task when (incorrectly) pointed at a different tenant's
+        schema_name - the task must enter the correct schema, never
+        search across schemas or fall back to another one.
+        """
+        with tenant_context(self.school):
+            event = EmailOutboxEvent.objects.create(
+                to_email="isolated@example.com", subject="Test", body="Body"
+            )
+
+        # Deliberately pass the OTHER school's schema name - the event
+        # does not exist there, so the task must log and return quietly
+        # rather than erroring or finding a same-ID row in another tenant.
+        send_outbox_email.apply(args=[self.OTHER_SCHEMA_NAME, str(event.id)])
+        self.assertEqual(len(mail.outbox), 0)
+
+        with tenant_context(self.school):
+            event.refresh_from_db()
+            self.assertEqual(event.status, EmailOutboxEvent.Status.PENDING)
+
+    def test_queue_email_normal_dispatch_creates_exactly_one_pending_then_sent_event(self):
+        """
+        Baseline (TEST 1): a normal queue_email() call creates exactly one
+        EmailOutboxEvent, PENDING at creation, and normal dispatch still
+        transitions it to SENT once the transaction commits - the
+        centralized post-commit error handling must not change this
+        happy path at all.
+        """
+        with tenant_context(self.school):
+            with transaction.atomic():
+                event = queue_email(to_email="normal@example.com", subject="Test", body="Body")
+                self.assertEqual(EmailOutboxEvent.objects.count(), 1)
+                event.refresh_from_db()
+                self.assertEqual(event.status, EmailOutboxEvent.Status.PENDING)
+
+            event.refresh_from_db()
+            self.assertEqual(event.status, EmailOutboxEvent.Status.SENT)
+        self.assertEqual(len(mail.outbox), 1)
+
+    def test_queue_email_post_commit_celery_dispatch_failure_does_not_escape(self):
+        """
+        TEST 2 (the core fix): simulate a Celery-side dispatch failure (as
+        celery.exceptions.Retry - a CeleryError subclass - genuinely does
+        under CELERY_TASK_ALWAYS_EAGER, which is exactly what surfaced
+        this bug via the examination-publication feature) from the
+        on_commit callback. The transaction must still commit cleanly, no
+        exception may escape queue_email()/the caller, and the event must
+        remain exactly as created: PENDING, never SENT or FAILED - the
+        task body that would transition it never ran at all.
+        """
+        from celery.exceptions import CeleryError
+
+        with tenant_context(self.school):
+            with mock.patch(
+                "notifications.tasks.send_outbox_email.delay",
+                side_effect=CeleryError("broker unavailable"),
+            ):
+                with transaction.atomic():
+                    event = queue_email(to_email="dispatchfail@example.com", subject="Test", body="Body")
+                # No exception escaped the transaction.atomic() block above.
+
+            event.refresh_from_db()
+            self.assertEqual(event.status, EmailOutboxEvent.Status.PENDING)
+            self.assertEqual(event.attempts, 0)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_queue_email_post_commit_broker_connection_failure_does_not_escape(self):
+        """
+        Same as above but for a transport/broker-level failure (e.g. Redis
+        briefly unreachable at the moment of dispatch) rather than a
+        Celery task-level one - kombu.exceptions.KombuError is the
+        realistic exception type for that case, distinct from CeleryError.
+        """
+        from kombu.exceptions import KombuError
+
+        with tenant_context(self.school):
+            with mock.patch(
+                "notifications.tasks.send_outbox_email.delay",
+                side_effect=KombuError("connection refused"),
+            ):
+                with transaction.atomic():
+                    event = queue_email(to_email="brokerdown@example.com", subject="Test", body="Body")
+
+            event.refresh_from_db()
+            self.assertEqual(event.status, EmailOutboxEvent.Status.PENDING)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_queue_email_outbox_creation_failure_still_propagates(self):
+        """
+        TEST 3: a genuine database error creating the EmailOutboxEvent row
+        itself (as opposed to a dispatch failure afterward) must still
+        propagate normally - proving the centralized handling added for
+        TEST 2 does not broadly swallow exceptions. Nothing is created.
+        """
+        from django.db import IntegrityError
+
+        with tenant_context(self.school):
+            with mock.patch(
+                "notifications.models.EmailOutboxEvent.objects.create",
+                side_effect=IntegrityError("simulated db failure"),
+            ):
+                with self.assertRaises(IntegrityError):
+                    queue_email(to_email="dbfail@example.com", subject="Test", body="Body")
+
+            self.assertEqual(EmailOutboxEvent.objects.count(), 0)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_dispatch_failed_event_is_recoverable_by_stale_recovery(self):
+        """
+        TEST 4: a PENDING event whose Celery dispatch failed post-commit
+        must still be eligible for the existing recover_stale_outbox_events
+        safety net once it's old enough - proving the centralized handling
+        doesn't create a dead-end event that nothing will ever retry.
+        """
+        from celery.exceptions import CeleryError
+
+        with tenant_context(self.school):
+            with mock.patch(
+                "notifications.tasks.send_outbox_email.delay",
+                side_effect=CeleryError("broker unavailable"),
+            ):
+                event = queue_email(to_email="recoverme@example.com", subject="Test", body="Body")
+
+            EmailOutboxEvent.objects.filter(id=event.id).update(
+                updated_at=timezone.now() - timedelta(minutes=20)
+            )
+
+        recovered = recover_stale_outbox_events.apply().get()
+
+        self.assertEqual(recovered, 1)
+        self.assertEqual(len(mail.outbox), 1)
+        with tenant_context(self.school):
+            event.refresh_from_db()
+            self.assertEqual(event.status, EmailOutboxEvent.Status.SENT)
+
+    def test_temporary_failure_transitions_to_retrying_with_backoff(self):
+        """
+        A transient error (connection refused, timeout, ...) must not go
+        straight to FAILED - it moves to RETRYING with next_attempt_at set
+        in the future, so an operator (or recover_stale_outbox_events)
+        can see a retry is scheduled rather than the event looking stuck.
+        """
+        from celery.exceptions import Retry
+
+        with tenant_context(self.school):
+            event = EmailOutboxEvent.objects.create(
+                to_email="flaky@example.com", subject="Test", body="Body", max_attempts=3
+            )
+
+        with mock.patch(
+            "notifications.tasks.send_mail", side_effect=Exception("connection refused")
+        ):
+            try:
+                send_outbox_email.apply(args=[self.SCHEMA_NAME, str(event.id)])
+            except Retry:
+                pass
+
+        with tenant_context(self.school):
+            event.refresh_from_db()
+            self.assertEqual(event.status, EmailOutboxEvent.Status.RETRYING)
+            self.assertEqual(event.attempts, 1)
+            self.assertEqual(event.error_type, EmailOutboxEvent.ErrorType.TEMPORARY)
+            self.assertIn("connection refused", event.last_error)
+            self.assertIsNotNone(event.next_attempt_at)
+            self.assertGreater(event.next_attempt_at, timezone.now())
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_permanent_failure_skips_retry_and_fails_immediately(self):
+        """
+        A permanent error (bad recipient address) must go straight to
+        FAILED on the first attempt - retrying it would just waste
+        max_attempts on an error that can never succeed."""
+        with tenant_context(self.school):
+            event = EmailOutboxEvent.objects.create(
+                to_email="bad@example.com", subject="Test", body="Body", max_attempts=3
+            )
+
+        with mock.patch(
+            "notifications.tasks.send_mail",
+            side_effect=smtplib.SMTPRecipientsRefused({"bad@example.com": (550, b"User unknown")}),
+        ):
+            send_outbox_email.apply(args=[self.SCHEMA_NAME, str(event.id)])
+
+        with tenant_context(self.school):
+            event.refresh_from_db()
+            self.assertEqual(event.status, EmailOutboxEvent.Status.FAILED)
+            self.assertEqual(event.attempts, 1)
+            self.assertEqual(event.error_type, EmailOutboxEvent.ErrorType.PERMANENT)
+            self.assertIsNone(event.next_attempt_at)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_exponential_backoff_increases_each_retry(self):
+        self.assertEqual(_backoff_seconds(1), 60)
+        self.assertEqual(_backoff_seconds(2), 120)
+        self.assertEqual(_backoff_seconds(3), 240)
+        self.assertEqual(_backoff_seconds(4), 480)
+        self.assertEqual(_backoff_seconds(10), 900)  # capped at MAX_RETRY_DELAY_SECONDS
+
+    def test_send_outbox_email_is_idempotent_once_failed(self):
+        """Re-running the task against an already-FAILED event (e.g. a
+        duplicate/late dispatch after acks_late redelivery) must not
+        re-send or re-count an attempt."""
+        with tenant_context(self.school):
+            event = EmailOutboxEvent.objects.create(
+                to_email="dead@example.com",
+                subject="Test",
+                body="Body",
+                status=EmailOutboxEvent.Status.FAILED,
+                attempts=3,
+                max_attempts=3,
+            )
+
+        send_outbox_email.apply(args=[self.SCHEMA_NAME, str(event.id)])
+
+        self.assertEqual(len(mail.outbox), 0)
+        with tenant_context(self.school):
+            event.refresh_from_db()
+            self.assertEqual(event.attempts, 3)
+            self.assertEqual(event.status, EmailOutboxEvent.Status.FAILED)
+
+    def test_task_is_configured_for_safe_redelivery(self):
+        """acks_late + reject_on_worker_lost: if a worker dies mid-send,
+        the broker redelivers this task to another worker instead of
+        silently losing it."""
+        self.assertTrue(send_outbox_email.acks_late)
+        self.assertTrue(send_outbox_email.reject_on_worker_lost)
+
+    def test_recover_stale_outbox_events_requeues_old_pending(self):
+        """An event that has sat in PENDING/RETRYING with no progress
+        past the stale threshold (queued but never picked up by any
+        worker) gets re-dispatched."""
+        with tenant_context(self.school):
+            event = EmailOutboxEvent.objects.create(
+                to_email="stale@example.com", subject="Test", body="Body"
+            )
+            EmailOutboxEvent.objects.filter(id=event.id).update(
+                updated_at=timezone.now() - timedelta(minutes=20)
+            )
+
+        recovered = recover_stale_outbox_events.apply().get()
+
+        self.assertEqual(recovered, 1)
+        self.assertEqual(len(mail.outbox), 1)
+        with tenant_context(self.school):
+            event.refresh_from_db()
+            self.assertEqual(event.status, EmailOutboxEvent.Status.SENT)
+
+    def test_recover_stale_outbox_events_ignores_recent_events(self):
+        """An event still well within the stale threshold must be left
+        alone - it may simply be mid-flight or scheduled for a near-
+        future retry, not stuck."""
+        with tenant_context(self.school):
+            EmailOutboxEvent.objects.create(
+                to_email="fresh@example.com", subject="Test", body="Body"
+            )
+
+        recovered = recover_stale_outbox_events.apply().get()
+
+        self.assertEqual(recovered, 0)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_recover_stale_outbox_events_ignores_terminal_events(self):
+        """A SENT or FAILED event is terminal - it must never be
+        re-dispatched, no matter how old updated_at is."""
+        with tenant_context(self.school):
+            sent_event = queue_email(to_email="done@example.com", subject="Test", body="Body")
+            EmailOutboxEvent.objects.filter(id=sent_event.id).update(
+                updated_at=timezone.now() - timedelta(minutes=20)
+            )
+        mail.outbox = []  # clear the send queue_email() itself triggered
+
+        recovered = recover_stale_outbox_events.apply().get()
+
+        self.assertEqual(recovered, 0)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_recover_stale_outbox_events_is_tenant_scoped(self):
+        """A stale event must be recovered independently per tenant -
+        one tenant's backlog must not be skipped because of another's,
+        and each must be re-dispatched into its own schema."""
+        with tenant_context(self.school):
+            event_a = EmailOutboxEvent.objects.create(
+                to_email="a@example.com", subject="Test", body="Body"
+            )
+            EmailOutboxEvent.objects.filter(id=event_a.id).update(
+                updated_at=timezone.now() - timedelta(minutes=20)
+            )
+        with tenant_context(self.other_school):
+            event_b = EmailOutboxEvent.objects.create(
+                to_email="b@example.com", subject="Test", body="Body"
+            )
+            EmailOutboxEvent.objects.filter(id=event_b.id).update(
+                updated_at=timezone.now() - timedelta(minutes=20)
+            )
+
+        recovered = recover_stale_outbox_events.apply().get()
+
+        self.assertEqual(recovered, 2)
+        with tenant_context(self.school):
+            event_a.refresh_from_db()
+            self.assertEqual(event_a.status, EmailOutboxEvent.Status.SENT)
+        with tenant_context(self.other_school):
+            event_b.refresh_from_db()
+            self.assertEqual(event_b.status, EmailOutboxEvent.Status.SENT)

@@ -759,3 +759,238 @@ class ExamReportsTest(ExamFixtureMixin, TransactionTestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(len(resp.data["examinations"]), 1)
         self.assertEqual(resp.data["student"]["enrollment_id"], "ENR-EX-1")
+
+
+class ExamResultNotificationTest(ExamFixtureMixin, TransactionTestCase):
+    """
+    Focused tests for the publish_examination() -> notifications outbox
+    integration (examinations/services.py's _queue_result_published_notifications
+    and _resolve_result_notification_recipients). CELERY_TASK_ALWAYS_EAGER=True
+    during tests means queue_email()'s on_commit-deferred .delay() runs
+    synchronously right after the publish transaction commits - no real
+    worker/Redis connection is exercised here.
+
+    self.student (fixture) has a linked portal account (exam_student_user,
+    with an email) - eligible for a notification. self.student2 has a
+    Profile with NO linked user_id - deliberately NOT eligible, used below
+    to prove accounts without a resolvable email are skipped rather than
+    guessed at.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.schedule = self._create_schedule()
+        with tenant_context(self.school):
+            ExamMark.objects.create(exam_schedule=self.schedule, student=self.student, marks_obtained=80)
+            ExamMark.objects.create(exam_schedule=self.schedule, student=self.student2, marks_obtained=30)
+
+        # A parent linked to self.student only - mirrors
+        # notifications.tests.NotificationFixtureMixin's parent setup.
+        self.parent_user = self._build_user("exam_notif_parent", "parent")
+        with tenant_context(self.school):
+            from families.models import Parent, StudentParentRelation
+
+            parent_profile = Profile.objects.create(
+                user_id=self.parent_user.id, first_name="Par", last_name="Ent"
+            )
+            self.parent = Parent.objects.create(profile=parent_profile, occupation="Engineer")
+            StudentParentRelation.objects.create(
+                student=self.student, parent=self.parent, relation_type="mother", is_primary_contact=True
+            )
+
+    def _publish(self):
+        owner_client = self._client_as(self.owner_user)
+        return owner_client.post(
+            f"/api/examinations/examinations/{self.examination.id}/publish/", HTTP_HOST=self.DOMAIN
+        )
+
+    def test_publish_still_creates_results(self):
+        """Baseline regression: the notification integration must not
+        change what publication itself persists."""
+        resp = self._publish()
+        self.assertEqual(resp.status_code, 200, resp.data)
+        with tenant_context(self.school):
+            self.assertEqual(ExamResult.objects.filter(examination=self.examination).count(), 2)
+
+    def test_publish_queues_notification_for_student_with_portal_account(self):
+        from notifications.models import EmailOutboxEvent
+
+        self._publish()
+        with tenant_context(self.school):
+            events = EmailOutboxEvent.objects.filter(to_email=self.student_user.email)
+            self.assertEqual(events.count(), 1)
+            self.assertIn(self.examination.name, events.first().body)
+
+    def test_publish_queues_notification_for_linked_parent(self):
+        from notifications.models import EmailOutboxEvent
+
+        self._publish()
+        with tenant_context(self.school):
+            events = EmailOutboxEvent.objects.filter(to_email=self.parent_user.email)
+            self.assertEqual(events.count(), 1)
+            self.assertIn(self.student.profile.first_name, events.first().body)
+
+    def test_student_without_portal_account_gets_no_notification(self):
+        """student2's Profile has no linked user_id - there is no email to
+        send to, and none must be invented."""
+        from notifications.models import EmailOutboxEvent
+
+        self._publish()
+        with tenant_context(self.school):
+            # Only student (1) + parent (1) are eligible - student2 contributes none.
+            self.assertEqual(EmailOutboxEvent.objects.count(), 2)
+
+    def test_unrelated_student_does_not_receive_a_notification(self):
+        """self.other_student has no ExamMark at all for this examination -
+        it must never receive a result notification for it."""
+        from notifications.models import EmailOutboxEvent
+
+        self._publish()
+        with tenant_context(self.school):
+            self.assertFalse(
+                EmailOutboxEvent.objects.filter(to_email=self.other_student_user.email).exists()
+            )
+
+    def test_notification_body_omits_marks_and_grades(self):
+        """Privacy requirement: the email must direct the recipient to the
+        portal, never carry the actual marks/percentage/grade."""
+        from notifications.models import EmailOutboxEvent
+
+        self._publish()
+        with tenant_context(self.school):
+            for event in EmailOutboxEvent.objects.all():
+                self.assertNotIn("80", event.body)
+                self.assertNotIn("30", event.body)
+                self.assertNotIn("percentage", event.body.lower())
+                self.assertNotIn("grade", event.body.lower())
+                self.assertIn("log in", event.body.lower())
+
+    def test_notification_delivery_failure_does_not_roll_back_publication(self):
+        """The core transactional requirement: an email SEND failure (as
+        opposed to a failure queuing it) must never affect the already-
+        committed publication - EmailOutboxEvent's own retry/failure state
+        machine owns that failure from here."""
+        resp = self._publish_with_failing_smtp()
+        self.assertEqual(resp.status_code, 200, resp.data)
+        with tenant_context(self.school):
+            exam = Examination.objects.get(id=self.examination.id)
+            self.assertTrue(exam.is_published)
+            self.assertEqual(ExamResult.objects.filter(examination=self.examination).count(), 2)
+
+    def _publish_with_failing_smtp(self):
+        from unittest import mock
+
+        with mock.patch("notifications.tasks.send_mail", side_effect=Exception("smtp down")):
+            return self._publish()
+
+    def test_failed_publication_creates_no_notification_events(self):
+        """If result generation itself fails, nothing - not ExamResult,
+        not is_published, not any EmailOutboxEvent - may survive; proves
+        the notification queuing is genuinely inside the same atomic unit,
+        not a separate side-channel write."""
+        from unittest import mock
+
+        from notifications.models import EmailOutboxEvent
+
+        with mock.patch(
+            "examinations.services.calculate_student_examination_result",
+            side_effect=RuntimeError("boom"),
+        ):
+            resp = self._publish()
+        self.assertEqual(resp.status_code, 400)
+        with tenant_context(self.school):
+            self.assertFalse(Examination.objects.get(id=self.examination.id).is_published)
+            self.assertEqual(ExamResult.objects.filter(examination=self.examination).count(), 0)
+            self.assertEqual(EmailOutboxEvent.objects.count(), 0)
+
+    def test_republish_does_not_create_duplicate_notifications(self):
+        """The existing is_published guard is this feature's idempotency
+        mechanism - a second publish attempt must be rejected exactly as
+        before, and must not queue a second round of notifications."""
+        from notifications.models import EmailOutboxEvent
+
+        first = self._publish()
+        self.assertEqual(first.status_code, 200, first.data)
+        with tenant_context(self.school):
+            count_after_first = EmailOutboxEvent.objects.count()
+
+        second = self._publish()
+        self.assertEqual(second.status_code, 400)
+        with tenant_context(self.school):
+            self.assertEqual(EmailOutboxEvent.objects.count(), count_after_first)
+
+    def test_results_published_audit_entry_unchanged(self):
+        """The existing results_published audit event remains the
+        source-of-truth publication audit entry - no second,
+        notification-specific audit event is introduced."""
+        from core.models import AuditLog
+
+        self._publish()
+        with tenant_context(self.school):
+            actions = list(AuditLog.objects.values_list("action", flat=True))
+            self.assertIn("results_published", actions)
+            self.assertEqual(actions.count("results_published"), 1)
+            self.assertNotIn("notification_queued", actions)
+            self.assertNotIn("results_notification_sent", actions)
+
+    def test_publish_permission_still_enforced(self):
+        """Existing authorization is untouched by this feature."""
+        limited_user = self._build_user("exam_notif_limited", "staff")
+        self._give_role_only(limited_user, ["view_examinations", "manage_examinations"])
+        client = self._client_as(limited_user)
+        resp = client.post(
+            f"/api/examinations/examinations/{self.examination.id}/publish/", HTTP_HOST=self.DOMAIN
+        )
+        self.assertEqual(resp.status_code, 403)
+
+
+class ExamResultNotificationTenantIsolationTest(ExamFixtureMixin, TransactionTestCase):
+    def test_publishing_in_tenant_b_does_not_leak_notification_into_tenant_a(self):
+        from academics.models import AcademicLevel, Program, Section, Subject
+        from notifications.models import EmailOutboxEvent
+
+        from .services import publish_examination
+
+        school_b = self._build_school(schema_name="exam_notif_school_b", domain="examnotifb.localhost")
+        try:
+            with tenant_context(school_b):
+                program = Program.objects.create(name="HS2", code="HS2EX")
+                level = AcademicLevel.objects.create(program=program, name="Grade 10", order=1)
+                section = Section.objects.create(level=level, name="A", capacity=40)
+                subject = Subject.objects.create(level=level, name="Math", code="MTH2")
+                exam_type_b = ExamType.objects.create(name="Final", order=1)
+                examination_b = Examination.objects.create(
+                    academic_year="2026", name="Final B", exam_type=exam_type_b,
+                    start_date=datetime.date(2026, 6, 1), end_date=datetime.date(2026, 6, 10),
+                )
+                schedule_b = ExamSchedule.objects.create(
+                    examination=examination_b, academic_year="2026", subject=subject, section=section,
+                    date=datetime.date(2026, 6, 2), start_time=datetime.time(9, 0), end_time=datetime.time(11, 0),
+                    max_marks=Decimal("100"), pass_marks=Decimal("40"),
+                )
+                student_user_b = User.objects.create_user(
+                    username="examnotifb_student", email="b_student@examnotifb.com", password="Pass1234!"
+                )
+                profile_b = Profile.objects.create(
+                    user_id=student_user_b.id, first_name="B", last_name="Student"
+                )
+                student_b = Student.objects.create(
+                    profile=profile_b, enrollment_id="ENR-NB-1", status="active"
+                )
+                ExamMark.objects.create(exam_schedule=schedule_b, student=student_b, marks_obtained=80)
+
+                publish_examination(examination_b)
+
+                self.assertEqual(
+                    EmailOutboxEvent.objects.filter(to_email="b_student@examnotifb.com").count(), 1
+                )
+
+            with tenant_context(self.school):
+                self.assertEqual(
+                    EmailOutboxEvent.objects.filter(to_email="b_student@examnotifb.com").count(),
+                    0,
+                    "TENANT ISOLATION FAILURE: tenant B's notification leaked into tenant A's schema",
+                )
+        finally:
+            connection.set_schema_to_public()
+            school_b.delete(force_drop=True)

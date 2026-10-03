@@ -502,4 +502,11 @@ SYSTEM_PERMISSIONS = [
         "module": "Dashboard",
         "description": "View the cross-module admin/staff dashboard summary (student/staff/academic counts, attendance, fees, promotion activity)",
     },
+    # Audit Log
+    {
+        "codename": "view_audit_log",
+        "name": "View Audit Log",
+        "module": "Audit",
+        "description": "View the tenant's security audit trail (role changes, password changes, and other sensitive actions)",
+    },
 ]

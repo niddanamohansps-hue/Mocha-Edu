@@ -277,7 +277,7 @@ function GetStartedContent() {
                                                             className="rounded-r-none border-slate-300 focus:border-blue-500"
                                                         />
                                                         <div className="flex items-center px-4 border border-l-0 rounded-r-lg bg-slate-50 text-sm text-slate-600 font-medium">
-                                                            .edusekai.com
+                                                            .localhost
                                                         </div>
                                                     </div>
                                                 </FormControl>
@@ -403,7 +403,7 @@ function GetStartedContent() {
                                         <span className="font-semibold text-slate-900">Institution:</span> {formData?.organizationName}
                                     </p>
                                     <p className="text-sm text-slate-700 mb-2">
-                                        <span className="font-semibold text-slate-900">Subdomain:</span> {formData?.subdomain}.edusekai.com
+                                        <span className="font-semibold text-slate-900">Subdomain:</span> {formData?.subdomain}.localhost
                                     </p>
                                     <p className="text-sm text-slate-700">
                                         <span className="font-semibold text-slate-900">Admin Account:</span> {formData?.username} ({formData?.email})

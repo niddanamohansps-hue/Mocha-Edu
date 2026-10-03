@@ -106,8 +106,9 @@ export default function ProfilePage() {
     return (
         <div className="space-y-8">
             {/* Header Section */}
-            <div className="relative h-24 bg-sky-600 rounded-xl overflow-hidden shadow-xl shadow-sky-500/10 animate-in fade-in slide-in-from-top-4 duration-700 mb-5 flex items-center gap-5 pl-5">
-                <div className="p-2 bg-white rounded-4xl shadow-2xl">
+            <div className="relative h-24 bg-gradient-to-r from-sky-600 via-sky-600 to-teal-600 rounded-xl overflow-hidden shadow-xl shadow-sky-500/10 animate-in fade-in slide-in-from-top-4 duration-700 mb-5 flex items-center gap-5 pl-5">
+                <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-2xl" />
+                <div className="p-2 bg-white rounded-4xl shadow-2xl relative z-10 transition-transform duration-300 ease-out hover:scale-105 hover:-rotate-3">
                     <div className="relative group">
                         <User className="h-12 w-12 text-sky-600" />
                     </div>
@@ -139,7 +140,7 @@ export default function ProfilePage() {
                             <CardDescription>Role and Designation</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center gap-4">
+                            <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center gap-4 transition-all duration-300 ease-out hover:border-sky-200 dark:hover:border-sky-900 hover:bg-white dark:hover:bg-slate-800 hover:shadow-md hover:-translate-y-0.5">
                                 <div className="p-3 bg-sky-100 dark:bg-sky-500/10 text-sky-600 rounded-xl">
                                     <Briefcase className="h-6 w-6" />
                                 </div>
@@ -152,7 +153,7 @@ export default function ProfilePage() {
                             </div>
 
                             {((profile as StaffProfile)?.employee_id || (profile as StudentProfile)?.enrollment_id) && (
-                                <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center gap-4">
+                                <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center gap-4 transition-all duration-300 ease-out hover:border-sky-200 dark:hover:border-sky-900 hover:bg-white dark:hover:bg-slate-800 hover:shadow-md hover:-translate-y-0.5">
                                     <div className="p-3 bg-teal-100 dark:bg-teal-500/10 text-teal-600 rounded-xl">
                                         <BadgeCheck className="h-6 w-6" />
                                     </div>
@@ -166,7 +167,7 @@ export default function ProfilePage() {
                             )}
 
                             {role === 'student' && (
-                                <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center gap-4">
+                                <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center gap-4 transition-all duration-300 ease-out hover:border-sky-200 dark:hover:border-sky-900 hover:bg-white dark:hover:bg-slate-800 hover:shadow-md hover:-translate-y-0.5">
                                     <div className="p-3 bg-indigo-100 dark:bg-indigo-500/10 text-indigo-600 rounded-xl">
                                         <BookOpen className="h-6 w-6" />
                                     </div>
@@ -194,7 +195,7 @@ export default function ProfilePage() {
                                     onChange={handleImageChange}
                                 />
                                 <div
-                                    className="aspect-square bg-slate-50 dark:bg-slate-800 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center group relative cursor-pointer overflow-hidden"
+                                    className="aspect-square bg-slate-50 dark:bg-slate-800 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center group relative cursor-pointer overflow-hidden transition-all duration-300 ease-out hover:border-sky-400 hover:bg-sky-50/50 dark:hover:bg-sky-500/5 hover:shadow-lg hover:shadow-sky-500/10"
                                     onClick={handleImageClick}
                                 >
                                     {imagePreview || formData.profile_image ? (

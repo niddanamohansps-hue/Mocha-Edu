@@ -15,6 +15,15 @@ body {
       "Segoe UI Symbol",
       "Noto Color Emoji"
     );
+  /* The dashboard shell (dashboard/layout.tsx) owns its own h-screen +
+     overflow-hidden container and delegates all scrolling to its inner
+     <main>. Without constraining html/body too, the document itself can
+     still grow taller than the viewport and scroll independently -
+     producing a second, out-of-sync scrollbar and making any `sticky`
+     element inside <main> appear to float mid-page instead of pinned to
+     the real bottom of the browser window. */
+  height: 100%;
+  overflow: hidden;
 }
 
 /* Tailwind theme tokens used by shadcn */
@@ -128,5 +137,29 @@ body {
 
   body {
     @apply bg-background text-foreground;
+  }
+
+  /* Slim, brand-colored scrollbar instead of the bulky default */
+  html {
+    scrollbar-width: thin;
+    scrollbar-color: #0ea5e9 transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, #0ea5e9, #14b8a6);
+    border-radius: 9999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, #0284c7, #0d9488);
   }
 }

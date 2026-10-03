@@ -9,6 +9,16 @@ from organizations.models import Organization, Domain
 from roles.models import Role, UserRole
 
 
+class ForgotPasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+
+class ResetPasswordConfirmSerializer(serializers.Serializer):
+    uid = serializers.CharField()
+    token = serializers.CharField()
+    new_password = serializers.CharField(write_only=True, min_length=8)
+
+
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User

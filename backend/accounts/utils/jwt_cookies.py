@@ -1,3 +1,4 @@
+from django.conf import settings
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -12,7 +13,7 @@ def set_jwt_cookies(response: Response, user) -> Response:
         httponly=True,
         samesite="Lax",
         max_age=60 * 15,
-        secure=False,
+        secure=settings.COOKIE_SECURE,
     )
 
     response.set_cookie(
@@ -21,7 +22,7 @@ def set_jwt_cookies(response: Response, user) -> Response:
         httponly=True,
         samesite="Lax",
         max_age=60 * 60 * 24,
-        secure=False,
+        secure=settings.COOKIE_SECURE,
     )
 
     return response
@@ -35,7 +36,7 @@ def set_access_cookie(response: Response, access_token: str) -> Response:
         httponly=True,
         samesite="Lax",
         max_age=60 * 15,
-        secure=False,
+        secure=settings.COOKIE_SECURE,
     )
     return response
 

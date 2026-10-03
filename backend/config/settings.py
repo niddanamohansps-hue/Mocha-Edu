@@ -2,12 +2,18 @@ from pathlib import Path
 from datetime import timedelta
 from decouple import config, Csv
 import os
+import sys
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Load secret key and debug
 SECRET_KEY = config("SECRET_KEY")
 DEBUG = config("DEBUG", default=False, cast=bool)
+
+# JWT cookie security: forces the `Secure` flag on JWT cookies. Defaults to
+# True whenever DEBUG=False so production is secure by default, while local
+# HTTP development (DEBUG=True) keeps working without any .env change.
+COOKIE_SECURE = config("COOKIE_SECURE", default=not DEBUG, cast=bool)
 
 # Allowed hosts
 ALLOWED_HOSTS = config(
@@ -148,7 +154,34 @@ REST_FRAMEWORK = {
         "accounts.authentication.JWTCookieAuthentication",
     ),
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    # Scoped rates for the narrow set of authentication-sensitive endpoints
+    # that explicitly opt in via `throttle_classes`/`throttle_scope`. No
+    # DEFAULT_THROTTLE_CLASSES is set, so normal authenticated API traffic
+    # elsewhere is completely unaffected.
+    "DEFAULT_THROTTLE_RATES": {
+        "login": "5/min",
+        "verify_account": "5/min",
+        "token_refresh": "10/min",
+        "register_organization": "3/hour",
+        "forgot_password": "5/hour",
+        "reset_password": "10/min",
+    },
 }
+
+# Test-run-only accommodation. The backend's test suite performs many
+# incidental logins scattered across unrelated apps' fixtures (e.g.
+# timetable/tests.py alone calls the login endpoint ~39 times) that all
+# share DRF's in-process throttle cache for the lifetime of one
+# `manage.py test` run. That incidental volume trips the real 5/min
+# "login" ceiling and produces false failures unrelated to any actual
+# security behavior. Only the ambient "login" rate is raised here, and
+# only when Django's test command is the active command - a deployed
+# server never takes this branch. accounts.tests.SecurityHardeningTest
+# explicitly restores the real "5/min" rate for the duration of its own
+# throttle assertion, so the actual production threshold is still
+# genuinely proven, not just assumed.
+if len(sys.argv) > 1 and sys.argv[1] == "test":
+    REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["login"] = "1000/min"
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "EduSekai API",
@@ -160,6 +193,19 @@ SPECTACULAR_SETTINGS = {
 }
 
 
+# Email (password reset, etc.). Defaults to printing to the console so
+# password-reset links are immediately visible in dev without any SMTP
+# setup; set EMAIL_BACKEND/EMAIL_HOST/etc. via .env for real delivery.
+EMAIL_BACKEND = config(
+    "EMAIL_BACKEND", default="django.core.mail.backends.console.EmailBackend"
+)
+EMAIL_HOST = config("EMAIL_HOST", default="")
+EMAIL_PORT = config("EMAIL_PORT", default=587, cast=int)
+EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")
+EMAIL_USE_TLS = config("EMAIL_USE_TLS", default=True, cast=bool)
+DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="noreply@edusekai.local")
+
 # JWT
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(
@@ -169,6 +215,50 @@ SIMPLE_JWT = {
         days=config("REFRESH_TOKEN_LIFETIME_DAYS", cast=int, default=1)
     ),
 }
+
+# Password reset. PASSWORD_RESET_TIMEOUT is a built-in Django setting (in
+# seconds) consumed automatically by PasswordResetTokenGenerator.check_token()
+# - no other code needs to reference it. Defaults to 1 hour, deliberately
+# much shorter than Django's own built-in default (3 days), since a reset
+# link is a standing credential-reset capability sent over email.
+PASSWORD_RESET_TIMEOUT = config(
+    "PASSWORD_RESET_TIMEOUT_SECONDS", default=3600, cast=int
+)
+
+# Protocol/port for the password-reset email link. The hostname itself is
+# NOT configured here - it's taken from the incoming request (the tenant's
+# own subdomain, e.g. spsghy.localhost), since this is a multi-tenant app
+# and a single fixed frontend URL would send every school's reset email to
+# the wrong tenant. Only the protocol/port differ between dev and prod.
+PASSWORD_RESET_FRONTEND_PROTOCOL = config(
+    "PASSWORD_RESET_FRONTEND_PROTOCOL", default="http" if DEBUG else "https"
+)
+PASSWORD_RESET_FRONTEND_PORT = config("PASSWORD_RESET_FRONTEND_PORT", default="3555")
+
+# Celery (async email outbox - see notifications/tasks.py). Redis doubles as
+# broker and result backend - no RabbitMQ/separate result store needed for
+# this project's scale.
+#
+# DB index 3 (not the default 0) and a dedicated queue name are both
+# deliberate: this machine's local Redis is shared with at least one other,
+# unrelated project (discovered empirically - starting a worker against the
+# default db/queue immediately drained a backlog of a different app's
+# recruitment-system tasks, e.g. "send_interview_email_task"). Two
+# independent layers of isolation (db index + queue name) so a future app
+# defaulting to either the same db OR the same queue name alone still can't
+# cross-contaminate with this one.
+CELERY_BROKER_URL = config("CELERY_BROKER_URL", default="redis://localhost:6379/3")
+CELERY_RESULT_BACKEND = config("CELERY_RESULT_BACKEND", default="redis://localhost:6379/3")
+CELERY_TASK_DEFAULT_QUEUE = config("CELERY_TASK_DEFAULT_QUEUE", default="edusekai")
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TASK_TIME_LIMIT = 30
+# Tests run tasks synchronously in-process - no real worker/broker needed
+# to exercise the full outbox pipeline. Same sys.argv test-detection
+# already used for the login-throttle test-only accommodation above.
+CELERY_TASK_ALWAYS_EAGER = len(sys.argv) > 1 and sys.argv[1] == "test"
+CELERY_TASK_EAGER_PROPAGATES = True
 
 # CORS
 CORS_ALLOW_ALL_ORIGINS = False

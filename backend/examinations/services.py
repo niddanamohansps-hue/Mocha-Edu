@@ -296,14 +296,146 @@ def calculate_student_examination_result(examination, student):
     }
 
 
+def _build_portal_link(path):
+    """
+    Builds an absolute link to the tenant's own frontend, for use in a
+    notification email body. Reuses PASSWORD_RESET_FRONTEND_PROTOCOL/PORT
+    (accounts/views.py's ForgotPasswordView) rather than introducing a
+    second frontend-URL setting - both features point at the same
+    tenant_frontend app on the same port, just different paths.
+
+    Unlike the password-reset flow, there is no inbound HTTP request here
+    to read the tenant's host from (this runs from publish_examination(),
+    a plain service function) - the tenant's own primary Domain row
+    (already the source of truth for tenant routing) is the equivalent
+    source of the hostname. Falls back to a bare relative path if, for
+    whatever reason, the current connection has no tenant/domain - still a
+    usable (if non-clickable-without-context) instruction in the email.
+    """
+    from django.conf import settings
+    from django.db import connection
+
+    tenant = connection.tenant
+    domain = tenant.domains.filter(is_primary=True).first() if tenant else None
+    if domain is None and tenant is not None:
+        domain = tenant.domains.first()
+    if domain is None:
+        return path
+
+    port_suffix = (
+        f":{settings.PASSWORD_RESET_FRONTEND_PORT}" if settings.PASSWORD_RESET_FRONTEND_PORT else ""
+    )
+    return f"{settings.PASSWORD_RESET_FRONTEND_PROTOCOL}://{domain.domain}{port_suffix}{path}"
+
+
+def _resolve_result_notification_recipients(student):
+    """
+    Returns a list of {"email", "is_parent"} dicts eligible for a
+    result-published notification for this one student: their own portal
+    account (profiles.Profile.user, the existing soft-link to
+    accounts.User) if linked and has an email, plus every parent/guardian
+    linked via families.StudentParentRelation whose own portal account
+    likewise has an email.
+
+    Deliberately skips anyone with no linked portal account/email rather
+    than inventing a new contact concept - "only send to recipients for
+    whom the application already has a valid email relationship" is
+    exactly what Profile.user_id being unset (common for a Student created
+    without ever activating a portal login) already represents.
+    """
+    recipients = []
+
+    student_user = student.profile.user
+    if student_user and student_user.email:
+        recipients.append({"email": student_user.email, "is_parent": False})
+
+    from families.models import StudentParentRelation
+
+    parent_links = StudentParentRelation.objects.filter(student=student).select_related("parent__profile")
+    for link in parent_links:
+        parent_user = link.parent.profile.user
+        if parent_user and parent_user.email:
+            recipients.append({"email": parent_user.email, "is_parent": True})
+
+    return recipients
+
+
+def _queue_result_published_notifications(examination, student_ids):
+    """
+    Queues one result-published email per eligible recipient (see
+    _resolve_result_notification_recipients) for every student in
+    student_ids, via the existing async outbox (notifications.services.
+    queue_email) - the exact same call accounts.views.ForgotPasswordView
+    already uses, so no second notification mechanism is introduced.
+
+    Content is deliberately minimal - exam name only, never marks/grades/
+    percentage - the recipient must log in to the existing authenticated
+    portal (StudentReportCardView / parent_portal's child-results views)
+    to see the actual result.
+
+    Idempotency: this is only ever called from inside publish_examination()'s
+    own atomic block, which itself can only run once per Examination (see
+    the is_published guard below) - so this function can never run twice
+    for the same examination, and no separate dedupe key is needed.
+
+    Must NOT be wrapped in a broad except/pass: queue_email() only writes
+    an EmailOutboxEvent row and defers a Celery dispatch via
+    transaction.on_commit() - it never sends an email synchronously, so
+    anything it raises here is a genuine programming/data error (e.g. a
+    database problem), not an "email failed to send" case. Letting it
+    propagate (and roll back this function's caller's transaction, same as
+    any other failure inside that transaction) is correct; actual delivery
+    failures happen later, asynchronously, in tasks.send_outbox_email, and
+    are handled entirely by its own retry/failure state machine.
+    """
+    from notifications.services import queue_email
+    from students.models import Student
+
+    students_by_id = {s.id: s for s in Student.objects.filter(id__in=student_ids).select_related("profile")}
+
+    for student_id in student_ids:
+        student = students_by_id.get(student_id)
+        if student is None:
+            continue
+        full_name = f"{student.profile.first_name} {student.profile.last_name}"
+
+        for recipient in _resolve_result_notification_recipients(student):
+            if recipient["is_parent"]:
+                subject = f"Examination results available for {full_name}"
+                body = (
+                    f"The examination results for {full_name} ({examination.name}) are now available.\n\n"
+                    f"Please log in to the parent portal to view the results:\n"
+                    f"{_build_portal_link('/dashboard/parent-portal/results')}"
+                )
+            else:
+                subject = "Your examination results are available"
+                body = (
+                    f"Your examination results for {examination.name} are now available.\n\n"
+                    f"Please log in to view your results:\n"
+                    f"{_build_portal_link('/dashboard/examinations/results')}"
+                )
+
+            queue_email(to_email=recipient["email"], subject=subject, body=body)
+
+
 def publish_examination(examination):
     """
     Atomically snapshots every participating student's result into
-    ExamResult and marks the examination published. "Participating" means
-    having at least one ExamMark row across this examination's schedules -
-    students never marked for any of its subjects are not included.
+    ExamResult, marks the examination published, and queues a
+    result-published notification (see _queue_result_published_notifications)
+    for each newly-published student's eligible recipients - all in the
+    same transaction. "Participating" means having at least one ExamMark
+    row across this examination's schedules - students never marked for
+    any of its subjects are not included, and never notified.
 
-    If ANYTHING fails, nothing is partially published (single transaction).
+    If ANYTHING fails - including a genuine error while queuing
+    notifications - nothing is partially published (single transaction):
+    no ExamResult rows, no is_published flag, and no EmailOutboxEvent rows
+    survive. Actual email DELIVERY, by contrast, can never roll this back -
+    queue_email() only writes a row and defers dispatch via
+    transaction.on_commit(), so the Celery task that really sends the
+    email only ever runs after this transaction has already committed.
+
     Raises serializers.ValidationError if the examination is already
     published or has no schedules/marks at all.
     """
@@ -327,6 +459,7 @@ def publish_examination(examination):
     from students.models import Student
 
     with transaction.atomic():
+        published_student_ids = []
         for student in Student.objects.filter(id__in=student_ids):
             result = calculate_student_examination_result(examination, student)
             if result is None:
@@ -342,9 +475,18 @@ def publish_examination(examination):
                 is_pass=result["is_pass"],
                 subject_breakdown=result["subject_breakdown"],
             )
+            published_student_ids.append(student.id)
 
         examination.is_published = True
         examination.published_at = timezone.now()
         examination.save(update_fields=["is_published", "published_at", "updated_at"])
+
+        # queue_email() (see notifications.services) now handles a
+        # post-commit Celery dispatch failure centrally - it logs and
+        # swallows it there, so no CeleryError handling is needed here
+        # anymore. A genuine error raised directly by this call (a real
+        # DB/programming error, not a dispatch failure) still propagates
+        # and rolls back this entire block, exactly as before.
+        _queue_result_published_notifications(examination, published_student_ids)
 
     return examination

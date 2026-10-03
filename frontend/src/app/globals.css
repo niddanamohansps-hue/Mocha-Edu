@@ -1,6 +1,14 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* Tailwind v4's `container` utility no longer centers itself or adds
+   inline padding by default (unlike v3) - restore that so every
+   `container` div on the page is centered in the viewport. */
+@utility container {
+  margin-inline: auto;
+  padding-inline: 1rem;
+}
+
 /* Enable class-based dark mode */
 @custom-variant dark (&:is(.dark *));
 
@@ -115,5 +123,87 @@
 
   body {
     @apply bg-background text-foreground;
+  }
+
+  /* Slim, brand-colored scrollbar instead of the bulky default */
+  html {
+    scrollbar-width: thin;
+    scrollbar-color: #0ea5e9 transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, #2563eb, #0d9488);
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, #1d4ed8, #0f766e);
+    background-clip: content-box;
+  }
+}
+
+/* ============================= */
+/* Landing page motion */
+/* ============================= */
+@layer utilities {
+  @keyframes blob-float {
+    0%,
+    100% {
+      transform: translate(0, 0) scale(1);
+    }
+    33% {
+      transform: translate(30px, -50px) scale(1.15);
+    }
+    66% {
+      transform: translate(-25px, 25px) scale(0.9);
+    }
+  }
+  .animate-blob {
+    animation: blob-float 16s ease-in-out infinite;
+  }
+  .animation-delay-2000 {
+    animation-delay: 2s;
+  }
+  .animation-delay-4000 {
+    animation-delay: 4s;
+  }
+
+  @keyframes gradient-shift {
+    0%,
+    100% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+  }
+  .animate-gradient {
+    background-size: 200% 200%;
+    animation: gradient-shift 10s ease infinite;
+  }
+
+  @keyframes glow-pulse {
+    0%,
+    100% {
+      opacity: 0.6;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.03);
+    }
+  }
+  .animate-glow-pulse {
+    animation: glow-pulse 3s ease-in-out infinite;
   }
 }
