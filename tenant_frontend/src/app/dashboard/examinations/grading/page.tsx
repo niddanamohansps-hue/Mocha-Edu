@@ -7,6 +7,8 @@ import { usePermissions } from "@/providers/PermissionProvider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Unauthorized from "@/components/Unauthorized";
+import { EmptyState } from "@/components/feedback/EmptyState";
+import { ErrorState } from "@/components/feedback/ErrorState";
 
 function currentYear() {
     return String(new Date().getFullYear());
@@ -17,7 +19,7 @@ export default function GradingPage() {
     const canManage = isOwner || can("manage_grading");
 
     const [academicYear, setAcademicYear] = useState(currentYear());
-    const { data: boundaries, isLoading } = useGradeBoundaries(academicYear);
+    const { data: boundaries, isLoading, isError, refetch } = useGradeBoundaries(academicYear);
     const { mutate: createBoundary, isPending } = useCreateGradeBoundary();
     const { mutate: deleteBoundary } = useDeleteGradeBoundary();
 
@@ -79,8 +81,10 @@ export default function GradingPage() {
 
             {isLoading ? (
                 <LoaderCircle className="h-6 w-6 animate-spin text-indigo-600" />
+            ) : isError ? (
+                <ErrorState onRetry={refetch} />
             ) : !boundaries || boundaries.length === 0 ? (
-                <p className="text-sm text-slate-500 py-6">No grade boundaries defined for {academicYear} yet.</p>
+                <EmptyState title={`No grade boundaries defined for ${academicYear} yet.`} className="py-6 text-slate-500 text-sm" />
             ) : (
                 <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
                     <table className="w-full text-sm">

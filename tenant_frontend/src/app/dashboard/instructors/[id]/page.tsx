@@ -9,16 +9,7 @@ import { User, BookOpen, ChevronLeft, Trash2, Mail, Phone, MapPin, Calendar, Awa
 import TeachingAssignmentsTab from "@/components/dashboard/instructors/TeachingAssignmentsTab";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { ConfirmationDialog } from "@/components/feedback/ConfirmationDialog";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -218,27 +209,23 @@ export default function InstructorDetailPage() {
             </Tabs>
 
             {/* Delete Confirmation Dialog */}
-            <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle className="text-xl font-bold">Resign/Delete Instructor?</AlertDialogTitle>
-                        <AlertDialogDescription className="text-base text-slate-600">
-                            Are you absolutely sure you want to remove <span className="font-bold text-slate-900">{fullName}</span> from the faculty list?
-                            This will also remove all their active teaching assignments.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter className="gap-2 sm:gap-0">
-                        <AlertDialogCancel className="rounded-lg">Go Back</AlertDialogCancel>
-                        <AlertDialogAction
-                            onClick={handleDelete}
-                            className="bg-red-600 hover:bg-red-700 text-white rounded-lg shadow-lg shadow-red-500/20"
-                            disabled={isDeleting}
-                        >
-                            {isDeleting ? "Processing..." : "Confirm Deletion"}
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+            <ConfirmationDialog
+                open={showDeleteDialog}
+                onOpenChange={setShowDeleteDialog}
+                title={<span className="text-xl font-bold">Resign/Delete Instructor?</span>}
+                description={
+                    <span className="text-base text-slate-600">
+                        Are you absolutely sure you want to remove <span className="font-bold text-slate-900">{fullName}</span> from the faculty list?
+                        This will also remove all their active teaching assignments.
+                    </span>
+                }
+                cancelLabel="Go Back"
+                confirmLabel={isDeleting ? "Processing..." : "Confirm Deletion"}
+                onConfirm={handleDelete}
+                footerClassName="gap-2 sm:gap-0"
+                cancelClassName="rounded-lg"
+                confirmClassName="rounded-lg shadow-lg shadow-red-500/20"
+            />
         </div>
     );
 }

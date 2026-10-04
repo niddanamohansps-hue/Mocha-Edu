@@ -13,6 +13,10 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Unauthorized from "@/components/Unauthorized";
+import { LoadingState } from "@/components/feedback/LoadingState";
+import { EmptyState } from "@/components/feedback/EmptyState";
+import { ErrorState } from "@/components/feedback/ErrorState";
+import { StatusBadge } from "@/components/common/StatusBadge";
 
 export default function ExaminationResultsPage() {
     const { data: user } = useMe();
@@ -23,7 +27,7 @@ export default function ExaminationResultsPage() {
     const [studentId, setStudentId] = useState(isStudent ? user?.profile?.student_id ?? "" : "");
     const effectiveStudentId = isStudent ? user?.profile?.student_id ?? undefined : studentId || undefined;
 
-    const { data: reportCard, isLoading: loadingReport } = useStudentReportCard(effectiveStudentId);
+    const { data: reportCard, isLoading: loadingReport, isError: reportError, refetch: refetchReport } = useStudentReportCard(effectiveStudentId);
 
     const { data: examinations } = useExaminations();
     const [reportExamId, setReportExamId] = useState("");
@@ -50,17 +54,18 @@ export default function ExaminationResultsPage() {
             )}
 
             {!effectiveStudentId && (
-                <p className="text-sm text-slate-500 py-6">
-                    {isStudent ? "No student record linked to your account yet." : "Enter a student ID to view their results."}
-                </p>
+                <EmptyState
+                    title={isStudent ? "No student record linked to your account yet." : "Enter a student ID to view their results."}
+                    className="py-6 text-slate-500 text-sm"
+                />
             )}
 
-            {effectiveStudentId && loadingReport && (
-                <div className="flex items-center justify-center py-16"><LoaderCircle className="h-8 w-8 animate-spin text-indigo-600" /></div>
-            )}
+            {effectiveStudentId && loadingReport && <LoadingState className="py-16" />}
+
+            {effectiveStudentId && reportError && !loadingReport && <ErrorState onRetry={refetchReport} />}
 
             {effectiveStudentId && reportCard && reportCard.examinations.length === 0 && (
-                <p className="text-sm text-slate-500 py-6">No published results yet.</p>
+                <EmptyState title="No published results yet." className="py-6 text-slate-500 text-sm" />
             )}
 
             {effectiveStudentId && reportCard && reportCard.examinations.length > 0 && (
@@ -75,9 +80,10 @@ export default function ExaminationResultsPage() {
                                             {result.percentage}% - {result.overall_grade || "—"}
                                         </p>
                                     </div>
-                                    <span className={`text-sm font-bold px-3 py-1 rounded-full ${result.is_pass ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
-                                        {result.is_pass ? "PASS" : "FAIL"}
-                                    </span>
+                                    <StatusBadge
+                                        label={result.is_pass ? "PASS" : "FAIL"}
+                                        className={`text-sm font-bold px-3 ${result.is_pass ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}
+                                    />
                                 </div>
                                 <table className="w-full text-sm">
                                     <thead>
@@ -144,7 +150,7 @@ export default function ExaminationResultsPage() {
                             </table>
                         </div>
                     ) : reportExamId ? (
-                        <p className="text-sm text-slate-500 py-4">No students below passing for this examination.</p>
+                        <EmptyState title="No students below passing for this examination." className="py-4 text-slate-500 text-sm" />
                     ) : null}
                 </div>
             )}

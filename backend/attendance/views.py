@@ -44,10 +44,34 @@ class SectionRosterView(APIView):
         target_date = request.query_params.get("date") or timezone.localdate().isoformat()
 
         roster = get_section_roster(section_id)
-        session = AttendanceSession.objects.filter(section_id=section_id, date=target_date).first()
+        # prefetch_related (not select_related) on the reverse student_records
+        # relation, with student__profile nested inside it - both are
+        # forward, single-valued relations (FK then O2O), so this can never
+        # duplicate rows. Using prefetch_related HERE, on the session fetch
+        # itself, rather than only on the local `session.student_records`
+        # access below, is required: AttendanceSessionSerializer (used for
+        # this same response's "session" field) ALSO serializes
+        # `student_records` via its own nested StudentAttendanceSerializer,
+        # through a SEPARATE `session.student_records.all()` call Django
+        # resolves independently. Explicitly chaining `.select_related(...)`
+        # on only ONE of those two access points creates a fresh queryset
+        # that bypasses any prefetch cache, so the other access point still
+        # re-triggers the N+1 (confirmed via direct SQL inspection - see
+        # Phase 9F report). Prefetching on `session` itself populates one
+        # shared cache that both `session.student_records.all()` calls -
+        # the one below AND the one inside AttendanceSessionSerializer -
+        # read from, with zero additional queries either way.
+        session = (
+            AttendanceSession.objects.filter(section_id=section_id, date=target_date)
+            .prefetch_related("student_records__student__profile")
+            .first()
+        )
 
         existing_by_student = {}
         if session:
+            # Bare `.all()` - NOT `.select_related(...)` - so this reads
+            # from the prefetch cache populated above instead of issuing a
+            # fresh, unoptimized query (see the comment above `session =`).
             existing_by_student = {
                 str(r.student_id): StudentAttendanceSerializer(r).data
                 for r in session.student_records.all()

@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
-import { LoaderCircle } from "lucide-react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useOutstandingReport } from "@/hooks/useFees";
 import { usePermissions } from "@/providers/PermissionProvider";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import Unauthorized from "@/components/Unauthorized";
+import { LoadingState } from "@/components/feedback/LoadingState";
+import { EmptyState } from "@/components/feedback/EmptyState";
+import { ErrorState } from "@/components/feedback/ErrorState";
 
 function currentYear() {
     return String(new Date().getFullYear());
@@ -16,14 +18,37 @@ export default function OutstandingReportPage() {
     const { can, isOwner } = usePermissions();
     const canView = isOwner || can("view_financial_reports");
 
-    const [academicYear, setAcademicYear] = useState(currentYear());
-    const { data, isLoading } = useOutstandingReport(academicYear);
+    const router = useRouter();
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
+
+    // academicYear is URL state - the current year is the implicit default,
+    // so it's kept out of the URL when selected (matches the Promotion page's
+    // sourceYear canonicalization from Phase 8D).
+    const academicYear = searchParams.get("academicYear") || currentYear();
+
+    const updateParams = (updates: Record<string, string | null>) => {
+        const params = new URLSearchParams(searchParams.toString());
+        for (const [key, value] of Object.entries(updates)) {
+            if (value === null || value === "") {
+                params.delete(key);
+            } else {
+                params.set(key, value);
+            }
+        }
+        const query = params.toString();
+        router.replace(query ? `${pathname}?${query}` : pathname);
+    };
+
+    const { data, isLoading, isError, refetch } = useOutstandingReport(academicYear);
 
     if (!canView) {
         return <Unauthorized />;
     }
 
-    const totalOutstanding = data?.results.reduce((sum, r) => sum + parseFloat(r.outstanding), 0) ?? 0;
+    // Backend-computed total over the full filtered report (Phase 9C-F) -
+    // NOT derived from `data.results`, which is only the current page.
+    const totalOutstanding = parseFloat(data?.total_outstanding_amount ?? "0");
 
     return (
         <div className="space-y-6">
@@ -36,11 +61,16 @@ export default function OutstandingReportPage() {
 
             <div className="w-40">
                 <label className="text-xs font-medium text-slate-500 mb-1 block">Academic Year</label>
-                <Input value={academicYear} onChange={(e) => setAcademicYear(e.target.value)} />
+                <Input
+                    value={academicYear}
+                    onChange={(e) => updateParams({ academicYear: e.target.value === currentYear() ? null : e.target.value })}
+                />
             </div>
 
             {isLoading ? (
-                <div className="flex items-center justify-center py-16"><LoaderCircle className="h-8 w-8 animate-spin text-indigo-600" /></div>
+                <LoadingState className="py-16" />
+            ) : isError ? (
+                <ErrorState onRetry={refetch} />
             ) : (
                 <>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
@@ -59,7 +89,7 @@ export default function OutstandingReportPage() {
                     </div>
 
                     {!data || data.results.length === 0 ? (
-                        <p className="text-sm text-slate-500 py-6">No outstanding balances for {academicYear}.</p>
+                        <EmptyState title={`No outstanding balances for ${academicYear}.`} className="py-6 text-slate-500 text-sm" />
                     ) : (
                         <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
                             <table className="w-full text-sm">

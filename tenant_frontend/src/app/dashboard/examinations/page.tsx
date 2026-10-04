@@ -22,6 +22,9 @@ import {
     Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import Unauthorized from "@/components/Unauthorized";
+import { LoadingState } from "@/components/feedback/LoadingState";
+import { EmptyState } from "@/components/feedback/EmptyState";
+import { ErrorState } from "@/components/feedback/ErrorState";
 
 function currentYear() {
     return String(new Date().getFullYear());
@@ -35,7 +38,7 @@ export default function ExaminationsPage() {
 
     const [academicYear, setAcademicYear] = useState(currentYear());
     const { data: examTypes } = useExamTypes();
-    const { data: examinations, isLoading: loadingExams } = useExaminations(academicYear);
+    const { data: examinations, isLoading: loadingExams, isError: examsError, refetch: refetchExams } = useExaminations(academicYear);
     const [selectedExamId, setSelectedExamId] = useState("");
     const { data: schedules, isLoading: loadingSchedules } = useExamSchedules(selectedExamId || undefined);
 
@@ -130,7 +133,9 @@ export default function ExaminationsPage() {
             </div>
 
             {loadingExams ? (
-                <div className="flex items-center justify-center py-10"><LoaderCircle className="h-6 w-6 animate-spin text-indigo-600" /></div>
+                <LoadingState className="py-10" />
+            ) : examsError ? (
+                <ErrorState onRetry={refetchExams} />
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {examinations?.map((exam) => (
@@ -145,7 +150,7 @@ export default function ExaminationsPage() {
                         </button>
                     ))}
                     {examinations?.length === 0 && (
-                        <p className="text-sm text-slate-500 py-6">No examinations for {academicYear} yet.</p>
+                        <EmptyState title={`No examinations for ${academicYear} yet.`} className="py-6 text-slate-500 text-sm" />
                     )}
                 </div>
             )}

@@ -6,14 +6,16 @@ import RoleForm from "@/components/dashboard/institution/RoleForm";
 import { RoleFormData } from "@/types/roles";
 import { useRouter, useParams } from "next/navigation";
 import Unauthorized from "@/components/Unauthorized";
-import { Loader2 } from "lucide-react";
+import { LoadingState } from "@/components/feedback/LoadingState";
+import { EmptyState } from "@/components/feedback/EmptyState";
+import { ErrorState } from "@/components/feedback/ErrorState";
 import React from "react";
 
 export default function EditRolePage() {
     const { id } = useParams();
     const { can, isOwner } = usePermissions();
-    const { data: roles, isLoading: isRolesLoading } = useRoles();
-    const { data: permissionGroups, isLoading: isPermissionsLoading } = usePermissionsList();
+    const { data: roles, isLoading: isRolesLoading, isError: rolesError, refetch: refetchRoles } = useRoles();
+    const { data: permissionGroups, isLoading: isPermissionsLoading, isError: permsError, refetch: refetchPerms } = usePermissionsList();
     const { mutate: updateRole, isPending: isUpdating } = useUpdateRole();
     const router = useRouter();
 
@@ -21,11 +23,11 @@ export default function EditRolePage() {
     const canEdit = isOwner || can("change_role");
 
     if (isRolesLoading || isPermissionsLoading) {
-        return (
-            <div className="flex h-[60vh] items-center justify-center">
-                <Loader2 className="h-12 w-12 animate-spin text-sky-600" />
-            </div>
-        );
+        return <LoadingState className="h-[60vh]" />;
+    }
+
+    if (rolesError || permsError) {
+        return <ErrorState onRetry={rolesError ? refetchRoles : refetchPerms} className="m-6" />;
     }
 
     if (!canEdit) {
@@ -34,13 +36,17 @@ export default function EditRolePage() {
 
     if (!role) {
         return (
-            <div className="flex flex-col items-center justify-center h-[60vh] text-center">
-                <h1 className="text-2xl font-bold">Role not found</h1>
-                <p className="text-slate-500">The role you are looking for does not exist or has been deleted.</p>
-                <Button onClick={() => router.push("/dashboard/institution/roles")} className="mt-4">
-                    Back to Roles
-                </Button>
-            </div>
+            <EmptyState
+                title="Role not found"
+                titleAs="h1"
+                description="The role you are looking for does not exist or has been deleted."
+                action={
+                    <Button onClick={() => router.push("/dashboard/institution/roles")}>
+                        Back to Roles
+                    </Button>
+                }
+                className="h-[60vh]"
+            />
         );
     }
 

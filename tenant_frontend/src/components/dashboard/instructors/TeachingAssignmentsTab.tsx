@@ -12,16 +12,7 @@ import {
 } from "@/hooks/useAcademics";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2, BookOpen, Edit2 } from "lucide-react";
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { ConfirmationDialog } from "@/components/feedback/ConfirmationDialog";
 import {
     Dialog,
     DialogContent,
@@ -222,25 +213,13 @@ export default function TeachingAssignmentsTab({ instructorId }: TeachingAssignm
             </Dialog>
 
             {/* Delete Confirmation Dialog */}
-            <AlertDialog open={!!deletingAssignment} onOpenChange={(open) => !open && setDeletingAssignment(null)}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            This will remove the teaching assignment for this instructor. This action cannot be undone.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                            onClick={confirmDelete}
-                            className="bg-red-600 hover:bg-red-700"
-                        >
-                            {isRemoving ? "Removing..." : "Remove Assignment"}
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+            <ConfirmationDialog
+                open={!!deletingAssignment}
+                onOpenChange={(open) => !open && setDeletingAssignment(null)}
+                description="This will remove the teaching assignment for this instructor. This action cannot be undone."
+                confirmLabel={isRemoving ? "Removing..." : "Remove Assignment"}
+                onConfirm={confirmDelete}
+            />
 
             <div className="border rounded-lg bg-white dark:bg-slate-950">
                 <Table>

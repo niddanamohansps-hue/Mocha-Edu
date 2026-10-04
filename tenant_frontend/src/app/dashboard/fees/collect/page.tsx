@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Unauthorized from "@/components/Unauthorized";
+import { StatusBadge } from "@/components/common/StatusBadge";
 
 function currentYear() {
     return String(new Date().getFullYear());
@@ -183,9 +184,10 @@ export default function CollectPaymentPage() {
                                                 <td className="px-4 py-2 text-emerald-600">{f.amount_paid}</td>
                                                 <td className="px-4 py-2 font-bold">{f.outstanding_balance}</td>
                                                 <td className="px-4 py-2">
-                                                    <span className={`text-xs font-semibold px-2 py-1 rounded-full ${f.status === "active" ? "bg-slate-100 text-slate-700" : "bg-red-50 text-red-500"}`}>
-                                                        {f.status}
-                                                    </span>
+                                                    <StatusBadge
+                                                        label={f.status}
+                                                        className={f.status === "active" ? "bg-slate-100 text-slate-700" : "bg-red-50 text-red-500"}
+                                                    />
                                                 </td>
                                                 {canCollect && (
                                                     <td className="px-4 py-2">
@@ -279,9 +281,10 @@ export default function CollectPaymentPage() {
                                                 <td className="px-4 py-2 font-medium">{p.amount}</td>
                                                 <td className="px-4 py-2 capitalize">{p.method.replace("_", " ")}</td>
                                                 <td className="px-4 py-2">
-                                                    <span className={`text-xs font-semibold px-2 py-1 rounded-full ${p.status === "completed" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
-                                                        {p.status}
-                                                    </span>
+                                                    <StatusBadge
+                                                        label={p.status}
+                                                        className={p.status === "completed" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}
+                                                    />
                                                 </td>
                                                 <td className="px-4 py-2 text-slate-500">{new Date(p.created_at).toLocaleDateString()}</td>
                                             </tr>

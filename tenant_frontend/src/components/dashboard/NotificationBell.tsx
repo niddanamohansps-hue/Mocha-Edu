@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, LoaderCircle } from "lucide-react";
+import { Bell } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
     useMarkAllNotificationsRead,
@@ -15,6 +15,9 @@ import {
     DropdownMenuContent,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { LoadingState } from "@/components/feedback/LoadingState";
+import { EmptyState } from "@/components/feedback/EmptyState";
+import { ErrorState } from "@/components/feedback/ErrorState";
 
 function formatUnreadBadge(count: number) {
     return count > 99 ? "99+" : String(count);
@@ -23,7 +26,7 @@ function formatUnreadBadge(count: number) {
 export function NotificationBell() {
     const router = useRouter();
     const { data: unreadData } = useUnreadCount();
-    const { data: listData, isLoading, isError } = useNotifications(1);
+    const { data: listData, isLoading, isError, refetch } = useNotifications(1);
     const { mutate: markRead } = useMarkNotificationRead();
     const { mutate: markAllRead, isPending: markingAll } = useMarkAllNotificationsRead();
 
@@ -67,13 +70,15 @@ export function NotificationBell() {
 
                 <div className="max-h-96 overflow-y-auto">
                     {isLoading ? (
-                        <div className="flex items-center justify-center py-8">
-                            <LoaderCircle className="h-5 w-5 animate-spin text-indigo-600" />
-                        </div>
+                        <LoadingState className="py-8" iconClassName="h-5 w-5" />
                     ) : isError ? (
-                        <p className="text-xs text-red-500 text-center py-6">Failed to load notifications.</p>
+                        <ErrorState
+                            message="Failed to load notifications."
+                            onRetry={refetch}
+                            className="rounded-none border-none bg-transparent p-0 py-6 text-xs"
+                        />
                     ) : recent.length === 0 ? (
-                        <p className="text-xs text-slate-500 text-center py-6">No notifications yet.</p>
+                        <EmptyState title="No notifications yet." className="py-6 text-slate-500 text-xs" />
                     ) : (
                         recent.map((n) => (
                             <button

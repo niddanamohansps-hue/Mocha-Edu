@@ -12,6 +12,9 @@ import { usePermissions } from "@/providers/PermissionProvider";
 import { Card, CardContent } from "@/components/ui/card";
 import Unauthorized from "@/components/Unauthorized";
 import ChildSwitcher from "@/components/parent-portal/ChildSwitcher";
+import { LoadingState } from "@/components/feedback/LoadingState";
+import { EmptyState } from "@/components/feedback/EmptyState";
+import { ErrorState } from "@/components/feedback/ErrorState";
 
 function todayISODate() {
     return new Date().toISOString().slice(0, 10);
@@ -23,7 +26,7 @@ export default function ParentPortalDashboardPage() {
     const canViewAttendance = isOwner || can("view_child_attendance");
     const canViewResults = isOwner || can("view_child_results");
 
-    const { data: children, isLoading: loadingChildren } = useLinkedChildren();
+    const { data: children, isLoading: loadingChildren, isError: childrenError, refetch: refetchChildren } = useLinkedChildren();
     const [selectedChildId, setSelectedChildId] = useState<string | undefined>(undefined);
 
     const attendanceChildId = canViewAttendance ? selectedChildId : undefined;
@@ -58,15 +61,13 @@ export default function ParentPortalDashboardPage() {
             />
 
             {loadingChildren ? (
-                <div className="flex items-center justify-center py-20">
-                    <LoaderCircle className="h-8 w-8 animate-spin text-indigo-600" />
-                </div>
+                <LoadingState className="py-20" />
+            ) : childrenError ? (
+                <ErrorState onRetry={refetchChildren} />
             ) : !children || children.length === 0 ? (
-                <div className="py-16 text-center text-sm text-slate-500">
-                    No children are linked to your account yet.
-                </div>
+                <EmptyState title="No children are linked to your account yet." className="py-16 text-slate-500 text-sm" />
             ) : !selectedChildId ? (
-                <div className="py-16 text-center text-sm text-slate-500">Select a child to see their overview.</div>
+                <EmptyState title="Select a child to see their overview." className="py-16 text-slate-500 text-sm" />
             ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     <Card className="border-none shadow-md">

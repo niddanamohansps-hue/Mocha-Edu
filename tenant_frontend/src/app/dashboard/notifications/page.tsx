@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { LoaderCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
     useMarkAllNotificationsRead,
@@ -10,6 +9,9 @@ import {
 } from "@/hooks/useNotifications";
 import { Notification } from "@/types/Notifications";
 import { Button } from "@/components/ui/button";
+import { LoadingState } from "@/components/feedback/LoadingState";
+import { EmptyState } from "@/components/feedback/EmptyState";
+import { ErrorState } from "@/components/feedback/ErrorState";
 
 type ReadFilter = "all" | "unread";
 
@@ -18,7 +20,7 @@ export default function NotificationsPage() {
     const [page, setPage] = useState(1);
     const [filter, setFilter] = useState<ReadFilter>("all");
 
-    const { data, isLoading, isError } = useNotifications(page);
+    const { data, isLoading, isError, refetch } = useNotifications(page);
     const { mutate: markRead } = useMarkNotificationRead();
     const { mutate: markAllRead, isPending: markingAll } = useMarkAllNotificationsRead();
 
@@ -74,15 +76,14 @@ export default function NotificationsPage() {
             </div>
 
             {isLoading ? (
-                <div className="flex items-center justify-center py-20">
-                    <LoaderCircle className="h-8 w-8 animate-spin text-indigo-600" />
-                </div>
+                <LoadingState className="py-20" />
             ) : isError ? (
-                <p className="text-sm text-red-500 py-6">Failed to load notifications. Please try again.</p>
+                <ErrorState message="Failed to load notifications. Please try again." onRetry={refetch} />
             ) : results.length === 0 ? (
-                <p className="text-sm text-slate-500 py-16 text-center">
-                    {filter === "unread" ? "No unread notifications." : "No notifications yet."}
-                </p>
+                <EmptyState
+                    title={filter === "unread" ? "No unread notifications." : "No notifications yet."}
+                    className="py-16 text-slate-500 text-sm"
+                />
             ) : (
                 <div className="rounded-2xl border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden">
                     {results.map((n) => (

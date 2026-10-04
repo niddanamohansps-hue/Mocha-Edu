@@ -1,10 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { LoaderCircle } from "lucide-react";
-import axiosInstance from "@/lib/axios";
 import { useSections } from "@/hooks/useAcademics";
+import { useInstructors } from "@/hooks/useStaff";
 import { useCreateSubstitution, useSectionTimetable, useSubstitutions } from "@/hooks/useTimetable";
 import { DAY_LABELS } from "@/types/Timetable";
 import { usePermissions } from "@/providers/PermissionProvider";
@@ -12,6 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Unauthorized from "@/components/Unauthorized";
+import { EmptyState } from "@/components/feedback/EmptyState";
+import { ErrorState } from "@/components/feedback/ErrorState";
 
 export default function SubstitutionsPage() {
     const { can, isOwner } = usePermissions();
@@ -22,20 +23,15 @@ export default function SubstitutionsPage() {
     const { data: sections } = useSections();
     const [sectionId, setSectionId] = useState("");
     const { data: entries } = useSectionTimetable(sectionId || undefined);
-    const { data: substitutions, isLoading: loadingSubs } = useSubstitutions();
+    const { data: substitutions, isLoading: loadingSubs, isError: subsError, refetch: refetchSubs } = useSubstitutions();
 
     const [entryId, setEntryId] = useState("");
     const [date, setDate] = useState("");
     const [substituteInstructor, setSubstituteInstructor] = useState("");
     const [reason, setReason] = useState("");
 
-    const { data: instructors } = useQuery({
-        queryKey: ["staff", "instructors", "all"],
-        queryFn: async () => {
-            const response = await axiosInstance.get("/staff/instructors/");
-            return response.data as any[];
-        },
-    });
+    const { data: instructorsData } = useInstructors();
+    const instructors = instructorsData?.results;
 
     const { mutate: createSubstitution, isPending } = useCreateSubstitution();
 
@@ -125,8 +121,10 @@ export default function SubstitutionsPage() {
                 <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-3">Existing Substitutions</h2>
                 {loadingSubs ? (
                     <LoaderCircle className="h-6 w-6 animate-spin text-indigo-600" />
+                ) : subsError ? (
+                    <ErrorState onRetry={refetchSubs} />
                 ) : !substitutions || substitutions.length === 0 ? (
-                    <p className="text-sm text-slate-500 py-6">No substitutions recorded yet.</p>
+                    <EmptyState title="No substitutions recorded yet." className="py-6 text-slate-500 text-sm" />
                 ) : (
                     <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
                         <table className="w-full text-sm">

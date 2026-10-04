@@ -1,11 +1,13 @@
 "use client";
 
-import { LoaderCircle } from "lucide-react";
 import { useMyTimetable } from "@/hooks/useTimetable";
 import { DAY_LABELS } from "@/types/Timetable";
+import { LoadingState } from "@/components/feedback/LoadingState";
+import { EmptyState } from "@/components/feedback/EmptyState";
+import { ErrorState } from "@/components/feedback/ErrorState";
 
 export default function MySchedulePage() {
-    const { data, isLoading } = useMyTimetable();
+    const { data, isLoading, isError, refetch } = useMyTimetable();
 
     return (
         <div className="space-y-6">
@@ -17,17 +19,13 @@ export default function MySchedulePage() {
             </div>
 
             {isLoading ? (
-                <div className="flex items-center justify-center py-20">
-                    <LoaderCircle className="h-8 w-8 animate-spin text-indigo-600" />
-                </div>
+                <LoadingState className="py-20" />
+            ) : isError ? (
+                <ErrorState onRetry={refetch} />
             ) : !data || data.role === null ? (
-                <div className="py-16 text-center text-sm text-slate-500">
-                    No timetable is linked to your account yet.
-                </div>
+                <EmptyState title="No timetable is linked to your account yet." className="py-16 text-slate-500 text-sm" />
             ) : data.results.length === 0 ? (
-                <div className="py-16 text-center text-sm text-slate-500">
-                    No timetable entries have been scheduled yet.
-                </div>
+                <EmptyState title="No timetable entries have been scheduled yet." className="py-16 text-slate-500 text-sm" />
             ) : (
                 <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
                     <table className="w-full text-sm">

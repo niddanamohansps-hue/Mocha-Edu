@@ -6,7 +6,7 @@ import { usePermissions } from "@/providers/PermissionProvider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, MoreHorizontal, Pencil, Trash2, Users, LoaderCircle } from "lucide-react";
+import { Plus, MoreHorizontal, Pencil, Trash2, Users } from "lucide-react";
 import {
     Dialog,
     DialogContent,
@@ -35,21 +35,16 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { LoadingState } from "@/components/feedback/LoadingState";
+import { EmptyState } from "@/components/feedback/EmptyState";
+import { ErrorState } from "@/components/feedback/ErrorState";
+import { ConfirmationDialog } from "@/components/feedback/ConfirmationDialog";
+import { TableShell } from "@/components/common/table/TableShell";
 import { Section } from "@/types/Academics";
 
 export default function SectionsTab() {
     const { can, isOwner } = usePermissions();
-    const { data: sections, isLoading: isLoadingSections } = useSections();
+    const { data: sections, isLoading: isLoadingSections, isError, refetch } = useSections();
     const { data: levels, isLoading: isLoadingLevels } = useAcademicLevels();
     const { mutate: createSection, isPending: isCreating } = useCreateSection();
     const { mutate: updateSection, isPending: isUpdating } = useUpdateSection();
@@ -106,11 +101,11 @@ export default function SectionsTab() {
     };
 
     if (isLoadingSections || isLoadingLevels) {
-        return (
-            <div className="flex items-center justify-center py-20">
-                <LoaderCircle className="h-8 w-8 animate-spin text-indigo-600" />
-            </div>
-        );
+        return <LoadingState className="py-20" />;
+    }
+
+    if (isError) {
+        return <ErrorState onRetry={refetch} />;
     }
 
     return (
@@ -184,7 +179,7 @@ export default function SectionsTab() {
                 </DialogContent>
             </Dialog>
 
-            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 overflow-hidden shadow-sm">
+            <TableShell className="dark:bg-slate-950">
                 <Table>
                     <TableHeader className="bg-slate-50/50 dark:bg-slate-900/50">
                         <TableRow>
@@ -235,33 +230,25 @@ export default function SectionsTab() {
                         ) : (
                             <TableRow>
                                 <TableCell colSpan={5} className="h-32 text-center">
-                                    <div className="flex flex-col items-center justify-center text-slate-400">
-                                        <Users className="h-12 w-12 mb-2 opacity-20" />
-                                        <p>No sections found. Create one to get started.</p>
-                                    </div>
+                                    <EmptyState
+                                        icon={<Users className="h-12 w-12 mb-2 opacity-20" />}
+                                        title="No sections found. Create one to get started."
+                                        className="py-0"
+                                    />
                                 </TableCell>
                             </TableRow>
                         )}
                     </TableBody>
                 </Table>
-            </div>
+            </TableShell>
 
-            <AlertDialog open={!!sectionToDelete} onOpenChange={() => setSectionToDelete(null)}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            This action cannot be undone. This will permanently delete the section.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
-                            Delete
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+            <ConfirmationDialog
+                open={!!sectionToDelete}
+                onOpenChange={() => setSectionToDelete(null)}
+                description="This action cannot be undone. This will permanently delete the section."
+                confirmLabel="Delete"
+                onConfirm={handleDelete}
+            />
         </div>
     );
 }

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, MoreHorizontal, Pencil, Trash2, GraduationCap, LoaderCircle } from "lucide-react";
+import { Plus, MoreHorizontal, Pencil, Trash2, GraduationCap } from "lucide-react";
 import {
     Dialog,
     DialogContent,
@@ -29,21 +29,16 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { LoadingState } from "@/components/feedback/LoadingState";
+import { EmptyState } from "@/components/feedback/EmptyState";
+import { ErrorState } from "@/components/feedback/ErrorState";
+import { ConfirmationDialog } from "@/components/feedback/ConfirmationDialog";
+import { TableShell } from "@/components/common/table/TableShell";
 import { Program } from "@/types/Academics";
 
 export default function ProgramsTab() {
     const { can, isOwner } = usePermissions();
-    const { data: programs, isLoading } = usePrograms();
+    const { data: programs, isLoading, isError, refetch } = usePrograms();
     const { mutate: createProgram, isPending: isCreating } = useCreateProgram();
     const { mutate: updateProgram, isPending: isUpdating } = useUpdateProgram();
     const { mutate: deleteProgram } = useDeleteProgram();
@@ -99,11 +94,11 @@ export default function ProgramsTab() {
     };
 
     if (isLoading) {
-        return (
-            <div className="flex items-center justify-center py-20">
-                <LoaderCircle className="h-8 w-8 animate-spin text-indigo-600" />
-            </div>
-        );
+        return <LoadingState className="py-20" />;
+    }
+
+    if (isError) {
+        return <ErrorState onRetry={refetch} />;
     }
 
     return (
@@ -171,7 +166,7 @@ export default function ProgramsTab() {
                 </DialogContent>
             </Dialog>
 
-            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 overflow-hidden shadow-sm">
+            <TableShell className="dark:bg-slate-950">
                 <Table>
                     <TableHeader className="bg-slate-50/50 dark:bg-slate-900/50">
                         <TableRow>
@@ -233,33 +228,25 @@ export default function ProgramsTab() {
                         ) : (
                             <TableRow>
                                 <TableCell colSpan={5} className="h-32 text-center">
-                                    <div className="flex flex-col items-center justify-center text-slate-400">
-                                        <GraduationCap className="h-12 w-12 mb-2 opacity-20" />
-                                        <p>No programs found. Create one to get started.</p>
-                                    </div>
+                                    <EmptyState
+                                        icon={<GraduationCap className="h-12 w-12 mb-2 opacity-20" />}
+                                        title="No programs found. Create one to get started."
+                                        className="py-0"
+                                    />
                                 </TableCell>
                             </TableRow>
                         )}
                     </TableBody>
                 </Table>
-            </div>
+            </TableShell>
 
-            <AlertDialog open={!!programToDelete} onOpenChange={() => setProgramToDelete(null)}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            This action cannot be undone. This will permanently delete the program and all its associated levels, sections, and subjects.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
-                            Delete
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+            <ConfirmationDialog
+                open={!!programToDelete}
+                onOpenChange={() => setProgramToDelete(null)}
+                description="This action cannot be undone. This will permanently delete the program and all its associated levels, sections, and subjects."
+                confirmLabel="Delete"
+                onConfirm={handleDelete}
+            />
         </div>
     );
 }

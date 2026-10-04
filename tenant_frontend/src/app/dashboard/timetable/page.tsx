@@ -26,6 +26,9 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import Unauthorized from "@/components/Unauthorized";
+import { LoadingState } from "@/components/feedback/LoadingState";
+import { EmptyState } from "@/components/feedback/EmptyState";
+import { ErrorState } from "@/components/feedback/ErrorState";
 
 const WORKING_DAYS = [0, 1, 2, 3, 4, 5]; // Monday-Saturday shown by default; Sunday (6) is rare for school timetables
 
@@ -42,7 +45,7 @@ export default function TimetablePage() {
     const [sectionId, setSectionId] = useState("");
     const { data: sections } = useSections();
     const { data: subjects } = useSubjects();
-    const { data: periods, isLoading: loadingPeriods } = usePeriods(academicYear);
+    const { data: periods, isLoading: loadingPeriods, isError: periodsError, refetch: refetchPeriods } = usePeriods(academicYear);
     const { data: rooms } = useRooms();
     const { data: assignments } = useQuery({
         queryKey: ["assignments", "all"],
@@ -51,7 +54,7 @@ export default function TimetablePage() {
             return response.data as any[];
         },
     });
-    const { data: entries, isLoading: loadingEntries } = useSectionTimetable(
+    const { data: entries, isLoading: loadingEntries, isError: entriesError, refetch: refetchEntries } = useSectionTimetable(
         sectionId || undefined,
         academicYear
     );
@@ -162,21 +165,20 @@ export default function TimetablePage() {
             </div>
 
             {!sectionId && (
-                <div className="py-16 text-center text-sm text-slate-500">
-                    Choose a section above to view or edit its timetable.
-                </div>
+                <EmptyState title="Choose a section above to view or edit its timetable." className="py-16 text-slate-500 text-sm" />
             )}
 
-            {sectionId && (loadingPeriods || loadingEntries) && (
-                <div className="flex items-center justify-center py-20">
-                    <LoaderCircle className="h-8 w-8 animate-spin text-indigo-600" />
-                </div>
+            {sectionId && (loadingPeriods || loadingEntries) && <LoadingState className="py-20" />}
+
+            {sectionId && !loadingPeriods && !loadingEntries && (periodsError || entriesError) && (
+                <ErrorState onRetry={periodsError ? refetchPeriods : refetchEntries} />
             )}
 
             {sectionId && !loadingPeriods && periods && periods.length === 0 && (
-                <div className="py-16 text-center text-sm text-slate-500">
-                    No periods defined for {academicYear} yet. Ask an administrator to add them.
-                </div>
+                <EmptyState
+                    title={`No periods defined for ${academicYear} yet. Ask an administrator to add them.`}
+                    className="py-16 text-slate-500 text-sm"
+                />
             )}
 
             {sectionId && !loadingPeriods && periods && periods.length > 0 && (

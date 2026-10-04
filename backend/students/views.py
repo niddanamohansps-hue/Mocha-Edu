@@ -16,8 +16,8 @@ from .serializers import (
 from .models import PromotionRecord, Student, StudentLevel
 from .services import (
     execute_lifecycle_actions,
-    get_exam_warning,
-    get_fee_warning,
+    get_exam_warnings_bulk,
+    get_fee_warnings_bulk,
     get_next_level,
     get_promotion_candidates,
     get_staff_member_for_user,
@@ -435,7 +435,18 @@ class PromotionCandidatesView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        candidates = get_promotion_candidates(academic_year, level_id, section_id)
+        candidates = list(get_promotion_candidates(academic_year, level_id, section_id))
+
+        # Phase 9E: fee/exam warnings computed in bulk for every candidate at
+        # once (same formulas as get_fee_warning()/get_exam_warning(), just
+        # evaluated once for the whole page of candidates instead of once
+        # per candidate) - this view uses one shared `academic_year` for
+        # every candidate, so the same value is looked up for each student_id.
+        candidate_students = [sl.student for sl in candidates]
+        fee_warnings = get_fee_warnings_bulk(candidate_students)
+        exam_warnings = get_exam_warnings_bulk(
+            candidate_students, {s.id: academic_year for s in candidate_students}
+        )
 
         data = []
         for sl in candidates:
@@ -452,8 +463,8 @@ class PromotionCandidatesView(APIView):
                     "current_section_name": sl.section.name if sl.section_id else None,
                     "default_target_level": str(next_level.id) if next_level else None,
                     "default_target_level_name": next_level.name if next_level else None,
-                    "fee_warning": get_fee_warning(student),
-                    "exam_warning": get_exam_warning(student, academic_year),
+                    "fee_warning": fee_warnings.get(student.id),
+                    "exam_warning": exam_warnings.get(student.id),
                 }
             )
 

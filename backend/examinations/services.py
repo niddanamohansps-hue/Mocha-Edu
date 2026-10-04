@@ -296,6 +296,140 @@ def calculate_student_examination_result(examination, student):
     }
 
 
+def calculate_examination_results_bulk(examination, students):
+    """
+    Bulk sibling of calculate_student_examination_result(), used ONLY by
+    publish_examination() to eliminate its per-student N+1 (previously: 1
+    ExamSchedule query + 1 ExamMark query + 1 GradeBoundary query per
+    participating subject + 1 overall-grade GradeBoundary query - ALL
+    repeated for every student). calculate_student_examination_result()
+    itself is intentionally left completely untouched: it is the pure,
+    self-contained, single-student calculation seed_demo_school.py calls
+    directly (per its own docstring), and must keep working standalone with
+    its own queries. This function reproduces its exact calculation
+    semantics from the same inputs, loaded ONCE for the whole examination
+    instead of once per student.
+
+    validate_exam_schedule() enforces examination.academic_year ==
+    schedule.academic_year at creation time, so GradeBoundary rows loaded
+    for examination.academic_year are valid for both the per-subject grade
+    (which calculate_subject_result derives from exam_schedule.academic_year)
+    and the overall grade (which calculate_student_examination_result
+    derives from examination.academic_year) - they are always the same
+    value, never two different lookups.
+
+    Returns {student_id: result_dict_or_None}, each result_dict keyed
+    exactly like calculate_student_examination_result()'s return value.
+    """
+    from .models import ExamMark, ExamSchedule, GradeBoundary
+
+    schedules = list(ExamSchedule.objects.filter(examination=examination).select_related("subject"))
+
+    student_ids = [student.id for student in students]
+    marks_by_student = {}
+    for mark in ExamMark.objects.filter(
+        exam_schedule__examination=examination, student_id__in=student_ids
+    ):
+        marks_by_student.setdefault(mark.student_id, {})[mark.exam_schedule_id] = mark
+
+    # Mirrors GradeBoundary.objects.filter(academic_year=..., min<=pct<=max)
+    # .first()'s ordering exactly (Meta.ordering = ["academic_year",
+    # "-min_percentage"], and academic_year is already fixed by the filter
+    # above) - so on the degenerate case of overlapping boundaries, the
+    # same boundary wins here as it would with the original per-call query.
+    boundaries = list(
+        GradeBoundary.objects.filter(academic_year=examination.academic_year).order_by("-min_percentage")
+    )
+
+    def grade_for(percentage):
+        # percentage arrives as a Python float (round(..., 2) of a divide);
+        # comparing a binary float directly against the Decimal boundary
+        # columns can misfire at exact edges (e.g. float 39.99 is actually
+        # slightly ABOVE Decimal("39.99") in binary, so a raw `<=` can
+        # wrongly exclude it) - the ORIGINAL DB-query calculate_grade()
+        # never hits this because Postgres compares its own numeric
+        # representation, not Python's binary float. Converting via the
+        # rounded value's str() first reproduces that exact-decimal
+        # comparison in Python, matching the original's real behavior.
+        exact = Decimal(str(percentage))
+        for boundary in boundaries:
+            if boundary.min_percentage <= exact <= boundary.max_percentage:
+                return boundary.grade_label
+        return None
+
+    results = {}
+    for student in students:
+        marks_by_schedule = marks_by_student.get(student.id, {})
+
+        breakdown = []
+        total_obtained = Decimal("0")
+        total_max = Decimal("0")
+        any_fail = False
+        participated = False
+
+        for schedule in schedules:
+            mark = marks_by_schedule.get(schedule.id)
+            if mark is None:
+                continue
+            participated = True
+            max_marks = schedule.max_marks
+
+            if mark.is_absent or mark.marks_obtained is None:
+                breakdown.append(
+                    {
+                        "subject": str(schedule.subject_id),
+                        "subject_name": schedule.subject.name,
+                        "marks_obtained": None,
+                        "max_marks": float(max_marks),
+                        "percentage": None,
+                        "grade": None,
+                        "is_absent": mark.is_absent,
+                        "is_pass": False,
+                    }
+                )
+                any_fail = True
+                total_max += max_marks
+                continue
+
+            subject_percentage = round(float(mark.marks_obtained / max_marks) * 100, 2)
+            grade_label = grade_for(subject_percentage)
+            is_pass = mark.marks_obtained >= schedule.pass_marks
+            breakdown.append(
+                {
+                    "subject": str(schedule.subject_id),
+                    "subject_name": schedule.subject.name,
+                    "marks_obtained": float(mark.marks_obtained),
+                    "max_marks": float(max_marks),
+                    "percentage": subject_percentage,
+                    "grade": grade_label,
+                    "is_absent": False,
+                    "is_pass": is_pass,
+                }
+            )
+            total_obtained += mark.marks_obtained
+            total_max += max_marks
+            if not is_pass:
+                any_fail = True
+
+        if not participated or total_max == 0:
+            results[student.id] = None
+            continue
+
+        overall_percentage = round(float(total_obtained / total_max) * 100, 2)
+        overall_grade = grade_for(overall_percentage)
+
+        results[student.id] = {
+            "total_marks_obtained": total_obtained,
+            "total_max_marks": total_max,
+            "percentage": Decimal(str(overall_percentage)),
+            "overall_grade": overall_grade or "",
+            "is_pass": not any_fail,
+            "subject_breakdown": breakdown,
+        }
+
+    return results
+
+
 def _build_portal_link(path):
     """
     Builds an absolute link to the tenant's own frontend, for use in a
@@ -459,23 +593,43 @@ def publish_examination(examination):
     from students.models import Student
 
     with transaction.atomic():
+        students = list(Student.objects.filter(id__in=student_ids))
+        # calculate_examination_results_bulk() (not
+        # calculate_student_examination_result() in a loop) - see its
+        # docstring: same calculation semantics, but schedules/marks/grade
+        # boundaries are each loaded ONCE for the whole examination instead
+        # of once per student.
+        results_by_student = calculate_examination_results_bulk(examination, students)
+
         published_student_ids = []
-        for student in Student.objects.filter(id__in=student_ids):
-            result = calculate_student_examination_result(examination, student)
+        results_to_create = []
+        for student in students:
+            result = results_by_student.get(student.id)
             if result is None:
                 continue
-            ExamResult.objects.create(
-                examination=examination,
-                student=student,
-                academic_year=examination.academic_year,
-                total_marks_obtained=result["total_marks_obtained"],
-                total_max_marks=result["total_max_marks"],
-                percentage=result["percentage"],
-                overall_grade=result["overall_grade"],
-                is_pass=result["is_pass"],
-                subject_breakdown=result["subject_breakdown"],
+            results_to_create.append(
+                ExamResult(
+                    examination=examination,
+                    student=student,
+                    academic_year=examination.academic_year,
+                    total_marks_obtained=result["total_marks_obtained"],
+                    total_max_marks=result["total_max_marks"],
+                    percentage=result["percentage"],
+                    overall_grade=result["overall_grade"],
+                    is_pass=result["is_pass"],
+                    subject_breakdown=result["subject_breakdown"],
+                )
             )
             published_student_ids.append(student.id)
+
+        # bulk_create() is safe here: ExamResult has no custom save(), no
+        # clean()/full_clean() call, and no connected signals (verified by
+        # inspection - unlike GradeBoundary, which does call full_clean()
+        # in its own save()). The unique_together=("examination","student")
+        # constraint is still enforced by Postgres at INSERT time either
+        # way, and each row here is for a distinct student, so no
+        # intra-batch collision is possible.
+        ExamResult.objects.bulk_create(results_to_create)
 
         examination.is_published = True
         examination.published_at = timezone.now()

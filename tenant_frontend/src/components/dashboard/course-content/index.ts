@@ -11,7 +11,6 @@ export { AssignmentFilter } from "./AssignmentFilter";
 // Content Management components
 export { UploadContentDialog } from "./UploadContentDialog";
 export { ContentTable } from "./ContentTable";
-export { DeleteConfirmDialog } from "./DeleteConfirmDialog";
 
 // Materials components
 export { MaterialCard } from "./MaterialCard";

@@ -18,6 +18,7 @@ import {
     CircleCheck,
     Trash2,
 } from "lucide-react";
+import { ErrorState } from "@/components/feedback/ErrorState";
 import {
     Card,
     CardContent,
@@ -50,7 +51,7 @@ export default function ActivationTab({ onSuccess }: ActivationTabProps) {
     // subset of the student body in normal use; a school with more than
     // 100 simultaneously-unactivated students would need this screen
     // revisited (out of scope for this pagination-audit task).
-    const { data: unenrolledData, isLoading: loadingStudents } = useStudents({ unenrolled: true, pageSize: 100 });
+    const { data: unenrolledData, isLoading: loadingStudents, isError: studentsError, refetch: refetchStudents } = useStudents({ unenrolled: true, pageSize: 100 });
     const unenrolledStudents = unenrolledData?.results;
     const { mutate: activatePortal, isPending } = usePortalActivation();
 
@@ -142,6 +143,8 @@ export default function ActivationTab({ onSuccess }: ActivationTabProps) {
                             <div className="p-8 flex justify-center">
                                 <LoaderCircle className="h-8 w-8 text-slate-300 animate-spin" />
                             </div>
+                        ) : studentsError ? (
+                            <ErrorState onRetry={refetchStudents} className="p-8" />
                         ) : !unenrolledStudents || unenrolledStudents.length === 0 ? (
                             <div className="p-12 text-center space-y-4">
                                 <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-full w-fit mx-auto">

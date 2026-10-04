@@ -6,22 +6,23 @@ import RoleForm from "@/components/dashboard/institution/RoleForm";
 import { RoleFormData } from "@/types/roles";
 import { useRouter } from "next/navigation";
 import Unauthorized from "@/components/Unauthorized";
-import { Loader2 } from "lucide-react";
+import { LoadingState } from "@/components/feedback/LoadingState";
+import { ErrorState } from "@/components/feedback/ErrorState";
 
 export default function CreateRolePage() {
     const { can, isOwner } = usePermissions();
-    const { data: permissionGroups, isLoading } = usePermissionsList();
+    const { data: permissionGroups, isLoading, isError, refetch } = usePermissionsList();
     const { mutate: createRole, isPending } = useCreateRole();
     const router = useRouter();
 
     const canCreate = isOwner || can("add_role");
 
     if (isLoading) {
-        return (
-            <div className="flex h-[60vh] items-center justify-center">
-                <Loader2 className="h-12 w-12 animate-spin text-sky-600" />
-            </div>
-        );
+        return <LoadingState className="h-[60vh]" />;
+    }
+
+    if (isError) {
+        return <ErrorState onRetry={refetch} className="m-6" />;
     }
 
     if (!canCreate) {

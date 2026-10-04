@@ -9,7 +9,8 @@ import uuid
 from decimal import Decimal
 
 from django.db import transaction
-from django.db.models import Sum
+from django.db.models import DecimalField, Sum, Value
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 from rest_framework import serializers
 
@@ -106,12 +107,84 @@ def get_child_for_parent(parent, student_id):
 
 # --- Financial calculation (derived, never stored as authoritative) -------
 
+def annotate_with_allocation_total(queryset):
+    """
+    Attaches the net allocated-amount total to every row of `queryset` in
+    ONE grouped query (Sum over the reverse `allocations` relation), so
+    get_total_allocated() can read it straight off each object instead of
+    issuing a separate aggregate query per StudentFee. Use this on any
+    queryset that will have get_total_allocated()/get_amount_paid()/
+    get_outstanding_balance() called on more than one of its rows (e.g.
+    OutstandingReportView, StudentFeeSerializer(qs, many=True)).
+
+    Coalesces a StudentFee with no allocations to 0 rather than leaving
+    SQL NULL - get_total_allocated()'s `or Decimal("0")` already treated
+    a NULL/None aggregate as zero, so this changes nothing about any
+    existing caller's result; it's required so `_allocations_total` can
+    safely be used in further arithmetic (see
+    annotate_with_outstanding_balance()) without NULL propagating through
+    the whole expression.
+    """
+    return queryset.annotate(
+        _allocations_total=Coalesce(
+            Sum("allocations__amount"),
+            Value(Decimal("0")),
+            output_field=DecimalField(max_digits=10, decimal_places=2),
+        )
+    )
+
+
+def annotate_with_outstanding_balance(queryset):
+    """
+    Builds on annotate_with_allocation_total() to attach `_outstanding`
+    (amount_due - discount_amount - _allocations_total) to every row in
+    ONE query, so "outstanding > 0" can be filtered at the database level
+    -  the fix for OutstandingReportView materializing and Python-filtering
+    every StudentFee before Phase 9C. Matches get_outstanding_balance()'s
+    formula exactly.
+
+    NOTE: annotating with an aggregate-derived expression makes Django
+    drop the model's default `Meta.ordering` (confirmed empirically - see
+    Phase 9C report) - callers that need deterministic order (e.g. for
+    pagination) must re-apply `.order_by(...)` explicitly after calling
+    this, same as OutstandingReportView now does.
+    """
+    from django.db.models import ExpressionWrapper, F
+
+    qs = annotate_with_allocation_total(queryset)
+    return qs.annotate(
+        _outstanding=ExpressionWrapper(
+            F("amount_due") - F("discount_amount") - F("_allocations_total"),
+            output_field=DecimalField(max_digits=10, decimal_places=2),
+        )
+    )
+
+
 def get_total_allocated(student_fee):
     """
     Net amount allocated against this StudentFee, across every Payment AND
     every reversal Payment (reversal allocations are negative, so summing
     everything nets out automatically - see PaymentAllocation's docstring).
+
+    If `student_fee` came from a queryset already annotated via
+    annotate_with_allocation_total(), reuses that value with zero extra
+    queries - this is what eliminates the N+1 when many StudentFee rows
+    are processed together (OutstandingReportView,
+    StudentFeeSerializer(qs, many=True)).
+
+    A plain, un-annotated instance always issues a fresh aggregate query,
+    exactly as before this phase. This deliberately does NOT memoize that
+    fallback result onto the instance: the same StudentFee object can
+    legitimately be rechecked after a write against the same row happens
+    through a SEPARATE query (e.g. record_payment() then reverse_payment()
+    on the same fee, as in ReversePaymentTests) - caching here would
+    silently return a stale balance in that case. Only an explicit,
+    query-time annotation is safe to reuse, because it's inherently a
+    snapshot as of that one query, not a value that's expected to track
+    later writes - the same way any other Django annotation behaves.
     """
+    if hasattr(student_fee, "_allocations_total"):
+        return student_fee._allocations_total or Decimal("0")
     total = student_fee.allocations.aggregate(total=Sum("amount"))["total"]
     return total or Decimal("0")
 

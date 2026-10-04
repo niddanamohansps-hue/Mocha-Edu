@@ -10,7 +10,6 @@ import {
     MoreHorizontal,
     Filter,
     Briefcase,
-    LoaderCircle,
     Lock,
     Pencil,
     Trash2
@@ -24,9 +23,8 @@ import {
     TableHeader,
     TableRow
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { Pagination } from "@/components/ui/pagination";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import Unauthorized from "@/components/Unauthorized";
 import {
     DropdownMenu,
@@ -34,27 +32,37 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { LoadingState } from "@/components/feedback/LoadingState";
+import { EmptyState } from "@/components/feedback/EmptyState";
+import { ErrorState } from "@/components/feedback/ErrorState";
+import { ConfirmationDialog } from "@/components/feedback/ConfirmationDialog";
+import { StatusBadge } from "@/components/common/StatusBadge";
+import { TableShell } from "@/components/common/table/TableShell";
 
 const PAGE_SIZE = 20;
 
 export default function StaffPage() {
     const { can, isOwner } = usePermissions();
-    const [page, setPage] = useState(1);
-    const { data, isLoading } = useStaffMembers({ page, pageSize: PAGE_SIZE });
+    const router = useRouter();
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
+    const pageParam = Number(searchParams.get("page"));
+    const page = Number.isInteger(pageParam) && pageParam >= 1 ? pageParam : 1;
+    const { data, isLoading, isError, refetch } = useStaffMembers({ page, pageSize: PAGE_SIZE });
     const staff = data?.results;
     const { mutate: deleteStaff } = useDeleteStaff();
     const [staffToDelete, setStaffToDelete] = useState<string | null>(null);
-    const router = useRouter();
+
+    const handlePageChange = (nextPage: number) => {
+        const params = new URLSearchParams(searchParams.toString());
+        if (nextPage <= 1) {
+            params.delete("page");
+        } else {
+            params.set("page", String(nextPage));
+        }
+        const query = params.toString();
+        router.replace(query ? `${pathname}?${query}` : pathname);
+    };
 
     const canView = isOwner || can("view_staff");
     const canEdit = isOwner || can("change_staff");
@@ -66,11 +74,11 @@ export default function StaffPage() {
     }
 
     if (isLoading) {
-        return (
-            <div className="flex h-[60vh] items-center justify-center">
-                <LoaderCircle className="h-12 w-12 animate-spin text-sky-600" />
-            </div>
-        );
+        return <LoadingState className="h-[60vh]" />;
+    }
+
+    if (isError) {
+        return <ErrorState onRetry={refetch} className="m-6" />;
     }
 
     return (
@@ -125,137 +133,132 @@ export default function StaffPage() {
                 </div>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden shadow-sm">
-                <div className="overflow-x-auto">
-                    <Table>
-                        <TableHeader className="bg-slate-50 dark:bg-slate-800/50">
-                            <TableRow>
-                                <TableHead className="py-4 pl-6">Staff Name</TableHead>
-                                <TableHead>Employee ID</TableHead>
-                                <TableHead>Designation</TableHead>
-                                <TableHead>Department</TableHead>
-                                <TableHead>Joined</TableHead>
-                                <TableHead>Account</TableHead>
-                                <TableHead className="text-right pr-6">Actions</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {staff && staff.length > 0 ? (
-                                staff.map((member: any) => (
-                                    <TableRow key={member.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
-                                        <TableCell className="py-4 pl-6">
-                                            <div className="flex items-center gap-3">
-                                                <div className="h-10 w-10 rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 flex items-center justify-center font-bold text-sm">
-                                                    {member.profile_details.first_name[0]}
-                                                </div>
-                                                <div>
-                                                    <p className="font-semibold">{member.profile_details.first_name} {member.profile_details.last_name}</p>
-                                                    <p className="text-xs text-slate-500">{member.profile_details.phone}</p>
-                                                </div>
+            <TableShell
+                footer={
+                    data && (
+                        <Pagination
+                            page={page}
+                            pageSize={PAGE_SIZE}
+                            count={data.count}
+                            onPageChange={handlePageChange}
+                            className="border-t border-slate-200 dark:border-slate-800"
+                        />
+                    )
+                }
+            >
+                <Table>
+                    <TableHeader className="bg-slate-50 dark:bg-slate-800/50">
+                        <TableRow>
+                            <TableHead className="py-4 pl-6">Staff Name</TableHead>
+                            <TableHead>Employee ID</TableHead>
+                            <TableHead>Designation</TableHead>
+                            <TableHead>Department</TableHead>
+                            <TableHead>Joined</TableHead>
+                            <TableHead>Account</TableHead>
+                            <TableHead className="text-right pr-6">Actions</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {staff && staff.length > 0 ? (
+                            staff.map((member: any) => (
+                                <TableRow key={member.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
+                                    <TableCell className="py-4 pl-6">
+                                        <div className="flex items-center gap-3">
+                                            <div className="h-10 w-10 rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 flex items-center justify-center font-bold text-sm">
+                                                {member.profile_details.first_name[0]}
                                             </div>
-                                        </TableCell>
-                                        <TableCell>
-                                            <code className="text-xs font-bold text-slate-600 dark:text-slate-400">
-                                                {member.employee_id}
-                                            </code>
-                                        </TableCell>
-                                        <TableCell className="font-medium text-slate-700 dark:text-slate-300">
-                                            {member.designation}
-                                        </TableCell>
-                                        <TableCell>{member.department || 'General'}</TableCell>
-                                        <TableCell>
-                                            {member.joining_date || '-'}
-                                        </TableCell>
-                                        <TableCell>
-                                            {member.profile_details.user_id ? (
-                                                <Badge variant="outline" className="text-emerald-600 bg-emerald-50 border-emerald-200">
-                                                    Active
-                                                </Badge>
-                                            ) : (
-                                                <Badge variant="outline" className="text-slate-500 bg-slate-50">
-                                                    No Access
-                                                </Badge>
-                                            )}
-                                        </TableCell>
-                                        <TableCell className="text-right pr-6">
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg">
-                                                        <MoreHorizontal className="h-4 w-4" />
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end" className="w-48 p-2 rounded-xl">
-                                                    {canEdit && (
-                                                        <DropdownMenuItem
-                                                            onClick={() => router.push(`/dashboard/staff/edit/${member.id}`)}
-                                                            className="rounded-lg gap-2 cursor-pointer focus:bg-sky-50 focus:text-sky-600 dark:focus:bg-sky-900/20 dark:focus:text-sky-400"
-                                                        >
-                                                            <Pencil className="h-4 w-4" />
-                                                            Edit
-                                                        </DropdownMenuItem>
-                                                    )}
-                                                    {canDelete && (
-                                                        <DropdownMenuItem
-                                                            onClick={() => setStaffToDelete(member.id)}
-                                                            className="rounded-lg gap-2 cursor-pointer text-red-600 focus:bg-red-50 focus:text-red-600 dark:focus:bg-red-900/20"
-                                                        >
-                                                            <Trash2 className="h-4 w-4" />
-                                                            Delete
-                                                        </DropdownMenuItem>
-                                                    )}
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
-                                        </TableCell>
-                                    </TableRow>
-                                ))
-                            ) : (
-                                <TableRow>
-                                    <TableCell colSpan={7} className="h-48 text-center">
-                                        <div className="flex flex-col items-center justify-center text-slate-400 py-10">
-                                            <Briefcase className="h-12 w-12 mb-2 opacity-20" />
-                                            <p className="font-medium">No staff members found.</p>
+                                            <div>
+                                                <p className="font-semibold">{member.profile_details.first_name} {member.profile_details.last_name}</p>
+                                                <p className="text-xs text-slate-500">{member.profile_details.phone}</p>
+                                            </div>
                                         </div>
                                     </TableCell>
+                                    <TableCell>
+                                        <code className="text-xs font-bold text-slate-600 dark:text-slate-400">
+                                            {member.employee_id}
+                                        </code>
+                                    </TableCell>
+                                    <TableCell className="font-medium text-slate-700 dark:text-slate-300">
+                                        {member.designation}
+                                    </TableCell>
+                                    <TableCell>{member.department || 'General'}</TableCell>
+                                    <TableCell>
+                                        {member.joining_date || '-'}
+                                    </TableCell>
+                                    <TableCell>
+                                        {member.profile_details.user_id ? (
+                                            <StatusBadge
+                                                label="Active"
+                                                className="border border-emerald-200 text-emerald-600 bg-emerald-50"
+                                            />
+                                        ) : (
+                                            <StatusBadge
+                                                label="No Access"
+                                                className="border text-slate-500 bg-slate-50"
+                                            />
+                                        )}
+                                    </TableCell>
+                                    <TableCell className="text-right pr-6">
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg">
+                                                    <MoreHorizontal className="h-4 w-4" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end" className="w-48 p-2 rounded-xl">
+                                                {canEdit && (
+                                                    <DropdownMenuItem
+                                                        onClick={() => router.push(`/dashboard/staff/edit/${member.id}`)}
+                                                        className="rounded-lg gap-2 cursor-pointer focus:bg-sky-50 focus:text-sky-600 dark:focus:bg-sky-900/20 dark:focus:text-sky-400"
+                                                    >
+                                                        <Pencil className="h-4 w-4" />
+                                                        Edit
+                                                    </DropdownMenuItem>
+                                                )}
+                                                {canDelete && (
+                                                    <DropdownMenuItem
+                                                        onClick={() => setStaffToDelete(member.id)}
+                                                        className="rounded-lg gap-2 cursor-pointer text-red-600 focus:bg-red-50 focus:text-red-600 dark:focus:bg-red-900/20"
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                        Delete
+                                                    </DropdownMenuItem>
+                                                )}
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </TableCell>
                                 </TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
-                </div>
-                {data && (
-                    <Pagination
-                        page={page}
-                        pageSize={PAGE_SIZE}
-                        count={data.count}
-                        onPageChange={setPage}
-                        className="border-t border-slate-200 dark:border-slate-800"
-                    />
-                )}
-            </div>
+                            ))
+                        ) : (
+                            <TableRow>
+                                <TableCell colSpan={7} className="h-48 text-center">
+                                    <EmptyState
+                                        icon={<Briefcase className="h-12 w-12 mb-2 opacity-20" />}
+                                        title="No staff members found."
+                                    />
+                                </TableCell>
+                            </TableRow>
+                        )}
+                    </TableBody>
+                </Table>
+            </TableShell>
 
-            <AlertDialog open={!!staffToDelete} onOpenChange={(open) => !open && setStaffToDelete(null)}>
-                <AlertDialogContent className="rounded-3xl">
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            This action cannot be undone. This will permanently delete the staff member profile and their employment records from the system.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel className="rounded-xl h-11">Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                            onClick={() => {
-                                if (staffToDelete) {
-                                    deleteStaff(staffToDelete);
-                                    setStaffToDelete(null);
-                                }
-                            }}
-                            className="bg-red-600 hover:bg-red-700 text-white rounded-xl h-11"
-                        >
-                            Delete Staff
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+            <ConfirmationDialog
+                open={!!staffToDelete}
+                onOpenChange={(open) => !open && setStaffToDelete(null)}
+                title="Are you sure?"
+                description="This action cannot be undone. This will permanently delete the staff member profile and their employment records from the system."
+                confirmLabel="Delete Staff"
+                onConfirm={() => {
+                    if (staffToDelete) {
+                        deleteStaff(staffToDelete);
+                        setStaffToDelete(null);
+                    }
+                }}
+                contentClassName="rounded-3xl"
+                cancelClassName="rounded-xl h-11"
+                confirmClassName="rounded-xl h-11"
+            />
         </div>
     );
 }

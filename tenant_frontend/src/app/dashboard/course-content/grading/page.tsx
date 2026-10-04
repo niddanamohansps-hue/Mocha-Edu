@@ -2,17 +2,18 @@
 
 import { useState } from "react";
 import { useSubmissions, useGradeSubmission, useAssignments } from "@/hooks/useCourseContent";
-import { LoaderCircle } from "lucide-react";
 import { GradingDialog } from "@/components/dashboard/course-content/GradingDialog";
 import { SubmissionsTable } from "@/components/dashboard/course-content/SubmissionsTable";
 import { AssignmentFilter } from "@/components/dashboard/course-content/AssignmentFilter";
+import { LoadingState } from "@/components/feedback/LoadingState";
+import { ErrorState } from "@/components/feedback/ErrorState";
 
 export default function GradingPage() {
     const [selectedAssignment, setSelectedAssignment] = useState<string>("");
     const [isGradingDialogOpen, setIsGradingDialogOpen] = useState(false);
     const [currentSubmission, setCurrentSubmission] = useState<any>(null);
 
-    const { data: assignments, isLoading: loadingAssignments } = useAssignments();
+    const { data: assignments, isLoading: loadingAssignments, isError: assignmentsError, refetch: refetchAssignments } = useAssignments();
     const { data: submissions, isLoading: loadingSubmissions } = useSubmissions(
         selectedAssignment || undefined
     );
@@ -38,11 +39,11 @@ export default function GradingPage() {
     };
 
     if (loadingAssignments) {
-        return (
-            <div className="flex items-center justify-center py-20">
-                <LoaderCircle className="h-8 w-8 animate-spin text-indigo-600" />
-            </div>
-        );
+        return <LoadingState className="py-20" />;
+    }
+
+    if (assignmentsError) {
+        return <ErrorState onRetry={refetchAssignments} />;
     }
 
     return (

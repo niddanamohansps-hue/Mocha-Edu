@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { LoaderCircle } from "lucide-react";
 import { useSections } from "@/hooks/useAcademics";
 import { useBelowThresholdReport, useSectionAttendanceSummary, useTenantAttendanceSummary } from "@/hooks/useAttendance";
@@ -8,19 +8,41 @@ import { usePermissions } from "@/providers/PermissionProvider";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Unauthorized from "@/components/Unauthorized";
+import { EmptyState } from "@/components/feedback/EmptyState";
+import { ErrorState } from "@/components/feedback/ErrorState";
 
 export default function AttendanceReportsPage() {
     const { can, isOwner } = usePermissions();
+    const router = useRouter();
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
+
     if (!isOwner && !can("view_attendance_reports")) {
         return <Unauthorized />;
     }
 
     const { data: sections } = useSections();
-    const [sectionId, setSectionId] = useState<string>("");
+
+    // sectionId is URL state - an absent/empty param means "All sections",
+    // the existing default, so it's kept out of the URL at that value.
+    const sectionId = searchParams.get("sectionId") || "";
+
+    const updateParams = (updates: Record<string, string | null>) => {
+        const params = new URLSearchParams(searchParams.toString());
+        for (const [key, value] of Object.entries(updates)) {
+            if (value === null || value === "") {
+                params.delete(key);
+            } else {
+                params.set(key, value);
+            }
+        }
+        const query = params.toString();
+        router.replace(query ? `${pathname}?${query}` : pathname);
+    };
 
     const { data: tenantSummary, isLoading: loadingTenant } = useTenantAttendanceSummary();
     const { data: sectionSummary, isLoading: loadingSection } = useSectionAttendanceSummary(sectionId || undefined);
-    const { data: belowThreshold, isLoading: loadingThreshold } = useBelowThresholdReport(sectionId || undefined);
+    const { data: belowThreshold, isLoading: loadingThreshold, isError: belowThresholdError, refetch: refetchBelowThreshold } = useBelowThresholdReport(sectionId || undefined);
 
     return (
         <div className="space-y-8">
@@ -48,7 +70,7 @@ export default function AttendanceReportsPage() {
 
             <div className="w-72">
                 <label className="text-xs font-medium text-slate-500 mb-1 block">Section</label>
-                <Select value={sectionId} onValueChange={setSectionId}>
+                <Select value={sectionId} onValueChange={(v) => updateParams({ sectionId: v })}>
                     <SelectTrigger>
                         <SelectValue placeholder="All sections" />
                     </SelectTrigger>
@@ -85,8 +107,10 @@ export default function AttendanceReportsPage() {
                 </h2>
                 {loadingThreshold ? (
                     <LoaderCircle className="h-6 w-6 animate-spin text-indigo-600" />
+                ) : belowThresholdError ? (
+                    <ErrorState onRetry={refetchBelowThreshold} />
                 ) : !belowThreshold || belowThreshold.students.length === 0 ? (
-                    <p className="text-sm text-slate-500 py-6">No students are currently below the threshold.</p>
+                    <EmptyState title="No students are currently below the threshold." className="py-6 text-slate-500 text-sm" />
                 ) : (
                     <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
                         <table className="w-full text-sm">

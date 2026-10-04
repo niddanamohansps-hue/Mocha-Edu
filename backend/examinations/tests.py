@@ -4,6 +4,7 @@ from decimal import Decimal
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import IntegrityError, connection, transaction
 from django.test import TransactionTestCase
+from django.test.utils import CaptureQueriesContext
 from django_tenants.utils import tenant_context
 from rest_framework.test import APIClient
 
@@ -887,13 +888,21 @@ class ExamResultNotificationTest(ExamFixtureMixin, TransactionTestCase):
         """If result generation itself fails, nothing - not ExamResult,
         not is_published, not any EmailOutboxEvent - may survive; proves
         the notification queuing is genuinely inside the same atomic unit,
-        not a separate side-channel write."""
+        not a separate side-channel write.
+
+        Patches calculate_examination_results_bulk() (Phase 9G's bulk
+        calculation entry point used by publish_examination()), not
+        calculate_student_examination_result() - the latter is no longer
+        on publish_examination()'s call path (it remains, untouched, as
+        the standalone per-student calculation seed_demo_school.py calls
+        directly). The assertion being proven - a calculation failure
+        anywhere rolls back the whole publish - is unchanged."""
         from unittest import mock
 
         from notifications.models import EmailOutboxEvent
 
         with mock.patch(
-            "examinations.services.calculate_student_examination_result",
+            "examinations.services.calculate_examination_results_bulk",
             side_effect=RuntimeError("boom"),
         ):
             resp = self._publish()
@@ -994,3 +1003,240 @@ class ExamResultNotificationTenantIsolationTest(ExamFixtureMixin, TransactionTes
         finally:
             connection.set_schema_to_public()
             school_b.delete(force_drop=True)
+
+
+class ExamPublicationBulkOptimizationTests(ExamFixtureMixin, TransactionTestCase):
+    """
+    Phase 9G: regression tests for publish_examination()'s bulk result
+    calculation (calculate_examination_results_bulk() in services.py),
+    which replaces the previous per-student loop that re-queried
+    ExamSchedule, ExamMark and GradeBoundary for every single student.
+    """
+
+    def setUp(self):
+        super().setUp()
+        with tenant_context(self.school):
+            self.schedule1 = self._create_schedule(subject=self.subject, date=datetime.date(2026, 6, 2))
+            self.schedule2 = self._create_schedule(subject=self.second_subject, date=datetime.date(2026, 6, 3))
+
+    def _mark(self, schedule, student, **kwargs):
+        with tenant_context(self.school):
+            return ExamMark.objects.create(exam_schedule=schedule, student=student, **kwargs)
+
+    # --- A. Result correctness + C. Multiple subjects ----------------------
+
+    def test_result_correct_across_multiple_subjects(self):
+        self._mark(self.schedule1, self.student, marks_obtained=Decimal("80"))
+        self._mark(self.schedule2, self.student, marks_obtained=Decimal("60"))
+
+        from .services import publish_examination
+
+        with tenant_context(self.school):
+            publish_examination(Examination.objects.get(id=self.examination.id))
+            result = ExamResult.objects.get(examination=self.examination, student=self.student)
+            self.assertEqual(result.total_marks_obtained, Decimal("140"))
+            self.assertEqual(result.total_max_marks, Decimal("200"))
+            self.assertEqual(result.percentage, Decimal("70.00"))
+            self.assertEqual(result.overall_grade, "B")
+            self.assertTrue(result.is_pass)
+            self.assertEqual(len(result.subject_breakdown), 2)
+
+    # --- B. Multiple students, correctly associated ------------------------
+
+    def test_multiple_students_each_get_their_own_correct_result(self):
+        self._mark(self.schedule1, self.student, marks_obtained=Decimal("80"))
+        self._mark(self.schedule2, self.student, marks_obtained=Decimal("60"))
+        self._mark(self.schedule1, self.student2, marks_obtained=Decimal("30"))
+        # student2 has no mark at all on schedule2 - "not applicable", not a zero.
+
+        from .services import publish_examination
+
+        with tenant_context(self.school):
+            publish_examination(Examination.objects.get(id=self.examination.id))
+
+            r1 = ExamResult.objects.get(examination=self.examination, student=self.student)
+            self.assertEqual(r1.percentage, Decimal("70.00"))
+            self.assertTrue(r1.is_pass)
+
+            r2 = ExamResult.objects.get(examination=self.examination, student=self.student2)
+            self.assertEqual(r2.total_max_marks, Decimal("100"))  # only schedule1 counted
+            self.assertEqual(r2.percentage, Decimal("30.00"))
+            self.assertFalse(r2.is_pass)
+            self.assertEqual(len(r2.subject_breakdown), 1)
+
+            self.assertEqual(ExamResult.objects.filter(examination=self.examination).count(), 2)
+
+    # --- D. Grade boundaries: below / exactly at / above --------------------
+
+    def test_grade_boundaries_exact_edges(self):
+        """Fixture boundaries: F [0, 39.99], B [40, 89.99], A+ [90, 100].
+        Using a single 100-mark schedule makes percentage == marks_obtained,
+        so these are exact-edge values, not approximations."""
+        edge_students = []
+        for i, marks in enumerate(["39.99", "40.00", "89.99", "90.00"]):
+            with tenant_context(self.school):
+                profile = Profile.objects.create(first_name=f"Edge{i}", last_name="Student")
+                student = Student.objects.create(profile=profile, enrollment_id=f"ENR-EDGE-{i}", status="active")
+                StudentLevel.objects.create(
+                    student=student, level=self.section_a.level, section=self.section_a,
+                    academic_year="2026", is_current=True,
+                )
+            self._mark(self.schedule1, student, marks_obtained=Decimal(marks))
+            edge_students.append((student, marks))
+
+        from .services import publish_examination
+
+        with tenant_context(self.school):
+            publish_examination(Examination.objects.get(id=self.examination.id))
+
+            expected_grades = {"39.99": "F", "40.00": "B", "89.99": "B", "90.00": "A+"}
+            for student, marks in edge_students:
+                result = ExamResult.objects.get(examination=self.examination, student=student)
+                self.assertEqual(result.overall_grade, expected_grades[marks], f"marks={marks}")
+
+    # --- E. Missing/edge marks: absent, zero, missing subject ---------------
+
+    def test_absent_and_zero_marks_handled_correctly(self):
+        self._mark(self.schedule1, self.student, is_absent=True)
+        self._mark(self.schedule2, self.student, marks_obtained=Decimal("0"))
+
+        from .services import publish_examination
+
+        with tenant_context(self.school):
+            publish_examination(Examination.objects.get(id=self.examination.id))
+            result = ExamResult.objects.get(examination=self.examination, student=self.student)
+
+            self.assertFalse(result.is_pass)
+            self.assertEqual(result.total_marks_obtained, Decimal("0"))
+            self.assertEqual(result.total_max_marks, Decimal("200"))  # both subjects count toward max
+
+            breakdown_by_subject = {b["subject"]: b for b in result.subject_breakdown}
+            self.assertTrue(breakdown_by_subject[str(self.subject.id)]["is_absent"])
+            self.assertIsNone(breakdown_by_subject[str(self.subject.id)]["marks_obtained"])
+            self.assertEqual(breakdown_by_subject[str(self.second_subject.id)]["marks_obtained"], 0.0)
+            self.assertFalse(breakdown_by_subject[str(self.second_subject.id)]["is_pass"])
+
+    def test_student_with_no_marks_at_all_is_not_published(self):
+        """other_student has no ExamMark for this examination at all -
+        publication must produce no ExamResult for them."""
+        self._mark(self.schedule1, self.student, marks_obtained=Decimal("80"))
+
+        from .services import publish_examination
+
+        with tenant_context(self.school):
+            publish_examination(Examination.objects.get(id=self.examination.id))
+            self.assertFalse(
+                ExamResult.objects.filter(examination=self.examination, student=self.other_student).exists()
+            )
+
+    # --- F. Existing-result / write behavior --------------------------------
+
+    def test_publish_only_ever_creates_never_updates(self):
+        """publish_examination() has no update/upsert path - is_published
+        guards against ever re-entering the write loop. Confirms the bulk
+        rewrite preserves this create-only, single-pass write behavior."""
+        self._mark(self.schedule1, self.student, marks_obtained=Decimal("80"))
+
+        from .services import publish_examination
+
+        with tenant_context(self.school):
+            publish_examination(Examination.objects.get(id=self.examination.id))
+            self.assertEqual(ExamResult.objects.filter(examination=self.examination).count(), 1)
+
+    # --- G. Re-publication / idempotency -------------------------------------
+
+    def test_republish_rejected_and_results_unchanged(self):
+        self._mark(self.schedule1, self.student, marks_obtained=Decimal("80"))
+
+        from rest_framework import serializers as drf_serializers
+
+        from .services import publish_examination
+
+        with tenant_context(self.school):
+            exam = Examination.objects.get(id=self.examination.id)
+            publish_examination(exam)
+            first_result_id = ExamResult.objects.get(examination=self.examination, student=self.student).id
+
+            exam.refresh_from_db()
+            with self.assertRaises(drf_serializers.ValidationError):
+                publish_examination(exam)
+
+            self.assertEqual(ExamResult.objects.filter(examination=self.examination).count(), 1)
+            self.assertEqual(
+                ExamResult.objects.get(examination=self.examination, student=self.student).id, first_result_id,
+            )
+
+    # --- Query-scaling regression -------------------------------------------
+
+    def test_publish_calculation_query_count_does_not_scale_with_student_count(self):
+        """
+        The in-scope target of Phase 9G: the result-calculation-and-write
+        portion of publish_examination() must not re-query ExamSchedule/
+        ExamMark/GradeBoundary per student.
+
+        _queue_result_published_notifications() is mocked to a no-op here
+        deliberately: its own recipient resolution (student.profile.user,
+        families.StudentParentRelation) is a SEPARATE, pre-existing N+1
+        that touches the explicitly out-of-scope email/outbox subsystem
+        (see Phase 9G's strict-scope rules) - documented under "Out of
+        Scope / Follow-up" in the Phase 9G report, not fixed here. Mocking
+        it isolates exactly the calculation/write path this phase targets.
+        """
+        from unittest import mock
+
+        from .services import publish_examination
+
+        def _make_exam_with_students(n, label):
+            with tenant_context(self.school):
+                exam_type = ExamType.objects.create(name=f"Scale{label}", order=1)
+                exam = Examination.objects.create(
+                    academic_year="2026", name=f"Scale {label}", exam_type=exam_type,
+                    start_date=datetime.date(2026, 6, 1), end_date=datetime.date(2026, 6, 10),
+                )
+                sched1 = ExamSchedule.objects.create(
+                    examination=exam, academic_year="2026", subject=self.subject, section=self.section_a,
+                    date=datetime.date(2026, 6, 2), start_time=datetime.time(9, 0), end_time=datetime.time(10, 0),
+                    max_marks=Decimal("100"), pass_marks=Decimal("40"),
+                )
+                sched2 = ExamSchedule.objects.create(
+                    examination=exam, academic_year="2026", subject=self.second_subject, section=self.section_a,
+                    date=datetime.date(2026, 6, 3), start_time=datetime.time(9, 0), end_time=datetime.time(10, 0),
+                    max_marks=Decimal("100"), pass_marks=Decimal("40"),
+                )
+                students = []
+                for i in range(n):
+                    profile = Profile.objects.create(first_name=f"{label}{i}", last_name="Student")
+                    student = Student.objects.create(profile=profile, enrollment_id=f"ENR-SCALE{label}-{i}", status="active")
+                    StudentLevel.objects.create(
+                        student=student, level=self.section_a.level, section=self.section_a,
+                        academic_year="2026", is_current=True,
+                    )
+                    ExamMark.objects.create(exam_schedule=sched1, student=student, marks_obtained=Decimal("75"))
+                    ExamMark.objects.create(exam_schedule=sched2, student=student, marks_obtained=Decimal("65"))
+                    students.append(student)
+                return exam
+
+        small_exam = _make_exam_with_students(10, "SM")
+        large_exam = _make_exam_with_students(40, "LG")
+
+        with mock.patch("examinations.services._queue_result_published_notifications"):
+            with tenant_context(self.school):
+                with CaptureQueriesContext(connection) as small_ctx:
+                    publish_examination(small_exam)
+
+            with tenant_context(self.school):
+                with CaptureQueriesContext(connection) as large_ctx:
+                    publish_examination(large_exam)
+
+        small_count = len(small_ctx.captured_queries)
+        large_count = len(large_ctx.captured_queries)
+
+        with tenant_context(self.school):
+            self.assertEqual(ExamResult.objects.filter(examination=small_exam).count(), 10)
+            self.assertEqual(ExamResult.objects.filter(examination=large_exam).count(), 40)
+
+        # A small constant difference is acceptable; there must be no
+        # per-student query growth. The old code cost roughly 7-8 extra
+        # queries PER additional student (30 extra students would have
+        # added 200+ queries - see Phase 9G report's measured before/after).
+        self.assertLessEqual(large_count, small_count + 3, f"small={small_count} large={large_count}")

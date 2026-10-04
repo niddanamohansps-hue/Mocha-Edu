@@ -12,6 +12,9 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Unauthorized from "@/components/Unauthorized";
+import { LoadingState } from "@/components/feedback/LoadingState";
+import { EmptyState } from "@/components/feedback/EmptyState";
+import { ErrorState } from "@/components/feedback/ErrorState";
 
 export default function MarksEntryPage() {
     const { can, isOwner } = usePermissions();
@@ -24,7 +27,7 @@ export default function MarksEntryPage() {
 
     const schedule = schedules?.find((s) => s.id === scheduleId);
 
-    const { data: roster, isLoading: loadingRoster } = useQuery({
+    const { data: roster, isLoading: loadingRoster, isError: rosterError, refetch: refetchRoster } = useQuery({
         queryKey: ["examinations", "roster", scheduleId],
         queryFn: async () => {
             // The section roster - reuses the same active-students-in-section
@@ -107,12 +110,12 @@ export default function MarksEntryPage() {
                 </div>
             )}
 
-            {scheduleId && loadingRoster && (
-                <div className="flex items-center justify-center py-16"><LoaderCircle className="h-8 w-8 animate-spin text-indigo-600" /></div>
-            )}
+            {scheduleId && loadingRoster && <LoadingState className="py-16" />}
+
+            {scheduleId && rosterError && !loadingRoster && <ErrorState onRetry={refetchRoster} />}
 
             {scheduleId && roster && roster.length === 0 && (
-                <div className="py-16 text-center text-sm text-slate-500">No students are currently enrolled in this section.</div>
+                <EmptyState title="No students are currently enrolled in this section." className="py-16 text-slate-500 text-sm" />
             )}
 
             {scheduleId && roster && roster.length > 0 && schedule && (

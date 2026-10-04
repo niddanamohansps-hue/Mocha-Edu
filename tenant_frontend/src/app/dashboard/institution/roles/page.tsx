@@ -18,21 +18,14 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Can } from "@/providers/PermissionProvider";
 import Unauthorized from "@/components/Unauthorized";
+import { ConfirmationDialog } from "@/components/feedback/ConfirmationDialog";
+import { EmptyState } from "@/components/feedback/EmptyState";
+import { LoadingState } from "@/components/feedback/LoadingState";
+import { TableShell } from "@/components/common/table/TableShell";
 import {
-    Loader2,
     Plus,
     MoreHorizontal,
     Pencil,
@@ -58,11 +51,7 @@ export default function RolesPage() {
     const canView = isUserOwner || can("view_role");
 
     if (isRolesLoading) {
-        return (
-            <div className="flex h-[60vh] items-center justify-center">
-                <Loader2 className="h-12 w-12 animate-spin text-sky-600" />
-            </div>
-        );
+        return <LoadingState className="h-[60vh]" />;
     }
 
     if (!canView) {
@@ -75,6 +64,10 @@ export default function RolesPage() {
             setRoleToDelete(null);
         }
     };
+
+    const filteredRoles = roles?.filter((role) =>
+        role.name.toLowerCase().includes(searchQuery.trim().toLowerCase())
+    );
 
     return (
         <div className="space-y-6">
@@ -114,118 +107,116 @@ export default function RolesPage() {
             </Card>
 
             {/* Table Section */}
-            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden shadow-sm">
-                <div className="overflow-x-auto">
-                    <Table className="px-4">
-                        <TableHeader className="bg-slate-100 dark:bg-slate-800">
-                            <TableRow>
-                                <TableHead className="w-[250px] font-bold text-slate-900 dark:text-white py-4 pl-6">Role Name</TableHead>
-                                <TableHead className="min-w-[300px] font-bold text-slate-900 dark:text-white">Description</TableHead>
-                                <TableHead className="w-[150px] font-bold text-slate-900 dark:text-white">Members</TableHead>
-                                <TableHead className="w-[200px] font-bold text-slate-900 dark:text-white text-center">Permissions</TableHead>
-                                <TableHead className="w-[150px] font-bold text-slate-900 dark:text-white">Created At</TableHead>
-                                <TableHead className="w-[80px] text-right pr-6 font-bold text-slate-900 dark:text-white">Actions</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {roles && roles.length > 0 ? (
-                                roles.map((role) => (
-                                    <TableRow key={role.id} className="group hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                                        <TableCell className="py-4 pl-6">
-                                            <div className="flex items-center gap-3">
-                                                <div className="flex flex-col">
-                                                    <span className="font-semibold text-slate-900 dark:text-white">{role.name}</span>
-                                                </div>
+            <TableShell>
+                <Table className="px-4">
+                    <TableHeader className="bg-slate-100 dark:bg-slate-800">
+                        <TableRow>
+                            <TableHead className="w-[250px] font-bold text-slate-900 dark:text-white py-4 pl-6">Role Name</TableHead>
+                            <TableHead className="min-w-[300px] font-bold text-slate-900 dark:text-white">Description</TableHead>
+                            <TableHead className="w-[150px] font-bold text-slate-900 dark:text-white">Members</TableHead>
+                            <TableHead className="w-[200px] font-bold text-slate-900 dark:text-white text-center">Permissions</TableHead>
+                            <TableHead className="w-[150px] font-bold text-slate-900 dark:text-white">Created At</TableHead>
+                            <TableHead className="w-[80px] text-right pr-6 font-bold text-slate-900 dark:text-white">Actions</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {filteredRoles && filteredRoles.length > 0 ? (
+                            filteredRoles.map((role) => (
+                                <TableRow key={role.id} className="group hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                                    <TableCell className="py-4 pl-6">
+                                        <div className="flex items-center gap-3">
+                                            <div className="flex flex-col">
+                                                <span className="font-semibold text-slate-900 dark:text-white">{role.name}</span>
                                             </div>
-                                        </TableCell>
-                                        <TableCell>
-                                            <p className="text-slate-500 dark:text-slate-400 text-sm line-clamp-1">{role.description || "No description provided."}</p>
-                                        </TableCell>
-                                        <TableCell>
-                                            <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300 font-medium">
-                                                <Users className="h-4 w-4 text-slate-400" />
-                                                {role.user_count}
-                                            </div>
-                                        </TableCell>
-                                        <TableCell className="text-center">
-                                            <Badge variant="outline" className="bg-slate-100 dark:bg-slate-800 border-none font-bold text-slate-700 dark:text-slate-300">
-                                                {role.permissions?.length || 0} Permissions
-                                            </Badge>
-                                        </TableCell>
-                                        <TableCell className="text-slate-500 dark:text-slate-400 text-sm">
-                                            {format(new Date(role.created_at), 'MMM dd, yyyy')}
-                                        </TableCell>
-                                        <TableCell className="text-right pr-6">
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-md">
-                                                        <MoreHorizontal className="h-4 w-4" />
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end" className="w-48 p-2 rounded-xl">
-                                                    <Can I="change_role">
-                                                        <DropdownMenuItem
-                                                            onClick={() => router.push(`/dashboard/institution/roles/${role.id}/edit`)}
-                                                            className="rounded-lg gap-2 cursor-pointer focus:bg-sky-50 focus:text-sky-600 dark:focus:bg-sky-900/20 dark:focus:text-sky-400"
-                                                        >
-                                                            <Pencil className="h-4 w-4" />
-                                                            Edit
-                                                        </DropdownMenuItem>
-                                                    </Can>
-                                                    <Can I="delete_role">
-                                                        {!role.is_system_role && (
-                                                            <DropdownMenuItem
-                                                                onClick={() => setRoleToDelete(role.id)}
-                                                                className="rounded-lg gap-2 cursor-pointer text-red-600 focus:bg-red-50 focus:text-red-600 dark:focus:bg-red-900/20"
-                                                            >
-                                                                <Trash2 className="h-4 w-4" />
-                                                                Delete
-                                                            </DropdownMenuItem>
-                                                        )}
-                                                    </Can>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
-                                        </TableCell>
-                                    </TableRow>
-                                ))
-                            ) : (
-                                <TableRow>
-                                    <TableCell colSpan={6} className="h-32 text-center">
-                                        <div className="flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 py-10">
-                                            <ShieldCheck className="h-10 w-10 mb-2 opacity-20" />
-                                            <p className="font-medium">No roles found.</p>
                                         </div>
                                     </TableCell>
+                                    <TableCell>
+                                        <p className="text-slate-500 dark:text-slate-400 text-sm line-clamp-1">{role.description || "No description provided."}</p>
+                                    </TableCell>
+                                    <TableCell>
+                                        <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300 font-medium">
+                                            <Users className="h-4 w-4 text-slate-400" />
+                                            {role.user_count}
+                                        </div>
+                                    </TableCell>
+                                    <TableCell className="text-center">
+                                        <Badge variant="outline" className="bg-slate-100 dark:bg-slate-800 border-none font-bold text-slate-700 dark:text-slate-300">
+                                            {role.permissions?.length || 0} Permissions
+                                        </Badge>
+                                    </TableCell>
+                                    <TableCell className="text-slate-500 dark:text-slate-400 text-sm">
+                                        {format(new Date(role.created_at), 'MMM dd, yyyy')}
+                                    </TableCell>
+                                    <TableCell className="text-right pr-6">
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-md">
+                                                    <MoreHorizontal className="h-4 w-4" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end" className="w-48 p-2 rounded-xl">
+                                                <Can I="change_role">
+                                                    <DropdownMenuItem
+                                                        onClick={() => router.push(`/dashboard/institution/roles/${role.id}/edit`)}
+                                                        className="rounded-lg gap-2 cursor-pointer focus:bg-sky-50 focus:text-sky-600 dark:focus:bg-sky-900/20 dark:focus:text-sky-400"
+                                                    >
+                                                        <Pencil className="h-4 w-4" />
+                                                        Edit
+                                                    </DropdownMenuItem>
+                                                </Can>
+                                                <Can I="delete_role">
+                                                    {!role.is_system_role && (
+                                                        <DropdownMenuItem
+                                                            onClick={() => setRoleToDelete(role.id)}
+                                                            className="rounded-lg gap-2 cursor-pointer text-red-600 focus:bg-red-50 focus:text-red-600 dark:focus:bg-red-900/20"
+                                                        >
+                                                            <Trash2 className="h-4 w-4" />
+                                                            Delete
+                                                        </DropdownMenuItem>
+                                                    )}
+                                                </Can>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </TableCell>
                                 </TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
-                </div>
-            </div>
+                            ))
+                        ) : (
+                            <TableRow>
+                                <TableCell colSpan={6} className="h-32 text-center">
+                                    <EmptyState
+                                        icon={<ShieldCheck className="h-10 w-10 mb-2 opacity-20" />}
+                                        title={searchQuery.trim() ? "No roles match your search." : "No roles found."}
+                                        className="text-slate-500 dark:text-slate-400"
+                                    />
+                                </TableCell>
+                            </TableRow>
+                        )}
+                    </TableBody>
+                </Table>
+            </TableShell>
 
             {/* Delete Confirmation Dialog */}
-            <AlertDialog open={!!roleToDelete} onOpenChange={(open) => !open && setRoleToDelete(null)}>
-                <AlertDialogContent className="rounded-2xl p-8 max-w-md">
-                    <AlertDialogHeader>
-                        <div className="h-12 w-12 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-full flex items-center justify-center mb-4">
-                            <Trash2 className="h-6 w-6" />
-                        </div>
-                        <AlertDialogTitle className="text-2xl font-bold">Delete Role?</AlertDialogTitle>
-                        <AlertDialogDescription className="text-slate-500 dark:text-slate-400 text-lg">
-                            This action cannot be undone. This will permanently delete the role and remove it from all assigned users.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter className="mt-8 gap-3">
-                        <AlertDialogCancel className="rounded-xl h-11 border-slate-200">Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                            onClick={handleDelete}
-                            className="bg-red-600 hover:bg-red-700 text-white font-bold h-11 px-8 rounded-xl"
-                        >
-                            Delete Now
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+            <ConfirmationDialog
+                open={!!roleToDelete}
+                onOpenChange={(open) => !open && setRoleToDelete(null)}
+                icon={
+                    <div className="h-12 w-12 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-full flex items-center justify-center mb-4">
+                        <Trash2 className="h-6 w-6" />
+                    </div>
+                }
+                title={<span className="text-2xl font-bold">Delete Role?</span>}
+                description={
+                    <span className="text-slate-500 dark:text-slate-400 text-lg">
+                        This action cannot be undone. This will permanently delete the role and remove it from all assigned users.
+                    </span>
+                }
+                confirmLabel="Delete Now"
+                onConfirm={handleDelete}
+                contentClassName="rounded-2xl p-8 max-w-md"
+                footerClassName="mt-8 gap-3"
+                cancelClassName="rounded-xl h-11 border-slate-200"
+                confirmClassName="font-bold h-11 px-8 rounded-xl"
+            />
         </div>
     );
 }

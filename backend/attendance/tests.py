@@ -2,6 +2,7 @@ import datetime
 
 from django.db import IntegrityError, connection, transaction
 from django.test import TransactionTestCase
+from django.test.utils import CaptureQueriesContext
 from django_tenants.utils import tenant_context
 from rest_framework.test import APIClient
 
@@ -16,6 +17,7 @@ from staff.models import Instructor, StaffMember
 from students.models import Student, StudentLevel
 
 from .models import AttendanceSession, AttendanceSettings, StaffAttendance, StudentAttendance
+from .serializers import StudentAttendanceSerializer
 from .services import calculate_attendance_percentage, get_section_roster
 
 
@@ -729,3 +731,153 @@ class StaffAttendanceTest(AttendanceFixtureMixin, TransactionTestCase):
             )
             self.assertEqual(rows.count(), 1)
             self.assertEqual(rows.first().status, "late")
+
+
+class SectionRosterOptimizationTests(AttendanceFixtureMixin, TransactionTestCase):
+    """
+    Phase 9F: SectionRosterView must not issue one extra query per already-
+    marked student for a section's attendance session. The confirmed N+1
+    was `session.student_records.all()` (no select_related) combined with
+    StudentAttendanceSerializer.get_student_name()'s `obj.student.profile`
+    access - 2 queries per record (student FK + profile O2O).
+    """
+
+    def _make_roster_student(self, enrollment_id, first_name, last_name):
+        with tenant_context(self.school):
+            profile = Profile.objects.create(first_name=first_name, last_name=last_name)
+            student = Student.objects.create(
+                profile=profile, enrollment_id=enrollment_id, status="active"
+            )
+            StudentLevel.objects.create(
+                student=student, level=self.section_a.level, section=self.section_a,
+                academic_year="2026", is_current=True,
+            )
+            return student
+
+    def _mark_session(self, date_str, students, status="present"):
+        with tenant_context(self.school):
+            session = AttendanceSession.objects.create(
+                section=self.section_a, date=date_str, academic_year="2026"
+            )
+            StudentAttendance.objects.bulk_create(
+                [StudentAttendance(session=session, student=s, status=status) for s in students]
+            )
+            return session
+
+    # --- A/B/C. Response correctness, multiple students, profile data ---
+
+    def test_roster_response_correct_for_multiple_students_with_profile_data(self):
+        extra = [
+            self._make_roster_student(f"ENR-ROSTER-{i}", f"First{i}", f"Last{i}") for i in range(3)
+        ]
+        all_students = [self.student1, self.student2] + extra
+        self._mark_session("2026-02-01", all_students, status="present")
+
+        client = self._client_as(self.instructor_user)
+        resp = client.get(
+            f"/api/attendance/sections/{self.section_a.id}/roster/?date=2026-02-01", HTTP_HOST=self.DOMAIN
+        )
+        self.assertEqual(resp.status_code, 200, resp.data)
+
+        by_student = {s["student"]: s for s in resp.data["students"]}
+        for s in all_students:
+            full_name = f"{s.profile.first_name} {s.profile.last_name}"
+            row = by_student[str(s.id)]
+            existing = row["existing"]
+            self.assertIsNotNone(existing)
+            self.assertEqual(existing["status"], "present")
+            self.assertEqual(existing["student_name"], full_name)
+            self.assertEqual(existing["enrollment_id"], s.enrollment_id)
+            # The top-level roster row's own profile-derived fields are a
+            # separate code path (SectionRosterView itself, not the
+            # serializer) and must also remain correct.
+            self.assertEqual(row["full_name"], full_name)
+            self.assertEqual(row["enrollment_id"], s.enrollment_id)
+
+    # --- D. Empty roster / no session yet ---
+
+    def test_roster_with_no_session_yet_has_no_existing_marks(self):
+        client = self._client_as(self.instructor_user)
+        resp = client.get(
+            f"/api/attendance/sections/{self.section_a.id}/roster/?date=2099-01-01", HTTP_HOST=self.DOMAIN
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertIsNone(resp.data["session"])
+        student_ids = {s["student"] for s in resp.data["students"]}
+        self.assertEqual(student_ids, {str(self.student1.id), str(self.student2.id)})
+        for row in resp.data["students"]:
+            self.assertIsNone(row["existing"])
+
+    # --- E/F. Query-count regression, endpoint-level, scaling ---
+
+    def test_roster_endpoint_query_count_does_not_scale_with_record_count(self):
+        """10 marked students vs 40 marked students must cost approximately
+        the same number of queries - not one or more extra queries per
+        additional record."""
+        client = self._client_as(self.instructor_user)
+
+        # Capture the "10 marked records" measurement BEFORE the large group
+        # exists - get_section_roster() lists every CURRENTLY enrolled
+        # student regardless of attendance date, so creating both groups
+        # first would inflate both responses' roster size identically and
+        # defeat the comparison.
+        small_group = [
+            self._make_roster_student(f"ENR-SCALE10-{i}", f"S10_{i}", "Student") for i in range(10)
+        ]
+        self._mark_session("2026-02-10", small_group, status="present")
+
+        with CaptureQueriesContext(connection) as small_ctx:
+            resp_small = client.get(
+                f"/api/attendance/sections/{self.section_a.id}/roster/?date=2026-02-10", HTTP_HOST=self.DOMAIN
+            )
+        self.assertEqual(resp_small.status_code, 200)
+        self.assertEqual(len(resp_small.data["students"]), 2 + 10)
+        marked_small = [s for s in resp_small.data["students"] if s["existing"] is not None]
+        self.assertEqual(len(marked_small), 10)
+
+        large_group = [
+            self._make_roster_student(f"ENR-SCALE40-{i}", f"S40_{i}", "Student") for i in range(40)
+        ]
+        self._mark_session("2026-02-11", large_group, status="present")
+
+        with CaptureQueriesContext(connection) as large_ctx:
+            resp_large = client.get(
+                f"/api/attendance/sections/{self.section_a.id}/roster/?date=2026-02-11", HTTP_HOST=self.DOMAIN
+            )
+        self.assertEqual(resp_large.status_code, 200)
+        self.assertEqual(len(resp_large.data["students"]), 2 + 10 + 40)
+        marked_large = [s for s in resp_large.data["students"] if s["existing"] is not None]
+        self.assertEqual(len(marked_large), 40)
+
+        small_count = len(small_ctx.captured_queries)
+        large_count = len(large_ctx.captured_queries)
+        # A small constant difference is acceptable (the roster itself also
+        # grows between the two calls, feeding the separate, unrelated
+        # get_section_roster() query) - there must be no per-record query
+        # explosion. The old code would have cost roughly 2 extra queries
+        # PER additional marked record (60+ more for 30 extra records).
+        self.assertLessEqual(large_count, small_count + 3)
+
+    def test_old_unoptimized_access_pattern_scales_but_fix_does_not(self):
+        """Documents the exact N+1 this phase fixes: serializing
+        StudentAttendance rows fetched WITHOUT select_related costs 2+
+        queries per row; the same rows fetched WITH it cost a small, fixed
+        number of queries regardless of row count."""
+        group = [
+            self._make_roster_student(f"ENR-CONTRAST-{i}", f"C{i}", "Student") for i in range(12)
+        ]
+        session = self._mark_session("2026-02-12", group, status="present")
+
+        with tenant_context(self.school):
+            with CaptureQueriesContext(connection) as old_ctx:
+                for r in session.student_records.all():
+                    StudentAttendanceSerializer(r).data
+
+            with CaptureQueriesContext(connection) as new_ctx:
+                for r in session.student_records.select_related("student__profile"):
+                    StudentAttendanceSerializer(r).data
+
+        old_count = len(old_ctx.captured_queries)
+        new_count = len(new_ctx.captured_queries)
+        self.assertGreaterEqual(old_count, len(group))
+        self.assertLessEqual(new_count, 4)

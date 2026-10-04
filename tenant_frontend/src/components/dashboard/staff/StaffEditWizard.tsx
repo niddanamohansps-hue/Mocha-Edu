@@ -15,6 +15,8 @@ import { useRouter } from 'next/navigation';
 import { useUpdateStaff, useStaffMember } from '@/hooks/useStaff';
 import PersonalDetailsStep from './onboarding/PersonalDetailsStep';
 import StaffProfessionalInfoStep from './onboarding/StaffProfessionalInfoStep';
+import { LoadingState } from '@/components/feedback/LoadingState';
+import { ErrorState } from '@/components/feedback/ErrorState';
 
 // Schema matches backend StaffMemberSerializer / Update
 // We use the same validation rules as onboarding
@@ -44,7 +46,7 @@ interface StaffEditWizardProps {
 }
 
 export default function StaffEditWizard({ staffId }: StaffEditWizardProps) {
-    const { data: staff, isLoading: isLoadingStaff } = useStaffMember(staffId);
+    const { data: staff, isLoading: isLoadingStaff, isError: staffError, refetch: refetchStaff } = useStaffMember(staffId);
     const { mutate: updateStaff, isPending } = useUpdateStaff();
     const router = useRouter();
 
@@ -88,11 +90,11 @@ export default function StaffEditWizard({ staffId }: StaffEditWizardProps) {
     };
 
     if (isLoadingStaff) {
-        return (
-            <div className="flex h-[50vh] items-center justify-center">
-                <Loader2 className="h-10 w-10 animate-spin text-sky-600" />
-            </div>
-        );
+        return <LoadingState className="h-[50vh]" iconClassName="h-10 w-10" />;
+    }
+
+    if (staffError) {
+        return <ErrorState onRetry={refetchStaff} className="m-6" />;
     }
 
     return (

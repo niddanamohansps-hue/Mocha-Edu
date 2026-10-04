@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ErrorState } from "@/components/feedback/ErrorState";
 
 const ACTION_LABELS: Record<string, string> = {
     promoted: "Promoted",
@@ -28,7 +29,7 @@ export default function DashboardOverview() {
     const { can, isOwner } = usePermissions();
     const canViewSummary = isOwner || can("view_dashboard");
 
-    const { data: summary, isLoading, isError } = useDashboardSummary();
+    const { data: summary, isLoading, isError, refetch } = useDashboardSummary();
 
     const attendanceValue =
         summary?.attendance.today_percentage !== null && summary?.attendance.today_percentage !== undefined
@@ -77,9 +78,7 @@ export default function DashboardOverview() {
                     Use the sidebar to access the modules assigned to your role.
                 </div>
             ) : isError ? (
-                <div className="rounded-3xl border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-500/5 p-10 text-center text-red-600">
-                    Failed to load dashboard summary. Please try again later.
-                </div>
+                <ErrorState message="Failed to load dashboard summary. Please try again later." onRetry={refetch} />
             ) : (
                 <>
                     {/* Stats Grid */}

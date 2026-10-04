@@ -10,17 +10,20 @@ import {
 import { useSections } from "@/hooks/useAcademics";
 import { usePermissions } from "@/providers/PermissionProvider";
 import { Button } from "@/components/ui/button";
-import { Plus, LoaderCircle, FileText } from "lucide-react";
+import { Plus, FileText } from "lucide-react";
 import { CreateAssignmentDialog } from "@/components/dashboard/course-content/CreateAssignmentDialog";
 import { SubmitAssignmentDialog } from "@/components/dashboard/course-content/SubmitAssignmentDialog";
 import { AssignmentCard } from "@/components/dashboard/course-content/AssignmentCard";
+import { LoadingState } from "@/components/feedback/LoadingState";
+import { EmptyState } from "@/components/feedback/EmptyState";
+import { ErrorState } from "@/components/feedback/ErrorState";
 
 export default function AssignmentsPage() {
     const { can, isOwner, activeRole } = usePermissions();
     const canCreate = isOwner || can("create_assignment");
     const isStudent = activeRole === 'student';
 
-    const { data: assignments, isLoading: loadingAssignments } = useAssignments();
+    const { data: assignments, isLoading: loadingAssignments, isError: assignmentsError, refetch: refetchAssignments } = useAssignments();
     const { data: mySubmissions, isLoading: loadingSubmissions } = useMySubmissions();
     const { mutate: createAssignment, isPending: isCreating } = useCreateAssignment();
     const { mutate: submitAssignment, isPending: isSubmitting } = useSubmitAssignment();
@@ -59,11 +62,11 @@ export default function AssignmentsPage() {
     };
 
     if (loadingAssignments || (isStudent && loadingSubmissions)) {
-        return (
-            <div className="flex items-center justify-center py-20">
-                <LoaderCircle className="h-8 w-8 animate-spin text-indigo-600" />
-            </div>
-        );
+        return <LoadingState className="py-20" />;
+    }
+
+    if (assignmentsError) {
+        return <ErrorState onRetry={refetchAssignments} />;
     }
 
     // Map submissions to assignments for students
@@ -125,13 +128,13 @@ export default function AssignmentsPage() {
                         />
                     ))
                 ) : (
-                    <div className="col-span-full py-20 bg-slate-50/50 dark:bg-slate-900/50 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800 flex flex-col items-center justify-center">
-                        <FileText className="h-16 w-16 text-slate-200 dark:text-slate-700 mb-4" />
-                        <h3 className="text-lg font-semibold text-slate-400 dark:text-slate-500">No assignments found</h3>
-                        <p className="text-sm text-slate-400 dark:text-slate-500 mt-1">
-                            {canCreate ? "Create your first assignment to get started" : "Check back later for new assignments"}
-                        </p>
-                    </div>
+                    <EmptyState
+                        icon={<FileText className="h-16 w-16 text-slate-200 dark:text-slate-700 mb-4" />}
+                        title="No assignments found"
+                        titleAs="h3"
+                        description={canCreate ? "Create your first assignment to get started" : "Check back later for new assignments"}
+                        className="col-span-full py-20 bg-slate-50/50 dark:bg-slate-900/50 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800"
+                    />
                 )}
             </div>
         </div>

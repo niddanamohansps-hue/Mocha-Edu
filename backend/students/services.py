@@ -109,6 +109,100 @@ def get_exam_warning(student, academic_year):
     return failing or None
 
 
+# --- Batched equivalents (Phase 9E) -----------------------------------------
+# get_fee_warning()/get_exam_warning() above are left untouched as the
+# single-student reference implementation. PromotionCandidatesView and
+# preview_lifecycle_actions call these two functions once per candidate,
+# which is the confirmed N+1 (Phase 9A/9E): for N candidates, N fee queries
+# (each iterating that student's active StudentFee rows and aggregating
+# allocations per row) plus N exam-result queries. The functions below
+# compute the exact same results for a whole batch of students in a
+# bounded number of queries instead of one pair of queries per student.
+#
+# Deliberately NOT instance-level memoization (Phase 9B already found that
+# unsafe - a cached balance can go stale after a payment/reversal through a
+# separate query). These are request-local plain dicts built fresh from one
+# query each, discarded once the caller returns its response.
+
+def get_fee_warnings_bulk(students):
+    """
+    Batched get_fee_warning() for many students at once.
+
+    Reuses the exact same Phase 9B formula - annotate_with_allocation_total()
+    (the approved, Coalesce-safe allocation annotation) and
+    get_outstanding_balance() (unchanged) - so every individual result is
+    identical to calling get_fee_warning() per student; only the query count
+    differs (one annotated StudentFee query for the whole batch instead of
+    one query per student, each iterating that student's fees individually).
+
+    `StudentFee.objects.filter(student_id__in=...)` is a plain FK filter, not
+    a second to-many join alongside the allocation annotation's own join -
+    the same join-duplication hazard already reasoned through and avoided in
+    OutstandingReportView (Phase 9C) does not apply here.
+
+    Returns {student_id: Decimal(total)} - only for students whose total is
+    > 0 (students with no outstanding balance are simply absent, so
+    `.get(student_id)` returns None exactly like get_fee_warning() does).
+    """
+    from fees.models import StudentFee
+    from fees.services import annotate_with_allocation_total, get_outstanding_balance
+
+    student_ids = [s.id for s in students]
+    if not student_ids:
+        return {}
+
+    fees_qs = annotate_with_allocation_total(
+        StudentFee.objects.filter(student_id__in=student_ids, status="active")
+    )
+
+    totals = {}
+    for student_fee in fees_qs:
+        totals[student_fee.student_id] = (
+            totals.get(student_fee.student_id, Decimal("0")) + get_outstanding_balance(student_fee)
+        )
+
+    return {student_id: total for student_id, total in totals.items() if total > 0}
+
+
+def get_exam_warnings_bulk(students, academic_year_by_student_id):
+    """
+    Batched get_exam_warning() for many (student, academic_year) pairs at
+    once - one query for the whole batch instead of one per student.
+
+    `academic_year_by_student_id` maps each student's id to the SPECIFIC
+    academic year to check for that student. A plain single shared year
+    would be wrong here: preview_lifecycle_actions checks each student
+    against their OWN current enrollment's academic_year, which is not
+    architecturally guaranteed to be identical across every entry in one
+    preview batch (PromotionCandidatesView happens to use one shared year
+    for every candidate, but preview_lifecycle_actions does not).
+
+    Returns {student_id: [failing_examination_names]} - only for students
+    with at least one failing result in their own matching year (absent
+    otherwise, exactly like get_exam_warning() returning None).
+    """
+    from examinations.models import ExamResult
+
+    student_ids = list(academic_year_by_student_id.keys())
+    if not student_ids:
+        return {}
+
+    rows = ExamResult.objects.filter(student_id__in=student_ids, is_pass=False).values_list(
+        "student_id", "academic_year", "examination__name"
+    )
+
+    failing_by_student_year = {}
+    for student_id, year, exam_name in rows:
+        failing_by_student_year.setdefault((student_id, year), []).append(exam_name)
+
+    warnings = {}
+    for student_id, year in academic_year_by_student_id.items():
+        names = failing_by_student_year.get((student_id, year))
+        if names:
+            warnings[student_id] = names
+    return warnings
+
+
 # --- Validation --------------------------------------------------------------
 
 LIFECYCLE_ACTIONS_WITH_NEW_YEAR = ("promoted", "retained")
@@ -223,6 +317,11 @@ def preview_lifecycle_actions(*, entries):
     Pure computation - performs NO database writes (no select_for_update
     either, since nothing is being written; a plain read is sufficient for
     a preview and avoids holding locks outside a real transaction).
+
+    Fee/exam warnings are computed in bulk (Phase 9E) for every entry whose
+    student has a current enrollment - the same "if current is not None"
+    gate the per-entry loop below already applied, just evaluated once up
+    front instead of implicitly re-checked via N separate warning queries.
     """
     current_by_student = {
         row.student_id: row
@@ -230,6 +329,15 @@ def preview_lifecycle_actions(*, entries):
             student_id__in=[e["student"].id for e in entries], is_current=True
         ).select_related("student", "level", "section")
     }
+
+    students_with_current = [
+        entry["student"] for entry in entries if current_by_student.get(entry["student"].id) is not None
+    ]
+    fee_warnings = get_fee_warnings_bulk(students_with_current)
+    exam_warnings = get_exam_warnings_bulk(
+        students_with_current,
+        {s.id: current_by_student[s.id].academic_year for s in students_with_current},
+    )
 
     seen_targets = set()
     results = []
@@ -240,10 +348,10 @@ def preview_lifecycle_actions(*, entries):
 
         warnings = []
         if current is not None:
-            fee_warning = get_fee_warning(student)
+            fee_warning = fee_warnings.get(student.id)
             if fee_warning:
                 warnings.append(f"Outstanding fees: {fee_warning}")
-            exam_warning = get_exam_warning(student, current.academic_year)
+            exam_warning = exam_warnings.get(student.id)
             if exam_warning:
                 warnings.append(f"Failed examination(s): {', '.join(exam_warning)}")
 

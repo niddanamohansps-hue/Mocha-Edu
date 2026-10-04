@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import Unauthorized from "@/components/Unauthorized";
+import { LoadingState } from "@/components/feedback/LoadingState";
+import { ErrorState } from "@/components/feedback/ErrorState";
 
 const STATUS_LABELS: Record<string, string> = {
     present: "Present",
@@ -23,7 +25,7 @@ export default function AttendanceSettingsPage() {
         return <Unauthorized />;
     }
 
-    const { data, isLoading } = useAttendanceSettings();
+    const { data, isLoading, isError, refetch } = useAttendanceSettings();
     const { mutate: update, isPending } = useUpdateAttendanceSettings();
 
     const [weights, setWeights] = useState<Record<string, string>>({});
@@ -55,11 +57,11 @@ export default function AttendanceSettingsPage() {
     };
 
     if (isLoading) {
-        return (
-            <div className="flex items-center justify-center py-20">
-                <LoaderCircle className="h-8 w-8 animate-spin text-indigo-600" />
-            </div>
-        );
+        return <LoadingState className="py-20" />;
+    }
+
+    if (isError) {
+        return <ErrorState onRetry={refetch} />;
     }
 
     return (

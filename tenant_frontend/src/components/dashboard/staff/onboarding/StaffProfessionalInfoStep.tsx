@@ -8,7 +8,7 @@ interface ProfessionalInfoStepProps {
     form: UseFormReturn<any>;
 }
 
-import { useRoles } from '@/hooks/useStaff';
+import { useRoles } from '@/hooks/useRoles';
 import {
     Select,
     SelectContent,
@@ -44,16 +44,8 @@ export default function StaffProfessionalInfoStep({ form }: ProfessionalInfoStep
                         <SelectContent>
                             {loadingRoles ? (
                                 <SelectItem value="loading" disabled>Loading...</SelectItem>
-                            ) : roles?.results ? (
-                                // If pagination is used
-                                roles.results.map((role: any) => (
-                                    <SelectItem key={role.id} value={role.name}>
-                                        {role.name}
-                                    </SelectItem>
-                                ))
                             ) : Array.isArray(roles) ? (
-                                // If generic list
-                                roles.map((role: any) => (
+                                roles.map((role) => (
                                     <SelectItem key={role.id} value={role.name}>
                                         {role.name}
                                     </SelectItem>

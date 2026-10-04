@@ -7,6 +7,7 @@ import { usePermissions } from "@/providers/PermissionProvider";
 import { Card, CardContent } from "@/components/ui/card";
 import Unauthorized from "@/components/Unauthorized";
 import ChildSwitcher from "@/components/parent-portal/ChildSwitcher";
+import { StatusBadge } from "@/components/common/StatusBadge";
 
 export default function ParentPortalFeesPage() {
     const { can, isOwner } = usePermissions();
@@ -81,9 +82,10 @@ export default function ParentPortalFeesPage() {
                                                 <td className="px-4 py-2 font-bold">{f.outstanding_balance}</td>
                                                 <td className="px-4 py-2 text-slate-500">{f.due_date || "—"}</td>
                                                 <td className="px-4 py-2">
-                                                    <span className={`text-xs font-semibold px-2 py-1 rounded-full ${f.status === "active" ? "bg-slate-100 text-slate-700" : "bg-red-50 text-red-500"}`}>
-                                                        {f.status}
-                                                    </span>
+                                                    <StatusBadge
+                                                        label={f.status}
+                                                        className={f.status === "active" ? "bg-slate-100 text-slate-700" : "bg-red-50 text-red-500"}
+                                                    />
                                                 </td>
                                             </tr>
                                         ))}

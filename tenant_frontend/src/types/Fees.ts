@@ -105,5 +105,8 @@ export interface OutstandingReportRow {
 
 export interface OutstandingReportResponse {
     count: number;
+    next: string | null;
+    previous: string | null;
+    total_outstanding_amount: string;
     results: OutstandingReportRow[];
 }

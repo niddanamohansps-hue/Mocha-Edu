@@ -8,13 +8,15 @@ import {
 } from "@/hooks/useCourseContent";
 import { useSections } from "@/hooks/useAcademics";
 import { Button } from "@/components/ui/button";
-import { Plus, LoaderCircle } from "lucide-react";
+import { Plus } from "lucide-react";
 import { UploadContentDialog } from "@/components/dashboard/course-content/UploadContentDialog";
 import { ContentTable } from "@/components/dashboard/course-content/ContentTable";
-import { DeleteConfirmDialog } from "@/components/dashboard/course-content/DeleteConfirmDialog";
+import { LoadingState } from "@/components/feedback/LoadingState";
+import { ErrorState } from "@/components/feedback/ErrorState";
+import { ConfirmationDialog } from "@/components/feedback/ConfirmationDialog";
 
 export default function ManageContentPage() {
-    const { data: content, isLoading } = useMyCourseContent();
+    const { data: content, isLoading, isError, refetch } = useMyCourseContent();
     const { mutate: createContent, isPending: isCreating } = useCreateContent();
     const { mutate: deleteContent } = useDeleteContent();
 
@@ -39,11 +41,11 @@ export default function ManageContentPage() {
     };
 
     if (isLoading) {
-        return (
-            <div className="flex items-center justify-center py-20">
-                <LoaderCircle className="h-8 w-8 animate-spin text-indigo-600" />
-            </div>
-        );
+        return <LoadingState className="py-20" />;
+    }
+
+    if (isError) {
+        return <ErrorState onRetry={refetch} />;
     }
 
     return (
@@ -74,9 +76,11 @@ export default function ManageContentPage() {
                 onDeleteClick={setContentToDelete}
             />
 
-            <DeleteConfirmDialog
+            <ConfirmationDialog
                 open={!!contentToDelete}
                 onOpenChange={() => setContentToDelete(null)}
+                description="This action cannot be undone. This will permanently delete this content."
+                confirmLabel="Delete"
                 onConfirm={handleDelete}
             />
         </div>

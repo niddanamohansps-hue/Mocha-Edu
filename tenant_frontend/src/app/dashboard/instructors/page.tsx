@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { UserPlus, ArrowRight } from "lucide-react";
 import { useInstructors } from "@/hooks/useStaff";
 import {
@@ -14,13 +14,35 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Pagination } from "@/components/ui/pagination";
+import { LoadingState } from "@/components/feedback/LoadingState";
+import { EmptyState } from "@/components/feedback/EmptyState";
+import { ErrorState } from "@/components/feedback/ErrorState";
 
 const PAGE_SIZE = 20;
 
 export default function FacultyDirectoryPage() {
-    const [page, setPage] = useState(1);
-    const { data, isLoading } = useInstructors({ page, pageSize: PAGE_SIZE });
+    const router = useRouter();
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
+    const pageParam = Number(searchParams.get("page"));
+    const page = Number.isInteger(pageParam) && pageParam >= 1 ? pageParam : 1;
+    const { data, isLoading, isError, refetch } = useInstructors({ page, pageSize: PAGE_SIZE });
     const instructors = data?.results;
+
+    const handlePageChange = (nextPage: number) => {
+        const params = new URLSearchParams(searchParams.toString());
+        if (nextPage <= 1) {
+            params.delete("page");
+        } else {
+            params.set("page", String(nextPage));
+        }
+        const query = params.toString();
+        router.replace(query ? `${pathname}?${query}` : pathname);
+    };
+
+    if (isError) {
+        return <ErrorState onRetry={refetch} className="m-6" />;
+    }
 
     return (
         <div className="space-y-6">
@@ -49,7 +71,9 @@ export default function FacultyDirectoryPage() {
                     <TableBody>
                         {isLoading && (
                             <TableRow>
-                                <TableCell colSpan={5} className="text-center py-8">Loading faculty...</TableCell>
+                                <TableCell colSpan={5} className="text-center py-8">
+                                    <LoadingState size="sm" message="Loading faculty..." />
+                                </TableCell>
                             </TableRow>
                         )}
                         {!isLoading && instructors?.map((instructor) => (
@@ -72,8 +96,11 @@ export default function FacultyDirectoryPage() {
                         ))}
                         {!isLoading && (!instructors || instructors.length === 0) && (
                             <TableRow>
-                                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                                    No instructors found. Recruit some!
+                                <TableCell colSpan={5} className="text-center py-8">
+                                    <EmptyState
+                                        title="No instructors found. Recruit some!"
+                                        className="text-muted-foreground py-0"
+                                    />
                                 </TableCell>
                             </TableRow>
                         )}
@@ -84,7 +111,7 @@ export default function FacultyDirectoryPage() {
                         page={page}
                         pageSize={PAGE_SIZE}
                         count={data.count}
-                        onPageChange={setPage}
+                        onPageChange={handlePageChange}
                         className="border-t border-slate-200 dark:border-slate-800"
                     />
                 )}

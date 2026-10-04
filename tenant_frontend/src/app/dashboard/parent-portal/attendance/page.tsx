@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { LoaderCircle } from "lucide-react";
 import { useChildAttendance, useLinkedChildren } from "@/hooks/useParentPortal";
 import { AttendanceStatus } from "@/types/ParentPortal";
 import { usePermissions } from "@/providers/PermissionProvider";
@@ -9,6 +8,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import Unauthorized from "@/components/Unauthorized";
 import ChildSwitcher from "@/components/parent-portal/ChildSwitcher";
+import { LoadingState } from "@/components/feedback/LoadingState";
+import { EmptyState } from "@/components/feedback/EmptyState";
+import { ErrorState } from "@/components/feedback/ErrorState";
 
 const STATUS_LABELS: Record<AttendanceStatus, string> = {
     present: "Present",
@@ -27,7 +29,7 @@ export default function ParentPortalAttendancePage() {
     const [startDate, setStartDate] = useState("");
     const [endDate, setEndDate] = useState("");
 
-    const { data, isLoading } = useChildAttendance(selectedChildId, startDate, endDate);
+    const { data, isLoading, isError, refetch } = useChildAttendance(selectedChildId, startDate, endDate);
 
     if (!canView) {
         return <Unauthorized />;
@@ -59,15 +61,18 @@ export default function ParentPortalAttendancePage() {
             </div>
 
             {!selectedChildId ? (
-                <div className="py-16 text-center text-sm text-slate-500">
-                    {children && children.length === 0
-                        ? "No children are linked to your account yet."
-                        : "Select a child to view their attendance."}
-                </div>
+                <EmptyState
+                    title={
+                        children && children.length === 0
+                            ? "No children are linked to your account yet."
+                            : "Select a child to view their attendance."
+                    }
+                    className="py-16 text-slate-500 text-sm"
+                />
             ) : isLoading ? (
-                <div className="flex items-center justify-center py-20">
-                    <LoaderCircle className="h-8 w-8 animate-spin text-indigo-600" />
-                </div>
+                <LoadingState className="py-20" />
+            ) : isError ? (
+                <ErrorState onRetry={refetch} />
             ) : data ? (
                 <>
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
@@ -90,7 +95,7 @@ export default function ParentPortalAttendancePage() {
                     </div>
 
                     {data.records.length === 0 ? (
-                        <div className="py-16 text-center text-sm text-slate-500">No attendance records found.</div>
+                        <EmptyState title="No attendance records found." className="py-16 text-slate-500 text-sm" />
                     ) : (
                         <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
                             <table className="w-full text-sm">

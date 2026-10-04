@@ -4,6 +4,7 @@ from decimal import Decimal
 
 from django.db import IntegrityError, connection, transaction
 from django.test import TransactionTestCase
+from django.test.utils import CaptureQueriesContext
 from django_tenants.utils import tenant_context
 from rest_framework.test import APIClient
 
@@ -19,10 +20,12 @@ from students.models import Student, StudentLevel
 
 from .models import FeeHead, FeeStructure, Payment, PaymentAllocation, StudentFee
 from .services import (
+    annotate_with_allocation_total,
     assign_student_fee,
     cancel_student_fee,
     get_amount_paid,
     get_outstanding_balance,
+    get_total_allocated,
     record_payment,
     reverse_payment,
     update_student_fee,
@@ -997,3 +1000,464 @@ class EndToEndScenarioTest(FeesFixtureMixin, TransactionTestCase):
         self.assertEqual(parent_resp.status_code, 200)
         self.assertEqual(Decimal(str(parent_resp.data["total_outstanding"])), Decimal("0"))
         self.assertEqual(len(parent_resp.data["payments"]), 1)
+
+
+class AllocationAggregationTests(FeesFixtureMixin, TransactionTestCase):
+    """
+    Phase 9B: get_total_allocated() must return identical results whether
+    called on a plain (unannotated) StudentFee or one annotated via
+    annotate_with_allocation_total() - and must not issue one aggregate
+    query per StudentFee when a queryset is annotated up front.
+    """
+
+    def _record(self, client, student, allocations, amount, method="cash"):
+        return client.post(
+            "/api/fees/payments/",
+            {
+                "student": str(student.id), "amount": str(amount), "method": method,
+                "allocations": [{"student_fee": str(a[0].id), "amount": str(a[1])} for a in allocations],
+            },
+            HTTP_HOST=self.DOMAIN, format="json",
+        )
+
+    def test_no_allocations_matches_annotated_and_unannotated(self):
+        sf = self._assign_fee(self.student1, amount_due=Decimal("1000"))
+        with tenant_context(self.school):
+            plain = StudentFee.objects.get(id=sf.id)
+            annotated = annotate_with_allocation_total(StudentFee.objects.filter(id=sf.id)).get()
+
+            self.assertEqual(get_total_allocated(plain), Decimal("0"))
+            self.assertEqual(get_total_allocated(annotated), Decimal("0"))
+            self.assertEqual(get_amount_paid(plain), Decimal("0"))
+            self.assertEqual(get_outstanding_balance(plain), Decimal("1000"))
+            self.assertEqual(get_outstanding_balance(annotated), Decimal("1000"))
+
+    def test_one_allocation_matches_annotated_and_unannotated(self):
+        sf = self._assign_fee(self.student1, amount_due=Decimal("1000"))
+        self._give_role_only(self.finance_user, ["collect_payments"])
+        client = self._client_as(self.finance_user)
+        self._record(client, self.student1, [(sf, Decimal("400"))], Decimal("400"))
+
+        with tenant_context(self.school):
+            plain = StudentFee.objects.get(id=sf.id)
+            annotated = annotate_with_allocation_total(StudentFee.objects.filter(id=sf.id)).get()
+
+            self.assertEqual(get_total_allocated(plain), Decimal("400"))
+            self.assertEqual(get_total_allocated(annotated), Decimal("400"))
+            self.assertEqual(get_outstanding_balance(plain), Decimal("600"))
+            self.assertEqual(get_outstanding_balance(annotated), Decimal("600"))
+
+    def test_multiple_allocations_including_reversal_matches(self):
+        """Mirrors ReversePaymentTests - a reversal's allocation is negative,
+        so the net total must come out the same whether annotated or not."""
+        sf = self._assign_fee(self.student1, amount_due=Decimal("1000"))
+        self._give_role_only(self.finance_user, ["collect_payments"])
+        client = self._client_as(self.finance_user)
+        pay_resp = self._record(client, self.student1, [(sf, Decimal("500"))], Decimal("500"))
+        with tenant_context(self.school):
+            payment = Payment.objects.get(id=pay_resp.data["id"])
+            reverse_payment(payment=payment, recorded_by=self.finance_staff_member)
+
+            plain = StudentFee.objects.get(id=sf.id)
+            annotated = annotate_with_allocation_total(StudentFee.objects.filter(id=sf.id)).get()
+
+            self.assertEqual(get_total_allocated(plain), Decimal("0"))
+            self.assertEqual(get_total_allocated(annotated), Decimal("0"))
+            self.assertEqual(get_outstanding_balance(plain), Decimal("1000"))
+            self.assertEqual(get_outstanding_balance(annotated), Decimal("1000"))
+
+    def test_unannotated_instance_always_recomputes_fresh_no_stale_cache(self):
+        """Deliberately NOT memoized on a plain instance: get_outstanding_balance()
+        called again on the SAME Python object after a later write against the
+        same row (through a separate query/call, e.g. a reversal) must reflect
+        the new state, not a stale value from the first call. This is the
+        exact scenario ReversePaymentTests.test_reversal_restores_outstanding_balance
+        already covers end-to-end; this test isolates it at the service-function
+        level and documents why get_total_allocated() must not cache here."""
+        sf = self._assign_fee(self.student1, amount_due=Decimal("1000"))
+        self._give_role_only(self.finance_user, ["collect_payments"])
+        client = self._client_as(self.finance_user)
+        pay_resp = self._record(client, self.student1, [(sf, Decimal("300"))], Decimal("300"))
+
+        with tenant_context(self.school):
+            plain = StudentFee.objects.get(id=sf.id)
+            self.assertEqual(get_outstanding_balance(plain), Decimal("700"))
+
+            payment = Payment.objects.get(id=pay_resp.data["id"])
+            reverse_payment(payment=payment, recorded_by=self.finance_staff_member)
+
+            # Re-checking the SAME `plain` instance must see the reversal,
+            # not the value cached from the call above.
+            self.assertEqual(get_outstanding_balance(plain), Decimal("1000"))
+
+    def test_multiple_student_fees_annotated_in_one_query_not_per_row(self):
+        """The core N+1 fix: N annotated StudentFee rows must not cost N
+        aggregate queries - the annotation computes all of them in the
+        same query that fetches the rows."""
+        fees = [self._assign_fee(self.student1, amount_due=Decimal("100")) for _ in range(5)]
+        self._give_role_only(self.finance_user, ["collect_payments"])
+        client = self._client_as(self.finance_user)
+        # Allocate a different amount to each fee so a mixed-up Sum would be caught.
+        for i, sf in enumerate(fees):
+            self._record(client, self.student1, [(sf, Decimal(10 * (i + 1)))], Decimal(10 * (i + 1)))
+
+        with tenant_context(self.school):
+            qs = annotate_with_allocation_total(
+                StudentFee.objects.filter(id__in=[f.id for f in fees]).order_by("amount_due", "id")
+            )
+            with CaptureQueriesContext(connection) as ctx:
+                rows = list(qs)
+                totals = [get_outstanding_balance(r) for r in rows]
+
+        # get_outstanding_balance() must not add one query per row on top of
+        # the single annotated fetch - allow a little headroom (e.g. a
+        # connection/session query) rather than asserting a brittle exact count.
+        self.assertLessEqual(len(ctx.captured_queries), 2)
+        self.assertEqual(
+            sorted(float(t) for t in totals),
+            sorted(100 - 10 * (i + 1) for i in range(5)),
+        )
+
+
+class OutstandingReportOptimizationTests(FeesFixtureMixin, TransactionTestCase):
+    """
+    Phase 9B: OutstandingReportView must return the exact same response it
+    did before the optimization, and must not issue one allocation
+    aggregate query per StudentFee row.
+    """
+
+    def _record(self, client, student, allocations, amount, method="cash"):
+        return client.post(
+            "/api/fees/payments/",
+            {
+                "student": str(student.id), "amount": str(amount), "method": method,
+                "allocations": [{"student_fee": str(a[0].id), "amount": str(a[1])} for a in allocations],
+            },
+            HTTP_HOST=self.DOMAIN, format="json",
+        )
+
+    def test_response_unchanged_with_partial_payment_and_section_filter(self):
+        sf1 = self._assign_fee(self.student1, amount_due=Decimal("1000"))
+        self._assign_fee(self.student2, amount_due=Decimal("500"))
+        self._give_role_only(self.finance_user, ["collect_payments", "view_financial_reports"])
+        client = self._client_as(self.finance_user)
+        self._record(client, self.student1, [(sf1, Decimal("300"))], Decimal("300"))
+
+        resp = client.get(
+            f"/api/fees/reports/outstanding/?section={self.section_a.id}", HTTP_HOST=self.DOMAIN
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data["count"], 2)
+        by_student = {row["student"]: row for row in resp.data["results"]}
+        self.assertEqual(Decimal(str(by_student[str(self.student1.id)]["outstanding"])), Decimal("700"))
+        self.assertEqual(Decimal(str(by_student[str(self.student2.id)]["outstanding"])), Decimal("500"))
+
+    def test_query_count_does_not_scale_with_fee_count(self):
+        self._give_role_only(self.finance_user, ["view_financial_reports"])
+        client = self._client_as(self.finance_user)
+
+        for _ in range(3):
+            self._assign_fee(self.student1, amount_due=Decimal("100"))
+        with CaptureQueriesContext(connection) as small_batch:
+            resp = client.get("/api/fees/reports/outstanding/", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.status_code, 200)
+
+        for _ in range(15):
+            self._assign_fee(self.student2, amount_due=Decimal("100"))
+        with CaptureQueriesContext(connection) as large_batch:
+            resp = client.get("/api/fees/reports/outstanding/", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.status_code, 200)
+
+        # 18 fees vs 3 fees must not cost anywhere close to 6x the queries -
+        # the old per-row aggregate would scale roughly linearly with fee count.
+        self.assertLess(len(large_batch.captured_queries), len(small_batch.captured_queries) + 5)
+
+
+class OutstandingReportPaginationTests(FeesFixtureMixin, TransactionTestCase):
+    """
+    Phase 9C: OutstandingReportView must be genuinely server-paginated -
+    pagination/count operate on the OUTSTANDING dataset (filtered at the
+    database level), not on the raw StudentFee set with Python-side
+    filtering applied after slicing.
+    """
+
+    def _record(self, client, student, allocations, amount, method="cash"):
+        return client.post(
+            "/api/fees/payments/",
+            {
+                "student": str(student.id), "amount": str(amount), "method": method,
+                "allocations": [{"student_fee": str(a[0].id), "amount": str(a[1])} for a in allocations],
+            },
+            HTTP_HOST=self.DOMAIN, format="json",
+        )
+
+    def test_pagination_operates_on_outstanding_dataset_not_raw_fees(self):
+        """raw fees: 30, outstanding: 12, page_size: 5. Page 1/2/3 together
+        must cover exactly the 12 outstanding fees (5, 5, 2), never any of
+        the 18 fully-paid ones, and a 4th page must not exist."""
+        self._give_role_only(self.finance_user, ["collect_payments", "view_financial_reports"])
+        client = self._client_as(self.finance_user)
+
+        outstanding_heads = []
+        for i in range(30):
+            with tenant_context(self.school):
+                head = FeeHead.objects.create(name=f"PagTest Head {i}")
+            sf = self._assign_fee(self.student1, amount_due=Decimal("100"), fee_head=head)
+            if i < 18:
+                resp = self._record(client, self.student1, [(sf, Decimal("100"))], Decimal("100"))
+                self.assertEqual(resp.status_code, 201, resp.data)
+            else:
+                outstanding_heads.append(head.name)
+
+        self.assertEqual(len(outstanding_heads), 12)
+
+        seen_heads = []
+        for page, expected_len in ((1, 5), (2, 5), (3, 2)):
+            resp = client.get(
+                f"/api/fees/reports/outstanding/?page_size=5&page={page}", HTTP_HOST=self.DOMAIN
+            )
+            self.assertEqual(resp.status_code, 200, resp.data)
+            self.assertEqual(resp.data["count"], 12)
+            self.assertEqual(len(resp.data["results"]), expected_len)
+            for row in resp.data["results"]:
+                self.assertIn(row["fee_head"], outstanding_heads)
+                self.assertGreater(Decimal(str(row["outstanding"])), 0)
+            seen_heads.extend(row["fee_head"] for row in resp.data["results"])
+
+        self.assertEqual(sorted(seen_heads), sorted(outstanding_heads))
+
+        resp4 = client.get("/api/fees/reports/outstanding/?page_size=5&page=4", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp4.status_code, 404)
+
+    def test_standard_pagination_envelope_and_page_size_respected(self):
+        """Default page_size (20) bounds results even when far more
+        outstanding records exist; count reflects the full outstanding set."""
+        self._give_role_only(self.finance_user, ["view_financial_reports"])
+        client = self._client_as(self.finance_user)
+
+        for _ in range(25):
+            self._assign_fee(self.student1, amount_due=Decimal("50"))
+
+        resp = client.get("/api/fees/reports/outstanding/", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.status_code, 200)
+        for key in ("count", "next", "previous", "results"):
+            self.assertIn(key, resp.data)
+        self.assertEqual(resp.data["count"], 25)
+        self.assertEqual(len(resp.data["results"]), 20)  # StandardResultsPagination default
+        self.assertIsNotNone(resp.data["next"])
+        self.assertIsNone(resp.data["previous"])
+
+        resp2 = client.get("/api/fees/reports/outstanding/?page=2", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp2.status_code, 200)
+        self.assertEqual(len(resp2.data["results"]), 5)
+        self.assertIsNone(resp2.data["next"])
+        self.assertIsNotNone(resp2.data["previous"])
+
+    def test_academic_year_filter_preserved_with_pagination(self):
+        self._give_role_only(self.finance_user, ["view_financial_reports"])
+        client = self._client_as(self.finance_user)
+
+        self._assign_fee(self.student1, amount_due=Decimal("200"), academic_year="2026")
+        self._assign_fee(self.student1, amount_due=Decimal("300"), academic_year="2027")
+
+        resp = client.get(
+            "/api/fees/reports/outstanding/?academic_year=2026", HTTP_HOST=self.DOMAIN
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data["count"], 1)
+        self.assertEqual(resp.data["results"][0]["academic_year"], "2026")
+
+    def test_reversal_makes_fee_outstanding_again_in_paginated_report(self):
+        """Financial correctness through the new SQL-level filter: a fully
+        paid fee is excluded; after its payment is reversed, it must
+        reappear as outstanding."""
+        self._give_role_only(
+            self.finance_user, ["collect_payments", "view_financial_reports"]
+        )
+        client = self._client_as(self.finance_user)
+
+        sf = self._assign_fee(self.student1, amount_due=Decimal("400"))
+        pay_resp = self._record(client, self.student1, [(sf, Decimal("400"))], Decimal("400"))
+        self.assertEqual(pay_resp.status_code, 201, pay_resp.data)
+
+        resp = client.get("/api/fees/reports/outstanding/", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.data["count"], 0)
+
+        with tenant_context(self.school):
+            payment = Payment.objects.get(id=pay_resp.data["id"])
+            reverse_payment(payment=payment, recorded_by=self.finance_staff_member)
+
+        resp2 = client.get("/api/fees/reports/outstanding/", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp2.data["count"], 1)
+        self.assertEqual(Decimal(str(resp2.data["results"][0]["outstanding"])), Decimal("400"))
+
+    def test_partial_allocation_across_multiple_payments_still_outstanding(self):
+        self._give_role_only(
+            self.finance_user, ["collect_payments", "view_financial_reports"]
+        )
+        client = self._client_as(self.finance_user)
+
+        sf = self._assign_fee(self.student1, amount_due=Decimal("1000"))
+        self._record(client, self.student1, [(sf, Decimal("300"))], Decimal("300"))
+        self._record(client, self.student1, [(sf, Decimal("200"))], Decimal("200"))
+
+        resp = client.get("/api/fees/reports/outstanding/", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.data["count"], 1)
+        self.assertEqual(Decimal(str(resp.data["results"][0]["outstanding"])), Decimal("500"))
+
+    def test_annotation_path_still_used_not_per_row_query(self):
+        """Phase 9B regression guard, re-verified under the new pagination
+        query shape: allocation totals come from the SQL-level annotation,
+        not one aggregate query per StudentFee."""
+        self._give_role_only(self.finance_user, ["collect_payments", "view_financial_reports"])
+        client = self._client_as(self.finance_user)
+
+        for _ in range(8):
+            self._assign_fee(self.student1, amount_due=Decimal("100"))
+
+        with CaptureQueriesContext(connection) as ctx:
+            resp = client.get("/api/fees/reports/outstanding/", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data["count"], 8)
+
+        # One aggregate-per-row would show up as 8+ separate SELECTs against
+        # paymentallocation beyond the small, fixed set this endpoint issues
+        # (the paginated SELECT, the COUNT, and - since Phase 9C-F - the
+        # total_outstanding_amount aggregate).
+        allocation_selects = [
+            q for q in ctx.captured_queries
+            if "paymentallocation" in q["sql"].lower() and "select" in q["sql"].lower()
+        ]
+        self.assertLessEqual(len(allocation_selects), 3)
+
+
+class OutstandingReportTotalAggregateTests(FeesFixtureMixin, TransactionTestCase):
+    """
+    Phase 9C-F: `total_outstanding_amount` must represent the SUM of every
+    matching outstanding fee - not the current page - and must be computed
+    by the database, from the same filtered dataset as `count`/`results`.
+    """
+
+    def _record(self, client, student, allocations, amount, method="cash"):
+        return client.post(
+            "/api/fees/payments/",
+            {
+                "student": str(student.id), "amount": str(amount), "method": method,
+                "allocations": [{"student_fee": str(a[0].id), "amount": str(a[1])} for a in allocations],
+            },
+            HTTP_HOST=self.DOMAIN, format="json",
+        )
+
+    def test_total_is_independent_of_page_and_page_size(self):
+        """12 outstanding fees of 100 each -> total 1200, identical on
+        every page at page_size=5, and identical again at page_size=20."""
+        self._give_role_only(self.finance_user, ["view_financial_reports"])
+        client = self._client_as(self.finance_user)
+
+        for _ in range(12):
+            self._assign_fee(self.student1, amount_due=Decimal("100"))
+
+        for page in (1, 2, 3):
+            resp = client.get(
+                f"/api/fees/reports/outstanding/?page_size=5&page={page}", HTTP_HOST=self.DOMAIN
+            )
+            self.assertEqual(resp.status_code, 200, resp.data)
+            self.assertEqual(Decimal(str(resp.data["total_outstanding_amount"])), Decimal("1200"))
+
+        resp_full = client.get("/api/fees/reports/outstanding/?page_size=20", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(Decimal(str(resp_full.data["total_outstanding_amount"])), Decimal("1200"))
+
+    def test_total_respects_academic_year_and_section_filters(self):
+        self._give_role_only(self.finance_user, ["view_financial_reports"])
+        client = self._client_as(self.finance_user)
+
+        self._assign_fee(self.student1, amount_due=Decimal("300"), academic_year="2026")
+        self._assign_fee(self.student1, amount_due=Decimal("500"), academic_year="2027")
+
+        resp_2026 = client.get(
+            "/api/fees/reports/outstanding/?academic_year=2026", HTTP_HOST=self.DOMAIN
+        )
+        self.assertEqual(Decimal(str(resp_2026.data["total_outstanding_amount"])), Decimal("300"))
+
+        resp_all = client.get("/api/fees/reports/outstanding/", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(Decimal(str(resp_all.data["total_outstanding_amount"])), Decimal("800"))
+
+        # student2 is also in section_a; filtering by section must include both.
+        self._assign_fee(self.student2, amount_due=Decimal("200"))
+        resp_section = client.get(
+            f"/api/fees/reports/outstanding/?section={self.section_a.id}", HTTP_HOST=self.DOMAIN
+        )
+        self.assertEqual(Decimal(str(resp_section.data["total_outstanding_amount"])), Decimal("1000"))
+
+    def test_fully_paid_records_excluded_from_count_and_total(self):
+        self._give_role_only(self.finance_user, ["collect_payments", "view_financial_reports"])
+        client = self._client_as(self.finance_user)
+
+        sf_paid = self._assign_fee(self.student1, amount_due=Decimal("400"))
+        self._record(client, self.student1, [(sf_paid, Decimal("400"))], Decimal("400"))
+        self._assign_fee(self.student1, amount_due=Decimal("250"))
+
+        resp = client.get("/api/fees/reports/outstanding/", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.data["count"], 1)
+        self.assertEqual(Decimal(str(resp.data["total_outstanding_amount"])), Decimal("250"))
+
+    def test_total_uses_net_allocation_across_multiple_payments(self):
+        self._give_role_only(self.finance_user, ["collect_payments", "view_financial_reports"])
+        client = self._client_as(self.finance_user)
+
+        sf = self._assign_fee(self.student1, amount_due=Decimal("1000"))
+        self._record(client, self.student1, [(sf, Decimal("300"))], Decimal("300"))
+        self._record(client, self.student1, [(sf, Decimal("200"))], Decimal("200"))
+
+        resp = client.get("/api/fees/reports/outstanding/", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(Decimal(str(resp.data["total_outstanding_amount"])), Decimal("500"))
+
+    def test_reversal_changes_the_aggregate(self):
+        self._give_role_only(self.finance_user, ["collect_payments", "view_financial_reports"])
+        client = self._client_as(self.finance_user)
+
+        sf = self._assign_fee(self.student1, amount_due=Decimal("600"))
+        pay_resp = self._record(client, self.student1, [(sf, Decimal("600"))], Decimal("600"))
+        self.assertEqual(pay_resp.status_code, 201, pay_resp.data)
+
+        resp = client.get("/api/fees/reports/outstanding/", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(Decimal(str(resp.data["total_outstanding_amount"])), Decimal("0"))
+
+        with tenant_context(self.school):
+            payment = Payment.objects.get(id=pay_resp.data["id"])
+            reverse_payment(payment=payment, recorded_by=self.finance_staff_member)
+
+        resp2 = client.get("/api/fees/reports/outstanding/", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(Decimal(str(resp2.data["total_outstanding_amount"])), Decimal("600"))
+
+    def test_zero_result_report_has_zero_total(self):
+        self._give_role_only(self.finance_user, ["view_financial_reports"])
+        client = self._client_as(self.finance_user)
+
+        resp = client.get("/api/fees/reports/outstanding/", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data["count"], 0)
+        self.assertEqual(resp.data["results"], [])
+        self.assertEqual(Decimal(str(resp.data["total_outstanding_amount"])), Decimal("0"))
+
+    def test_total_aggregate_is_not_per_row_query(self):
+        """The total must be one SQL aggregate, not N aggregate queries for
+        N StudentFee rows - re-verified alongside the Phase 9B/9C guard."""
+        self._give_role_only(self.finance_user, ["view_financial_reports"])
+        client = self._client_as(self.finance_user)
+
+        for _ in range(10):
+            self._assign_fee(self.student1, amount_due=Decimal("50"))
+
+        with CaptureQueriesContext(connection) as ctx:
+            resp = client.get("/api/fees/reports/outstanding/?page_size=3", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data["count"], 10)
+        self.assertEqual(Decimal(str(resp.data["total_outstanding_amount"])), Decimal("500"))
+
+        allocation_selects = [
+            q for q in ctx.captured_queries
+            if "paymentallocation" in q["sql"].lower() and "select" in q["sql"].lower()
+        ]
+        # Fixed cost regardless of row count: paginated SELECT, COUNT, total aggregate.
+        self.assertLessEqual(len(allocation_selects), 3)

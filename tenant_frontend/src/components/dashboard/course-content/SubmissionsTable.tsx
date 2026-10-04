@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/common/StatusBadge";
 import { LoaderCircle, FileText, Calendar } from "lucide-react";
 import {
     Table,
@@ -73,10 +74,11 @@ export function SubmissionsTable({
                                         )}
                                     </TableCell>
                                     <TableCell>
-                                        <Badge variant="outline" className={`${statusColor} text-xs`}>
-                                            <StatusIcon className="h-3 w-3 mr-1" />
-                                            {submission.status_display}
-                                        </Badge>
+                                        <StatusBadge
+                                            label={submission.status_display}
+                                            icon={<StatusIcon className="h-3 w-3 mr-1" />}
+                                            className={`border ${statusColor} text-xs`}
+                                        />
                                         {submission.is_late && (
                                             <Badge variant="destructive" className="ml-2 text-xs">Late</Badge>
                                         )}

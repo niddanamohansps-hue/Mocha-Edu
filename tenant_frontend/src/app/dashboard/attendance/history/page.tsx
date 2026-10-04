@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { LoaderCircle } from "lucide-react";
 import { useMe } from "@/hooks/useAuth";
 import { useStudentAttendanceHistory } from "@/hooks/useAttendance";
 import { usePermissions } from "@/providers/PermissionProvider";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
+import { LoadingState } from "@/components/feedback/LoadingState";
+import { EmptyState } from "@/components/feedback/EmptyState";
+import { ErrorState } from "@/components/feedback/ErrorState";
 
 const STATUS_LABELS: Record<string, string> = {
     present: "Present",
@@ -26,7 +28,7 @@ export default function AttendanceHistoryPage() {
     const [endDate, setEndDate] = useState("");
 
     const effectiveStudentId = isStudent ? user?.profile?.student_id ?? undefined : studentId || undefined;
-    const { data, isLoading } = useStudentAttendanceHistory(effectiveStudentId, startDate, endDate);
+    const { data, isLoading, isError, refetch } = useStudentAttendanceHistory(effectiveStudentId, startDate, endDate);
 
     return (
         <div className="space-y-6">
@@ -59,16 +61,15 @@ export default function AttendanceHistoryPage() {
             </div>
 
             {!effectiveStudentId && (
-                <div className="py-16 text-center text-sm text-slate-500">
-                    {isStudent ? "No student record linked to your account yet." : "Enter a student ID to view their history."}
-                </div>
+                <EmptyState
+                    title={isStudent ? "No student record linked to your account yet." : "Enter a student ID to view their history."}
+                    className="py-16 text-slate-500 text-sm"
+                />
             )}
 
-            {effectiveStudentId && isLoading && (
-                <div className="flex items-center justify-center py-20">
-                    <LoaderCircle className="h-8 w-8 animate-spin text-indigo-600" />
-                </div>
-            )}
+            {effectiveStudentId && isLoading && <LoadingState className="py-20" />}
+
+            {effectiveStudentId && isError && <ErrorState onRetry={refetch} />}
 
             {effectiveStudentId && data && (
                 <>
@@ -92,7 +93,7 @@ export default function AttendanceHistoryPage() {
                     </div>
 
                     {data.records.length === 0 ? (
-                        <div className="py-16 text-center text-sm text-slate-500">No attendance records found.</div>
+                        <EmptyState title="No attendance records found." className="py-16 text-slate-500 text-sm" />
                     ) : (
                         <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
                             <table className="w-full text-sm">

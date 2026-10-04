@@ -1,10 +1,13 @@
 "use client";
 
-import { LoaderCircle } from "lucide-react";
 import { useLinkedChildren } from "@/hooks/useParentPortal";
 import { usePermissions } from "@/providers/PermissionProvider";
 import { Card, CardContent } from "@/components/ui/card";
 import Unauthorized from "@/components/Unauthorized";
+import { LoadingState } from "@/components/feedback/LoadingState";
+import { EmptyState } from "@/components/feedback/EmptyState";
+import { ErrorState } from "@/components/feedback/ErrorState";
+import { StatusBadge } from "@/components/common/StatusBadge";
 
 const RELATION_LABELS: Record<string, string> = {
     father: "Father",
@@ -19,7 +22,7 @@ export default function ParentPortalChildrenPage() {
     const { can, isOwner } = usePermissions();
     const canView = isOwner || can("view_own_children");
 
-    const { data: children, isLoading } = useLinkedChildren();
+    const { data: children, isLoading, isError, refetch } = useLinkedChildren();
 
     if (!canView) {
         return <Unauthorized />;
@@ -35,13 +38,11 @@ export default function ParentPortalChildrenPage() {
             </div>
 
             {isLoading ? (
-                <div className="flex items-center justify-center py-20">
-                    <LoaderCircle className="h-8 w-8 animate-spin text-indigo-600" />
-                </div>
+                <LoadingState className="py-20" />
+            ) : isError ? (
+                <ErrorState onRetry={refetch} />
             ) : !children || children.length === 0 ? (
-                <div className="py-16 text-center text-sm text-slate-500">
-                    No children are linked to your account yet.
-                </div>
+                <EmptyState title="No children are linked to your account yet." className="py-16 text-slate-500 text-sm" />
             ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {children.map((child) => (
@@ -52,9 +53,7 @@ export default function ParentPortalChildrenPage() {
                                         {child.full_name}
                                     </p>
                                     {child.is_primary_contact && (
-                                        <span className="text-xs font-semibold px-2 py-1 rounded-full bg-sky-100 text-sky-700">
-                                            Primary
-                                        </span>
+                                        <StatusBadge label="Primary" className="bg-sky-100 text-sky-700" />
                                     )}
                                 </div>
                                 <p className="text-xs text-slate-500">{child.enrollment_id}</p>

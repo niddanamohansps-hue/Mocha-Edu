@@ -14,6 +14,9 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import Unauthorized from "@/components/Unauthorized";
+import { LoadingState } from "@/components/feedback/LoadingState";
+import { EmptyState } from "@/components/feedback/EmptyState";
+import { ErrorState } from "@/components/feedback/ErrorState";
 
 const STATUS_OPTIONS: { value: AttendanceStatus; label: string }[] = [
     { value: "present", label: "Present" },
@@ -36,7 +39,7 @@ export default function MarkAttendancePage() {
     const [date, setDate] = useState<string>(todayISO());
     const [marks, setMarks] = useState<Record<string, { status: AttendanceStatus; remarks: string }>>({});
 
-    const { data: roster, isLoading: loadingRoster, isFetching } = useSectionRoster(sectionId || undefined, date);
+    const { data: roster, isLoading: loadingRoster, isFetching, isError: rosterError, refetch: refetchRoster } = useSectionRoster(sectionId || undefined, date);
     const { mutate: submitSession, isPending: isSubmitting } = useSubmitAttendanceSession();
     const { mutate: updateSession, isPending: isUpdating } = useUpdateAttendanceSession();
 
@@ -125,16 +128,12 @@ export default function MarkAttendancePage() {
             </div>
 
             {!sectionId && (
-                <div className="py-16 text-center text-sm text-slate-500">
-                    Choose a section above to load its roster.
-                </div>
+                <EmptyState title="Choose a section above to load its roster." className="py-16 text-slate-500 text-sm" />
             )}
 
-            {sectionId && (loadingRoster || isFetching) && (
-                <div className="flex items-center justify-center py-20">
-                    <LoaderCircle className="h-8 w-8 animate-spin text-indigo-600" />
-                </div>
-            )}
+            {sectionId && (loadingRoster || isFetching) && <LoadingState className="py-20" />}
+
+            {sectionId && rosterError && !loadingRoster && <ErrorState onRetry={refetchRoster} />}
 
             {sectionId && roster && !loadingRoster && (
                 <>
@@ -146,9 +145,7 @@ export default function MarkAttendancePage() {
                     )}
 
                     {roster.students.length === 0 ? (
-                        <div className="py-16 text-center text-sm text-slate-500">
-                            No students are currently enrolled in this section.
-                        </div>
+                        <EmptyState title="No students are currently enrolled in this section." className="py-16 text-slate-500 text-sm" />
                     ) : (
                         <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
                             <table className="w-full text-sm">

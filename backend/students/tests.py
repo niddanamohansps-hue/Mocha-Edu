@@ -3,6 +3,7 @@ from decimal import Decimal
 
 from django.db import IntegrityError, connection, transaction
 from django.test import TransactionTestCase
+from django.test.utils import CaptureQueriesContext
 from django_tenants.utils import tenant_context
 from rest_framework.test import APIClient
 
@@ -18,6 +19,10 @@ from staff.models import Instructor, StaffMember
 from .models import PromotionRecord, Student, StudentLevel
 from .services import (
     execute_lifecycle_actions,
+    get_exam_warning,
+    get_exam_warnings_bulk,
+    get_fee_warning,
+    get_fee_warnings_bulk,
     get_next_level,
     preview_lifecycle_actions,
     reverse_promotion,
@@ -443,6 +448,301 @@ class WarningTests(PromotionFixtureMixin, TransactionTestCase):
             )
         results = self._execute([self._promote_entry(self.student1)])
         self.assertEqual(results[0]["status"], "success")
+
+
+class PromotionWarningBulkOptimizationTests(PromotionFixtureMixin, TransactionTestCase):
+    """
+    Phase 9E: get_fee_warnings_bulk()/get_exam_warnings_bulk() must produce
+    results identical to calling get_fee_warning()/get_exam_warning() once
+    per student (the confirmed N+1), and PromotionCandidatesView/
+    preview_lifecycle_actions - both of which now call the bulk versions -
+    must not scale query count with candidate count.
+    """
+
+    def _candidates(self, client, section=None):
+        params = f"academic_year=2026&level={self.level_9.id}"
+        if section:
+            params += f"&section={section.id}"
+        return client.get(f"/api/students/promotion/candidates/?{params}", HTTP_HOST=self.DOMAIN)
+
+    def _make_exam_result(self, student, *, academic_year="2026", is_pass=False, name="Annual"):
+        import datetime
+
+        from examinations.models import ExamResult, Examination, ExamType
+
+        exam_type = ExamType.objects.create(name=f"{name}Type", order=1)
+        examination = Examination.objects.create(
+            academic_year=academic_year, name=name, exam_type=exam_type,
+            start_date=datetime.date(2026, 3, 1), end_date=datetime.date(2026, 3, 10),
+        )
+        return ExamResult.objects.create(
+            examination=examination, student=student, academic_year=academic_year,
+            total_marks_obtained=Decimal("20"), total_max_marks=Decimal("100"),
+            percentage=Decimal("20"), overall_grade="F", is_pass=is_pass, subject_breakdown=[],
+        )
+
+    # --- A. Behavioral equivalence (via the real PromotionCandidatesView) ---
+
+    def test_candidate_with_no_fees_and_no_exams_has_no_warnings(self):
+        self._give_role_only(self.admin_user, ["manage_student_promotion"])
+        client = self._client_as(self.admin_user)
+        resp = self._candidates(client)
+        self.assertEqual(resp.status_code, 200)
+        row = next(r for r in resp.data if r["student_id"] == str(self.student1.id))
+        self.assertIsNone(row["fee_warning"])
+        self.assertIsNone(row["exam_warning"])
+
+    def test_candidate_with_outstanding_fee_warning(self):
+        with tenant_context(self.school):
+            from fees.models import FeeHead, StudentFee
+
+            head = FeeHead.objects.create(name="BulkTest Tuition")
+            StudentFee.objects.create(
+                student=self.student1, fee_head=head, academic_year="2026", amount_due=Decimal("500")
+            )
+        self._give_role_only(self.admin_user, ["manage_student_promotion"])
+        client = self._client_as(self.admin_user)
+        row = next(r for r in self._candidates(client).data if r["student_id"] == str(self.student1.id))
+        self.assertEqual(Decimal(str(row["fee_warning"])), Decimal("500"))
+
+    def test_candidate_with_fully_paid_fee_has_no_fee_warning(self):
+        with tenant_context(self.school):
+            from fees.models import FeeHead, StudentFee
+            from fees.services import record_payment
+
+            head = FeeHead.objects.create(name="BulkTest Paid")
+            sf = StudentFee.objects.create(
+                student=self.student1, fee_head=head, academic_year="2026", amount_due=Decimal("300")
+            )
+            record_payment(
+                student=self.student1, amount=Decimal("300"), method="cash",
+                allocations=[{"student_fee_id": sf.id, "amount": Decimal("300")}],
+                recorded_by=self.admin_staff_member,
+            )
+        self._give_role_only(self.admin_user, ["manage_student_promotion"])
+        client = self._client_as(self.admin_user)
+        row = next(r for r in self._candidates(client).data if r["student_id"] == str(self.student1.id))
+        self.assertIsNone(row["fee_warning"])
+
+    def test_candidate_with_partial_payment_shows_remaining_balance(self):
+        with tenant_context(self.school):
+            from fees.models import FeeHead, StudentFee
+            from fees.services import record_payment
+
+            head = FeeHead.objects.create(name="BulkTest Partial")
+            sf = StudentFee.objects.create(
+                student=self.student1, fee_head=head, academic_year="2026", amount_due=Decimal("1000")
+            )
+            record_payment(
+                student=self.student1, amount=Decimal("400"), method="cash",
+                allocations=[{"student_fee_id": sf.id, "amount": Decimal("400")}],
+                recorded_by=self.admin_staff_member,
+            )
+        self._give_role_only(self.admin_user, ["manage_student_promotion"])
+        client = self._client_as(self.admin_user)
+        row = next(r for r in self._candidates(client).data if r["student_id"] == str(self.student1.id))
+        self.assertEqual(Decimal(str(row["fee_warning"])), Decimal("600"))
+
+    def test_candidate_with_multiple_fee_records_sums_all(self):
+        with tenant_context(self.school):
+            from fees.models import FeeHead, StudentFee
+
+            head1 = FeeHead.objects.create(name="BulkTest Multi A")
+            head2 = FeeHead.objects.create(name="BulkTest Multi B")
+            StudentFee.objects.create(
+                student=self.student1, fee_head=head1, academic_year="2026", amount_due=Decimal("200")
+            )
+            StudentFee.objects.create(
+                student=self.student1, fee_head=head2, academic_year="2026", amount_due=Decimal("150")
+            )
+        self._give_role_only(self.admin_user, ["manage_student_promotion"])
+        client = self._client_as(self.admin_user)
+        row = next(r for r in self._candidates(client).data if r["student_id"] == str(self.student1.id))
+        self.assertEqual(Decimal(str(row["fee_warning"])), Decimal("350"))
+
+    def test_candidate_with_multiple_allocations_on_one_fee(self):
+        with tenant_context(self.school):
+            from fees.models import FeeHead, StudentFee
+            from fees.services import record_payment
+
+            head = FeeHead.objects.create(name="BulkTest MultiAlloc")
+            sf = StudentFee.objects.create(
+                student=self.student1, fee_head=head, academic_year="2026", amount_due=Decimal("1000")
+            )
+            record_payment(
+                student=self.student1, amount=Decimal("300"), method="cash",
+                allocations=[{"student_fee_id": sf.id, "amount": Decimal("300")}],
+                recorded_by=self.admin_staff_member,
+            )
+            record_payment(
+                student=self.student1, amount=Decimal("200"), method="cash",
+                allocations=[{"student_fee_id": sf.id, "amount": Decimal("200")}],
+                recorded_by=self.admin_staff_member,
+            )
+        self._give_role_only(self.admin_user, ["manage_student_promotion"])
+        client = self._client_as(self.admin_user)
+        row = next(r for r in self._candidates(client).data if r["student_id"] == str(self.student1.id))
+        self.assertEqual(Decimal(str(row["fee_warning"])), Decimal("500"))
+
+    def test_candidate_with_reversed_payment_shows_outstanding_again(self):
+        with tenant_context(self.school):
+            from fees.models import FeeHead, StudentFee
+            from fees.services import record_payment, reverse_payment
+
+            head = FeeHead.objects.create(name="BulkTest Reversal")
+            sf = StudentFee.objects.create(
+                student=self.student1, fee_head=head, academic_year="2026", amount_due=Decimal("700")
+            )
+            payment = record_payment(
+                student=self.student1, amount=Decimal("700"), method="cash",
+                allocations=[{"student_fee_id": sf.id, "amount": Decimal("700")}],
+                recorded_by=self.admin_staff_member,
+            )
+            reverse_payment(payment=payment, recorded_by=self.admin_staff_member)
+        self._give_role_only(self.admin_user, ["manage_student_promotion"])
+        client = self._client_as(self.admin_user)
+        row = next(r for r in self._candidates(client).data if r["student_id"] == str(self.student1.id))
+        self.assertEqual(Decimal(str(row["fee_warning"])), Decimal("700"))
+
+    def test_candidate_with_failed_exam_shows_exam_warning(self):
+        with tenant_context(self.school):
+            self._make_exam_result(self.student1, is_pass=False, name="BulkFail")
+        self._give_role_only(self.admin_user, ["manage_student_promotion"])
+        client = self._client_as(self.admin_user)
+        row = next(r for r in self._candidates(client).data if r["student_id"] == str(self.student1.id))
+        self.assertIsNotNone(row["exam_warning"])
+        self.assertIn("BulkFail", row["exam_warning"])
+
+    def test_candidate_without_failed_exam_has_no_exam_warning(self):
+        with tenant_context(self.school):
+            self._make_exam_result(self.student1, is_pass=True, name="BulkPass")
+        self._give_role_only(self.admin_user, ["manage_student_promotion"])
+        client = self._client_as(self.admin_user)
+        row = next(r for r in self._candidates(client).data if r["student_id"] == str(self.student1.id))
+        self.assertIsNone(row["exam_warning"])
+
+    # --- B. Multiple candidates, warnings correctly associated per student ---
+
+    def test_multiple_candidates_warnings_correctly_associated_per_student(self):
+        with tenant_context(self.school):
+            from fees.models import FeeHead, StudentFee
+
+            head = FeeHead.objects.create(name="BulkTest MultiCand")
+            StudentFee.objects.create(
+                student=self.student1, fee_head=head, academic_year="2026", amount_due=Decimal("111")
+            )
+            self._make_exam_result(self.student2, is_pass=False, name="MultiCandFail")
+            # student3 deliberately has neither a fee nor a failing exam.
+
+        self._give_role_only(self.admin_user, ["manage_student_promotion"])
+        client = self._client_as(self.admin_user)
+        by_id = {r["student_id"]: r for r in self._candidates(client).data}
+
+        self.assertEqual(Decimal(str(by_id[str(self.student1.id)]["fee_warning"])), Decimal("111"))
+        self.assertIsNone(by_id[str(self.student1.id)]["exam_warning"])
+
+        self.assertIsNone(by_id[str(self.student2.id)]["fee_warning"])
+        self.assertIsNotNone(by_id[str(self.student2.id)]["exam_warning"])
+
+        self.assertIsNone(by_id[str(self.student3.id)]["fee_warning"])
+        self.assertIsNone(by_id[str(self.student3.id)]["exam_warning"])
+
+    def test_preview_multiple_entries_warnings_correctly_associated(self):
+        with tenant_context(self.school):
+            from fees.models import FeeHead, StudentFee
+
+            head = FeeHead.objects.create(name="BulkTest PreviewMulti")
+            StudentFee.objects.create(
+                student=self.student1, fee_head=head, academic_year="2026", amount_due=Decimal("250")
+            )
+            self._make_exam_result(self.student2, is_pass=False, name="PreviewMultiFail")
+
+            results = preview_lifecycle_actions(
+                entries=[
+                    self._promote_entry(self.student1),
+                    self._promote_entry(self.student2),
+                    self._promote_entry(self.student3),
+                ]
+            )
+
+        by_student = {r["student"]: r for r in results}
+        self.assertTrue(any("Outstanding fees" in w for w in by_student[str(self.student1.id)]["warnings"]))
+        self.assertFalse(any("Failed examination" in w for w in by_student[str(self.student1.id)]["warnings"]))
+
+        self.assertTrue(any("Failed examination" in w for w in by_student[str(self.student2.id)]["warnings"]))
+        self.assertFalse(any("Outstanding fees" in w for w in by_student[str(self.student2.id)]["warnings"]))
+
+        self.assertEqual(by_student[str(self.student3.id)]["warnings"], [])
+
+    # --- C/D. Query-count / query-scaling regression ---
+
+    def test_bulk_warnings_query_count_does_not_scale_with_student_count(self):
+        """10 students vs 40 students must cost the same, small, fixed
+        number of queries - not one+ extra query per additional student."""
+        with tenant_context(self.school):
+            from fees.models import FeeHead, StudentFee
+
+            head = FeeHead.objects.create(name="ScaleTestHead")
+
+            def make_batch(n, prefix):
+                batch = []
+                for i in range(n):
+                    s = self._make_student(
+                        f"ENR-{prefix}-{i}", f"{prefix}{i}", "Student", self.level_9, self.section_9a, "2026"
+                    )
+                    StudentFee.objects.create(
+                        student=s, fee_head=head, academic_year="2026", amount_due=Decimal("10")
+                    )
+                    batch.append(s)
+                return batch
+
+            small_batch = make_batch(10, "SCALE10")
+            with CaptureQueriesContext(connection) as small_ctx:
+                get_fee_warnings_bulk(small_batch)
+                get_exam_warnings_bulk(small_batch, {s.id: "2026" for s in small_batch})
+
+            large_batch = make_batch(40, "SCALE40")
+            with CaptureQueriesContext(connection) as large_ctx:
+                get_fee_warnings_bulk(large_batch)
+                get_exam_warnings_bulk(large_batch, {s.id: "2026" for s in large_batch})
+
+        small_count = len(small_ctx.captured_queries)
+        large_count = len(large_ctx.captured_queries)
+        self.assertEqual(small_count, large_count)
+        self.assertLessEqual(large_count, 6)
+
+    def test_old_unbatched_path_scales_but_new_bulk_path_does_not(self):
+        """Documents the exact N+1 this phase fixes: calling the original
+        get_fee_warning()/get_exam_warning() once per student costs at
+        least 1 query per student; the batched equivalents cost a small
+        fixed number of queries regardless of student count."""
+        with tenant_context(self.school):
+            from fees.models import FeeHead, StudentFee
+
+            head = FeeHead.objects.create(name="ContrastTestHead")
+            batch = []
+            for i in range(12):
+                s = self._make_student(
+                    f"ENR-CONTRAST-{i}", f"C{i}", "Student", self.level_9, self.section_9a, "2026"
+                )
+                StudentFee.objects.create(
+                    student=s, fee_head=head, academic_year="2026", amount_due=Decimal("10")
+                )
+                batch.append(s)
+
+            with CaptureQueriesContext(connection) as old_ctx:
+                for s in batch:
+                    get_fee_warning(s)
+                    get_exam_warning(s, "2026")
+
+            with CaptureQueriesContext(connection) as new_ctx:
+                get_fee_warnings_bulk(batch)
+                get_exam_warnings_bulk(batch, {s.id: "2026" for s in batch})
+
+        old_count = len(old_ctx.captured_queries)
+        new_count = len(new_ctx.captured_queries)
+        self.assertGreaterEqual(old_count, len(batch))
+        self.assertLessEqual(new_count, 6)
 
 
 class FailureCaseTests(PromotionFixtureMixin, TransactionTestCase):

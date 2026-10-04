@@ -4,10 +4,10 @@ import { useState } from "react";
 import {
     useStaffMembers,
     useActivateStaff,
-    useRoles,
     StaffActivationData,
     StaffMember
 } from "@/hooks/useStaff";
+import { useRoles } from "@/hooks/useRoles";
 import { Button } from "@/components/ui/button";
 import {
     Users,
@@ -42,6 +42,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { ErrorState } from "@/components/feedback/ErrorState";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -54,7 +55,7 @@ export default function StaffActivationTab({ onSuccess }: ActivationTabProps) {
     // Bulk-activation screen needs the full staff roster to filter for
     // unactivated accounts, not one page of it - see the equivalent
     // pageSize=100 choice in students/ActivationTab.tsx.
-    const { data: staffData, isLoading: loadingStaff } = useStaffMembers({ pageSize: 100 });
+    const { data: staffData, isLoading: loadingStaff, isError: staffError, refetch: refetchStaff } = useStaffMembers({ pageSize: 100 });
     const allStaff = staffData?.results;
     const { data: roles, isLoading: loadingRoles } = useRoles();
     const { mutateAsync: activatePortal, isPending } = useActivateStaff();
@@ -87,9 +88,8 @@ export default function StaffActivationTab({ onSuccess }: ActivationTabProps) {
 
         // Auto-match role based on designation
         let preSelectedRole = "";
-        if (roles?.results || Array.isArray(roles)) {
-            const list = roles.results || roles;
-            const match = list.find((r: any) => r.name.toLowerCase() === staff.designation.toLowerCase());
+        if (Array.isArray(roles)) {
+            const match = roles.find((r) => r.name.toLowerCase() === staff.designation.toLowerCase());
             if (match) preSelectedRole = match.slug;
         }
 
@@ -176,6 +176,8 @@ export default function StaffActivationTab({ onSuccess }: ActivationTabProps) {
                             <div className="p-8 flex justify-center">
                                 <LoaderCircle className="h-8 w-8 text-slate-300 animate-spin" />
                             </div>
+                        ) : staffError ? (
+                            <ErrorState onRetry={refetchStaff} className="p-8" />
                         ) : !unactivatedStaff || unactivatedStaff.length === 0 ? (
                             <div className="p-12 text-center space-y-4">
                                 <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-full w-fit mx-auto">
@@ -284,7 +286,7 @@ export default function StaffActivationTab({ onSuccess }: ActivationTabProps) {
                                                                 <SelectValue placeholder="Select Role" />
                                                             </SelectTrigger>
                                                             <SelectContent>
-                                                                {(roles?.results || (Array.isArray(roles) ? roles : []))?.map((role: any) => (
+                                                                {roles?.map((role) => (
                                                                     <SelectItem key={role.id} value={role.slug}>
                                                                         {role.name}
                                                                     </SelectItem>

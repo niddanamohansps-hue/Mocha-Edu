@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { LoaderCircle } from "lucide-react";
 import { useChildTimetable, useLinkedChildren } from "@/hooks/useParentPortal";
 import { DAY_LABELS } from "@/types/ParentPortal";
 import { usePermissions } from "@/providers/PermissionProvider";
 import Unauthorized from "@/components/Unauthorized";
 import ChildSwitcher from "@/components/parent-portal/ChildSwitcher";
+import { LoadingState } from "@/components/feedback/LoadingState";
+import { EmptyState } from "@/components/feedback/EmptyState";
+import { ErrorState } from "@/components/feedback/ErrorState";
 
 export default function ParentPortalTimetablePage() {
     const { can, isOwner } = usePermissions();
@@ -15,7 +17,7 @@ export default function ParentPortalTimetablePage() {
     const { data: children } = useLinkedChildren();
     const [selectedChildId, setSelectedChildId] = useState<string | undefined>(undefined);
 
-    const { data, isLoading } = useChildTimetable(selectedChildId);
+    const { data, isLoading, isError, refetch } = useChildTimetable(selectedChildId);
 
     if (!canView) {
         return <Unauthorized />;
@@ -37,23 +39,25 @@ export default function ParentPortalTimetablePage() {
             />
 
             {!selectedChildId ? (
-                <div className="py-16 text-center text-sm text-slate-500">
-                    {children && children.length === 0
-                        ? "No children are linked to your account yet."
-                        : "Select a child to view their timetable."}
-                </div>
+                <EmptyState
+                    title={
+                        children && children.length === 0
+                            ? "No children are linked to your account yet."
+                            : "Select a child to view their timetable."
+                    }
+                    className="py-16 text-slate-500 text-sm"
+                />
             ) : isLoading ? (
-                <div className="flex items-center justify-center py-20">
-                    <LoaderCircle className="h-8 w-8 animate-spin text-indigo-600" />
-                </div>
+                <LoadingState className="py-20" />
+            ) : isError ? (
+                <ErrorState onRetry={refetch} />
             ) : !data || !data.section ? (
-                <div className="py-16 text-center text-sm text-slate-500">
-                    This child is not currently enrolled in a section.
-                </div>
+                <EmptyState title="This child is not currently enrolled in a section." className="py-16 text-slate-500 text-sm" />
             ) : data.results.length === 0 ? (
-                <div className="py-16 text-center text-sm text-slate-500">
-                    No timetable entries have been scheduled for this section yet.
-                </div>
+                <EmptyState
+                    title="No timetable entries have been scheduled for this section yet."
+                    className="py-16 text-slate-500 text-sm"
+                />
             ) : (
                 <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
                     <table className="w-full text-sm">

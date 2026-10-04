@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { LoaderCircle, ArrowRight, RotateCcw } from "lucide-react";
 import { useAcademicLevels, useSections } from "@/hooks/useAcademics";
 import {
@@ -24,6 +25,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Pagination } from "@/components/ui/pagination";
 import Unauthorized from "@/components/Unauthorized";
+import { LoadingState } from "@/components/feedback/LoadingState";
+import { EmptyState } from "@/components/feedback/EmptyState";
+import { ErrorState } from "@/components/feedback/ErrorState";
 
 const HISTORY_PAGE_SIZE = 20;
 
@@ -42,10 +46,32 @@ export default function PromotionPage() {
     const { can, isOwner } = usePermissions();
     const canManage = isOwner || can("manage_student_promotion");
 
-    // Step 1-3: source selection
-    const [sourceYear, setSourceYear] = useState(currentYear());
-    const [levelId, setLevelId] = useState("");
-    const [sectionId, setSectionId] = useState("");
+    const router = useRouter();
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
+
+    // Updates one or more URL params in a single history-replacing navigation
+    // (value === null removes the param - used to keep the URL canonical when
+    // a filter is back at its default, e.g. no ?sectionId= when "All sections").
+    const updateParams = (updates: Record<string, string | null>) => {
+        const params = new URLSearchParams(searchParams.toString());
+        for (const [key, value] of Object.entries(updates)) {
+            if (value === null || value === "") {
+                params.delete(key);
+            } else {
+                params.set(key, value);
+            }
+        }
+        const query = params.toString();
+        router.replace(query ? `${pathname}?${query}` : pathname);
+    };
+
+    // Step 1-3: source selection - URL is the source of truth
+    const sourceYear = searchParams.get("sourceYear") || currentYear();
+    const levelId = searchParams.get("levelId") || "";
+    const sectionId = searchParams.get("sectionId") || "";
+    const historyPageParam = Number(searchParams.get("historyPage"));
+    const historyPage = Number.isInteger(historyPageParam) && historyPageParam >= 1 ? historyPageParam : 1;
 
     const { data: levels } = useAcademicLevels();
     const { data: sections } = useSections();
@@ -55,11 +81,12 @@ export default function PromotionPage() {
     );
 
     // Step 4-5: candidates + selection
-    const { data: candidates, isLoading: loadingCandidates } = usePromotionCandidates(
-        sourceYear,
-        levelId,
-        sectionId || undefined
-    );
+    const {
+        data: candidates,
+        isLoading: loadingCandidates,
+        isError: candidatesError,
+        refetch: refetchCandidates,
+    } = usePromotionCandidates(sourceYear, levelId, sectionId || undefined);
     const [selected, setSelected] = useState<Record<string, boolean>>({});
     const [actionByStudent, setActionByStudent] = useState<Record<string, PromotionAction>>({});
 
@@ -75,8 +102,12 @@ export default function PromotionPage() {
     const { mutate: preview, data: previewResults, isPending: previewing } = usePreviewPromotion();
     const { mutate: execute, data: executeResponse, isPending: executing } = useExecutePromotion();
     const { mutate: reverse } = useReversePromotion();
-    const [historyPage, setHistoryPage] = useState(1);
-    const { data: historyData } = usePromotionHistory({ academic_year: sourceYear }, historyPage, HISTORY_PAGE_SIZE);
+    const {
+        data: historyData,
+        isLoading: loadingHistory,
+        isError: historyError,
+        refetch: refetchHistory,
+    } = usePromotionHistory({ academic_year: sourceYear }, historyPage, HISTORY_PAGE_SIZE);
     const history = historyData?.results;
 
     const [showPreview, setShowPreview] = useState(false);
@@ -136,14 +167,14 @@ export default function PromotionPage() {
                     <Input
                         value={sourceYear}
                         onChange={(e) => {
-                            setSourceYear(e.target.value);
-                            setHistoryPage(1); // changing the filter must reset pagination, not reuse a stale page number
+                            // changing the filter must reset pagination, not reuse a stale page number
+                            updateParams({ sourceYear: e.target.value === currentYear() ? null : e.target.value, historyPage: null });
                         }}
                     />
                 </div>
                 <div>
                     <label className="text-xs font-medium text-slate-500 mb-1 block">Level</label>
-                    <Select value={levelId} onValueChange={(v) => { setLevelId(v); setSectionId(""); }}>
+                    <Select value={levelId} onValueChange={(v) => updateParams({ levelId: v, sectionId: null })}>
                         <SelectTrigger><SelectValue placeholder="Select level" /></SelectTrigger>
                         <SelectContent>
                             {levels?.map((l) => (
@@ -154,7 +185,7 @@ export default function PromotionPage() {
                 </div>
                 <div>
                     <label className="text-xs font-medium text-slate-500 mb-1 block">Section (optional)</label>
-                    <Select value={sectionId} onValueChange={setSectionId}>
+                    <Select value={sectionId} onValueChange={(v) => updateParams({ sectionId: v })}>
                         <SelectTrigger><SelectValue placeholder="All sections" /></SelectTrigger>
                         <SelectContent>
                             {sectionsForLevel.map((s) => (
@@ -167,11 +198,13 @@ export default function PromotionPage() {
 
             {/* Step 4-5: candidates */}
             {!levelId ? (
-                <p className="text-sm text-slate-500 py-6">Select an academic year and level to load candidates.</p>
+                <EmptyState title="Select an academic year and level to load candidates." className="py-6 text-slate-500 text-sm" />
             ) : loadingCandidates ? (
-                <div className="flex items-center justify-center py-16"><LoaderCircle className="h-8 w-8 animate-spin text-indigo-600" /></div>
+                <LoadingState className="py-16" />
+            ) : candidatesError ? (
+                <ErrorState onRetry={refetchCandidates} />
             ) : !candidates || candidates.length === 0 ? (
-                <p className="text-sm text-slate-500 py-6">No active students found for this year/level/section.</p>
+                <EmptyState title="No active students found for this year/level/section." className="py-6 text-slate-500 text-sm" />
             ) : (
                 <div className="space-y-4">
                     <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
@@ -360,7 +393,11 @@ export default function PromotionPage() {
             )}
 
             {/* Recent history for this year, with reversal */}
-            {history && history.length > 0 && (
+            {loadingHistory && <LoadingState className="py-10" />}
+
+            {!loadingHistory && historyError && <ErrorState onRetry={refetchHistory} />}
+
+            {!loadingHistory && !historyError && history && history.length > 0 && (
                 <div className="space-y-3 pt-4 border-t border-slate-200 dark:border-slate-800">
                     <h2 className="text-lg font-bold">Recent Promotion History ({sourceYear})</h2>
                     <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
@@ -403,7 +440,7 @@ export default function PromotionPage() {
                                 page={historyPage}
                                 pageSize={HISTORY_PAGE_SIZE}
                                 count={historyData.count}
-                                onPageChange={setHistoryPage}
+                                onPageChange={(p) => updateParams({ historyPage: p <= 1 ? null : String(p) })}
                                 className="border-t border-slate-200 dark:border-slate-800"
                             />
                         )}

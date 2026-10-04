@@ -1,4 +1,5 @@
 import datetime
+from decimal import Decimal
 
 from django.core import mail
 from django.core.management import call_command
@@ -514,3 +515,238 @@ class SeedDemoSchoolCommandTest(TransactionTestCase):
                 blob = f"{log.changes} {log.user_agent or ''}".lower()
                 for forbidden in ("demopass", "password", "token", "secret"):
                     self.assertNotIn(forbidden, blob)
+
+
+class SeedRealisticSchoolCommandTest(TransactionTestCase):
+    """
+    Focused tests for the seed_realistic_school management command - a
+    separate tenant/schema from seed_demo_school's own test class above,
+    so the two can never collide. Mirrors SeedDemoSchoolCommandTest's
+    pattern exactly (small scale, --clear in tearDown so a failure can
+    never leave 'sunrisevalley_school' behind to collide with the next
+    test), covering the 10 points this seeder was explicitly required to
+    test: realistic data, repeatability, no duplicates, relationship
+    validity, tenant isolation, fee-total consistency, payment-allocation
+    consistency, examination relationship validity, attendance
+    relationship validity, and promotion relationship validity.
+    """
+
+    SCHEMA_NAME = "sunrisevalley_school"
+
+    def tearDown(self):
+        try:
+            call_command("seed_realistic_school", clear=True)
+        except Exception:
+            pass
+        connection.set_schema_to_public()
+
+    def _seed(self, **kwargs):
+        kwargs.setdefault("students", 25)
+        kwargs.setdefault("seed", 99)
+        kwargs.setdefault("attendance_days", 10)
+        call_command("seed_realistic_school", **kwargs)
+
+    # --- 1. Realistic data ---------------------------------------------
+
+    def test_generates_realistic_non_placeholder_names(self):
+        self._seed()
+        organization = Organization.objects.get(schema_name=self.SCHEMA_NAME)
+        with tenant_context(organization):
+            from students.models import Student
+
+            names = [(s.profile.first_name, s.profile.last_name) for s in Student.objects.select_related("profile")]
+            self.assertTrue(names)
+            placeholder_markers = ("test", "demo", "student0", "john", "doe")
+            for first, last in names:
+                blob = f"{first} {last}".lower()
+                for marker in placeholder_markers:
+                    self.assertNotIn(marker, blob, f"Placeholder-looking name found: {first} {last}")
+            # Real regional variety, not the same handful of names repeated.
+            self.assertGreater(len(set(names)), max(1, len(names) // 2))
+
+    # --- 2. Repeatable / deterministic ----------------------------------
+
+    def test_deterministic_seed_is_reproducible(self):
+        def student_fingerprint():
+            organization = Organization.objects.get(schema_name=self.SCHEMA_NAME)
+            with tenant_context(organization):
+                from students.models import Student
+
+                return sorted(
+                    (s.enrollment_id, s.profile.first_name, s.profile.last_name, s.status)
+                    for s in Student.objects.select_related("profile")
+                )
+
+        self._seed(seed=42)
+        first_run = student_fingerprint()
+        call_command("seed_realistic_school", clear=True)
+
+        self._seed(seed=42)
+        second_run = student_fingerprint()
+
+        self.assertEqual(first_run, second_run)
+
+    # --- 3. No duplicate records ----------------------------------------
+
+    def test_no_duplicate_enrollment_or_employee_ids(self):
+        self._seed()
+        organization = Organization.objects.get(schema_name=self.SCHEMA_NAME)
+        with tenant_context(organization):
+            from django.db.models import Count
+
+            from staff.models import StaffMember
+            from students.models import Student
+
+            dup_enrollments = Student.objects.values("enrollment_id").annotate(n=Count("id")).filter(n__gt=1)
+            self.assertFalse(list(dup_enrollments))
+            dup_employees = StaffMember.objects.values("employee_id").annotate(n=Count("id")).filter(n__gt=1)
+            self.assertFalse(list(dup_employees))
+
+    def test_rerun_without_clear_refuses_and_creates_no_duplicate(self):
+        self._seed()
+        with self.assertRaises(CommandError):
+            self._seed()
+        self.assertEqual(Organization.objects.filter(schema_name=self.SCHEMA_NAME).count(), 1)
+
+    # --- 4. Relationship validity ---------------------------------------
+
+    def test_family_and_subject_assignment_relationships_valid(self):
+        self._seed()
+        organization = Organization.objects.get(schema_name=self.SCHEMA_NAME)
+        with tenant_context(organization):
+            from academics.models import SubjectAssignment
+            from families.models import StudentParentRelation
+
+            relations = list(StudentParentRelation.objects.all())
+            self.assertTrue(relations)
+            for relation in relations:
+                self.assertIsNotNone(relation.student_id)
+                self.assertIsNotNone(relation.parent_id)
+
+            assignments = list(SubjectAssignment.objects.select_related("section__level", "subject__level"))
+            self.assertTrue(assignments)
+            for assignment in assignments:
+                self.assertEqual(assignment.section.level_id, assignment.subject.level_id)
+                self.assertIsNotNone(assignment.instructor_id)
+
+    # --- 5. Tenant isolation ---------------------------------------------
+
+    def test_clear_does_not_affect_other_tenant_data(self):
+        other = Organization.objects.create(schema_name="unrelated_realistic_test_school", name="Unrelated School")
+        Domain.objects.create(domain="unrelated-realistic-test.localhost", tenant=other, is_primary=True)
+        try:
+            with tenant_context(other):
+                from profiles.models import Profile
+                from students.models import Student
+
+                profile = Profile.objects.create(first_name="Keep", last_name="Me")
+                Student.objects.create(profile=profile, enrollment_id="KEEP-0001", status="active")
+
+            self._seed()
+            call_command("seed_realistic_school", clear=True)
+
+            self.assertFalse(Organization.objects.filter(schema_name=self.SCHEMA_NAME).exists())
+            self.assertTrue(Organization.objects.filter(schema_name="unrelated_realistic_test_school").exists())
+            with tenant_context(other):
+                from students.models import Student
+
+                self.assertEqual(Student.objects.count(), 1)
+        finally:
+            connection.set_schema_to_public()
+            other.delete(force_drop=True)
+
+    # --- 6/7. Fee totals and payment allocations consistent -------------
+
+    def test_fee_totals_and_payment_allocations_consistent(self):
+        self._seed()
+        organization = Organization.objects.get(schema_name=self.SCHEMA_NAME)
+        with tenant_context(organization):
+            from fees.models import Payment, PaymentAllocation, StudentFee
+
+            self.assertTrue(StudentFee.objects.exists())
+            self.assertTrue(Payment.objects.exists())
+
+            for student_fee in StudentFee.objects.all():
+                allocated = sum(
+                    (a.amount for a in PaymentAllocation.objects.filter(student_fee=student_fee)), Decimal("0")
+                )
+                net_due = student_fee.amount_due - student_fee.discount_amount
+                self.assertLessEqual(allocated, net_due, f"StudentFee {student_fee.id} over-allocated")
+
+            for payment in Payment.objects.all():
+                self.assertGreater(payment.amount, 0)
+                allocation_sum = sum(
+                    (a.amount for a in PaymentAllocation.objects.filter(payment=payment)), Decimal("0")
+                )
+                self.assertEqual(allocation_sum, payment.amount)
+
+    # --- 8. Examination relationships valid ------------------------------
+
+    def test_examination_relationships_valid(self):
+        self._seed()
+        organization = Organization.objects.get(schema_name=self.SCHEMA_NAME)
+        with tenant_context(organization):
+            from examinations.models import ExamMark, ExamResult, Examination
+
+            examinations = list(Examination.objects.all())
+            self.assertEqual(len(examinations), 4)
+            self.assertTrue(any(e.is_published for e in examinations))
+            self.assertTrue(any(not e.is_published for e in examinations))
+
+            self.assertTrue(ExamMark.objects.exists())
+            for mark in ExamMark.objects.select_related("exam_schedule", "student")[:50]:
+                self.assertIsNotNone(mark.exam_schedule_id)
+                self.assertIsNotNone(mark.student_id)
+
+            self.assertTrue(ExamResult.objects.exists())
+            for result in ExamResult.objects.select_related("student", "examination")[:50]:
+                self.assertIsNotNone(result.student_id)
+                self.assertIsNotNone(result.examination_id)
+
+    # --- 9. Attendance relationships valid -------------------------------
+
+    def test_attendance_relationships_valid(self):
+        self._seed()
+        organization = Organization.objects.get(schema_name=self.SCHEMA_NAME)
+        with tenant_context(organization):
+            from django.db.models import Count
+
+            from attendance.models import AttendanceSession, StudentAttendance
+
+            self.assertTrue(AttendanceSession.objects.exists())
+            self.assertTrue(StudentAttendance.objects.exists())
+
+            dup_sessions = (
+                AttendanceSession.objects.values("section", "date").annotate(n=Count("id")).filter(n__gt=1)
+            )
+            self.assertFalse(list(dup_sessions))
+
+            for record in StudentAttendance.objects.select_related("session", "student")[:50]:
+                self.assertIsNotNone(record.session_id)
+                self.assertIsNotNone(record.student_id)
+
+    # --- 10. Promotion relationships valid -------------------------------
+
+    def test_promotion_relationships_valid(self):
+        self._seed(academic_years=2)
+        organization = Organization.objects.get(schema_name=self.SCHEMA_NAME)
+        with tenant_context(organization):
+            from students.models import PromotionRecord
+
+            records = list(PromotionRecord.objects.select_related(
+                "student", "source_level", "target_level", "source_student_level", "target_student_level"
+            ))
+            self.assertTrue(records)
+            for record in records:
+                self.assertIn(record.action, ("promoted", "retained"))
+                self.assertIsNotNone(record.student_id)
+                self.assertIsNotNone(record.source_level_id)
+                self.assertIsNotNone(record.target_level_id)
+                self.assertNotEqual(record.source_student_level_id, record.target_student_level_id)
+
+    # --- No real email ----------------------------------------------------
+
+    def test_no_real_email_sent(self):
+        mail.outbox = []
+        self._seed()
+        self.assertEqual(len(mail.outbox), 0, "seed_realistic_school must never send a real email")

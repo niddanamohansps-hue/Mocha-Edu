@@ -10,6 +10,9 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import Unauthorized from "@/components/Unauthorized";
+import { LoadingState } from "@/components/feedback/LoadingState";
+import { EmptyState } from "@/components/feedback/EmptyState";
+import { ErrorState } from "@/components/feedback/ErrorState";
 
 const STATUS_OPTIONS: { value: AttendanceStatus; label: string }[] = [
     { value: "present", label: "Present" },
@@ -32,7 +35,7 @@ export default function StaffAttendancePage() {
     // This screen marks attendance for the whole staff roster at once, so
     // it needs the full list rather than one page of it - pageSize is set
     // to the backend's maximum (100).
-    const { data: staffData, isLoading } = useStaffMembers({ pageSize: 100 });
+    const { data: staffData, isLoading, isError, refetch } = useStaffMembers({ pageSize: 100 });
     const staffMembers = staffData?.results;
     const [date, setDate] = useState(todayISO());
     const [marks, setMarks] = useState<Record<string, AttendanceStatus>>({});
@@ -77,11 +80,11 @@ export default function StaffAttendancePage() {
             </div>
 
             {isLoading ? (
-                <div className="flex items-center justify-center py-20">
-                    <LoaderCircle className="h-8 w-8 animate-spin text-indigo-600" />
-                </div>
+                <LoadingState className="py-20" />
+            ) : isError ? (
+                <ErrorState onRetry={refetch} />
             ) : !staffMembers || staffMembers.length === 0 ? (
-                <div className="py-16 text-center text-sm text-slate-500">No staff members found.</div>
+                <EmptyState title="No staff members found." className="py-16 text-slate-500 text-sm" />
             ) : (
                 <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
                     <table className="w-full text-sm">

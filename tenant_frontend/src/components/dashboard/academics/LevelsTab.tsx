@@ -35,16 +35,8 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { ConfirmationDialog } from "@/components/feedback/ConfirmationDialog";
+import { TableShell } from "@/components/common/table/TableShell";
 import { AcademicLevel } from "@/types/Academics";
 
 export default function LevelsTab() {
@@ -186,7 +178,7 @@ export default function LevelsTab() {
                 </DialogContent>
             </Dialog>
 
-            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 overflow-hidden shadow-sm">
+            <TableShell className="dark:bg-slate-950">
                 <Table>
                     <TableHeader className="bg-slate-50/50 dark:bg-slate-900/50">
                         <TableRow>
@@ -255,24 +247,15 @@ export default function LevelsTab() {
                         )}
                     </TableBody>
                 </Table>
-            </div>
+            </TableShell>
 
-            <AlertDialog open={!!levelToDelete} onOpenChange={() => setLevelToDelete(null)}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            This action cannot be undone. This will permanently delete the level and all its associated sections and subjects.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
-                            Delete
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+            <ConfirmationDialog
+                open={!!levelToDelete}
+                onOpenChange={() => setLevelToDelete(null)}
+                description="This action cannot be undone. This will permanently delete the level and all its associated sections and subjects."
+                confirmLabel="Delete"
+                onConfirm={handleDelete}
+            />
         </div>
     );
 }

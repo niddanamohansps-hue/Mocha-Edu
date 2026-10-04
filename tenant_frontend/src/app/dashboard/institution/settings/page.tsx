@@ -22,6 +22,8 @@ import {
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import Unauthorized from "@/components/Unauthorized";
+import { LoadingState } from "@/components/feedback/LoadingState";
+import { ErrorState } from "@/components/feedback/ErrorState";
 
 const institutionSchema = z.object({
     name: z.string().min(1, "Institutional name is required"),
@@ -43,7 +45,7 @@ type InstitutionFormValues = z.infer<typeof institutionSchema>;
 
 export default function InstitutionSettingsPage() {
     const { can, isOwner } = usePermissions();
-    const { data: profile, isLoading } = useInstitutionProfile();
+    const { data: profile, isLoading, isError, refetch } = useInstitutionProfile();
     const { mutate: updateProfile, isPending: isUpdating } = useUpdateInstitutionProfile();
     const router = useRouter();
 
@@ -107,11 +109,11 @@ export default function InstitutionSettingsPage() {
     }, [profile, form]);
 
     if (isLoading) {
-        return (
-            <div className="flex h-[60vh] items-center justify-center">
-                <Loader2 className="h-12 w-12 animate-spin text-sky-600" />
-            </div>
-        );
+        return <LoadingState className="h-[60vh]" />;
+    }
+
+    if (isError) {
+        return <ErrorState onRetry={refetch} className="m-6" />;
     }
 
     if (!canView) {

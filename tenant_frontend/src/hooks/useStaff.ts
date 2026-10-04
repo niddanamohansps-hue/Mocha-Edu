@@ -229,13 +229,3 @@ export const usePendingStaffCredentials = () => {
         }
     });
 };
-
-export const useRoles = () => {
-    return useQuery({
-        queryKey: ["roles"],
-        queryFn: async () => {
-            const response = await axiosInstance.get("/roles/");
-            return response.data;
-        }
-    });
-};

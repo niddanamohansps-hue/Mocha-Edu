@@ -14,6 +14,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Unauthorized from "@/components/Unauthorized";
+import { EmptyState } from "@/components/feedback/EmptyState";
+import { ErrorState } from "@/components/feedback/ErrorState";
+import { StatusBadge } from "@/components/common/StatusBadge";
 
 function currentYear() {
     return String(new Date().getFullYear());
@@ -25,8 +28,8 @@ export default function FeeStructuresPage() {
     const canView = canManage || can("view_fees");
 
     const [academicYear, setAcademicYear] = useState(currentYear());
-    const { data: heads, isLoading: loadingHeads } = useFeeHeads();
-    const { data: structures, isLoading: loadingStructures } = useFeeStructures(academicYear);
+    const { data: heads, isLoading: loadingHeads, isError: headsError, refetch: refetchHeads } = useFeeHeads();
+    const { data: structures, isLoading: loadingStructures, isError: structuresError, refetch: refetchStructures } = useFeeStructures(academicYear);
 
     const { mutate: createHead, isPending: creatingHead } = useCreateFeeHead();
     const { mutate: createStructure, isPending: creatingStructure } = useCreateFeeStructure();
@@ -87,17 +90,16 @@ export default function FeeStructuresPage() {
 
             {loadingHeads ? (
                 <LoaderCircle className="h-6 w-6 animate-spin text-indigo-600" />
+            ) : headsError ? (
+                <ErrorState onRetry={refetchHeads} />
             ) : (
                 <div className="flex flex-wrap gap-2">
                     {heads?.map((h) => (
-                        <span
+                        <StatusBadge
                             key={h.id}
-                            className={`text-xs font-semibold px-3 py-1 rounded-full ${
-                                h.is_active ? "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300" : "bg-red-50 text-red-500"
-                            }`}
-                        >
-                            {h.name}
-                        </span>
+                            label={h.name}
+                            className={`px-3 ${h.is_active ? "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300" : "bg-red-50 text-red-500"}`}
+                        />
                     ))}
                 </div>
             )}
@@ -152,8 +154,10 @@ export default function FeeStructuresPage() {
                 <h2 className="text-lg font-bold">Existing Structures ({academicYear})</h2>
                 {loadingStructures ? (
                     <LoaderCircle className="h-6 w-6 animate-spin text-indigo-600" />
+                ) : structuresError ? (
+                    <ErrorState onRetry={refetchStructures} />
                 ) : !structures || structures.length === 0 ? (
-                    <p className="text-sm text-slate-500 py-4">No fee structures defined for {academicYear} yet.</p>
+                    <EmptyState title={`No fee structures defined for ${academicYear} yet.`} className="py-4 text-slate-500 text-sm" />
                 ) : (
                     <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
                         <table className="w-full text-sm">

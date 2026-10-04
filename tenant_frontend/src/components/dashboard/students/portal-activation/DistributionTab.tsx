@@ -26,9 +26,10 @@ import {
     TableRow
 } from "@/components/ui/table";
 import { toast } from "sonner";
+import { ErrorState } from "@/components/feedback/ErrorState";
 
 export default function DistributionTab() {
-    const { data: pendingCreds, isLoading: loadingCreds } = usePendingCredentials();
+    const { data: pendingCreds, isLoading: loadingCreds, isError: credsError, refetch: refetchCreds } = usePendingCredentials();
     const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({});
 
     const copyToClipboard = (text: string, label: string) => {
@@ -69,6 +70,8 @@ export default function DistributionTab() {
                             <div className="p-12 flex justify-center">
                                 <LoaderCircle className="h-10 w-10 text-indigo-400 animate-spin" />
                             </div>
+                        ) : credsError ? (
+                            <ErrorState onRetry={refetchCreds} className="p-12" />
                         ) : !pendingCreds || pendingCreds.length === 0 ? (
                             <div className="h-[400px] flex flex-col items-center justify-center text-slate-400 space-y-4">
                                 <div className="p-6 bg-emerald-50 dark:bg-emerald-900/10 rounded-full">

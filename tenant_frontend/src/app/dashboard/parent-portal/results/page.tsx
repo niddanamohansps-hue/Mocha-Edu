@@ -1,12 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { LoaderCircle } from "lucide-react";
 import { useChildReportCard, useLinkedChildren } from "@/hooks/useParentPortal";
 import { usePermissions } from "@/providers/PermissionProvider";
 import { Card, CardContent } from "@/components/ui/card";
 import Unauthorized from "@/components/Unauthorized";
 import ChildSwitcher from "@/components/parent-portal/ChildSwitcher";
+import { LoadingState } from "@/components/feedback/LoadingState";
+import { EmptyState } from "@/components/feedback/EmptyState";
+import { ErrorState } from "@/components/feedback/ErrorState";
+import { StatusBadge } from "@/components/common/StatusBadge";
 
 export default function ParentPortalResultsPage() {
     const { can, isOwner } = usePermissions();
@@ -15,7 +18,7 @@ export default function ParentPortalResultsPage() {
     const { data: children } = useLinkedChildren();
     const [selectedChildId, setSelectedChildId] = useState<string | undefined>(undefined);
 
-    const { data: reportCard, isLoading } = useChildReportCard(selectedChildId);
+    const { data: reportCard, isLoading, isError, refetch } = useChildReportCard(selectedChildId);
 
     if (!canView) {
         return <Unauthorized />;
@@ -37,17 +40,20 @@ export default function ParentPortalResultsPage() {
             />
 
             {!selectedChildId ? (
-                <div className="py-16 text-center text-sm text-slate-500">
-                    {children && children.length === 0
-                        ? "No children are linked to your account yet."
-                        : "Select a child to view their results."}
-                </div>
+                <EmptyState
+                    title={
+                        children && children.length === 0
+                            ? "No children are linked to your account yet."
+                            : "Select a child to view their results."
+                    }
+                    className="py-16 text-slate-500 text-sm"
+                />
             ) : isLoading ? (
-                <div className="flex items-center justify-center py-20">
-                    <LoaderCircle className="h-8 w-8 animate-spin text-indigo-600" />
-                </div>
+                <LoadingState className="py-20" />
+            ) : isError ? (
+                <ErrorState onRetry={refetch} />
             ) : !reportCard || reportCard.examinations.length === 0 ? (
-                <div className="py-16 text-center text-sm text-slate-500">No published results yet.</div>
+                <EmptyState title="No published results yet." className="py-16 text-slate-500 text-sm" />
             ) : (
                 <div className="space-y-6 print:space-y-4">
                     <div className="text-sm text-slate-500">
@@ -68,15 +74,14 @@ export default function ParentPortalResultsPage() {
                                             {result.percentage}% - {result.overall_grade || "—"}
                                         </p>
                                     </div>
-                                    <span
-                                        className={`text-sm font-bold px-3 py-1 rounded-full ${
+                                    <StatusBadge
+                                        label={result.is_pass ? "PASS" : "FAIL"}
+                                        className={`text-sm font-bold px-3 ${
                                             result.is_pass
                                                 ? "bg-emerald-100 text-emerald-700"
                                                 : "bg-red-100 text-red-700"
                                         }`}
-                                    >
-                                        {result.is_pass ? "PASS" : "FAIL"}
-                                    </span>
+                                    />
                                 </div>
                                 <table className="w-full text-sm">
                                     <thead>

@@ -1,3 +1,6 @@
+from decimal import Decimal
+
+from django.db.models import Sum
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
@@ -6,6 +9,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.audit import log_action
+from core.pagination import StandardResultsPagination
 from roles.permissions import HasPermission
 
 from .models import FeeHead, FeeStructure, Payment, StudentFee
@@ -21,6 +25,8 @@ from .serializers import (
     UpdateStudentFeeSerializer,
 )
 from .services import (
+    annotate_with_allocation_total,
+    annotate_with_outstanding_balance,
     assign_student_fee,
     cancel_student_fee,
     get_outstanding_balance,
@@ -128,6 +134,7 @@ class StudentFeesView(APIView):
         academic_year = request.query_params.get("academic_year")
         if academic_year:
             qs = qs.filter(academic_year=academic_year)
+        qs = annotate_with_allocation_total(qs)
 
         total_outstanding = sum((get_outstanding_balance(sf) for sf in qs if sf.status == "active"), 0)
 
@@ -324,7 +331,26 @@ class PaymentReceiptView(APIView):
 
 
 class OutstandingReportView(APIView):
+    """
+    Server-paginated (StandardResultsPagination, matching every other list
+    endpoint in this project). "Outstanding" (amount_due - discount_amount
+    - net allocations > 0) is filtered at the database level via
+    annotate_with_outstanding_balance() BEFORE pagination, so page
+    boundaries are over the outstanding dataset itself, not over the raw
+    StudentFee set with Python-side filtering applied afterward - the
+    latter would silently return fewer than page_size rows (or an empty
+    later page) whenever some fees on a given raw page turn out not to be
+    outstanding.
+
+    The response also carries `total_outstanding_amount` - the sum of
+    EVERY matching outstanding fee (not just the current page), computed
+    by one extra database aggregate over the exact same filtered queryset
+    used for `count`/`results` (Phase 9C-F). `results` still contains only
+    the current page.
+    """
+
     permission_classes = [IsAuthenticated, HasPermission("view_financial_reports")]
+    pagination_class = StandardResultsPagination
 
     def get(self, request):
         section_id = request.query_params.get("section")
@@ -334,13 +360,49 @@ class OutstandingReportView(APIView):
         if academic_year:
             qs = qs.filter(academic_year=academic_year)
         if section_id:
-            qs = qs.filter(student__enrollments__section_id=section_id, student__enrollments__is_current=True)
+            # A subquery (not a join) on purpose: annotate_with_outstanding_balance()
+            # below adds its own to-many join (allocations), and combining that
+            # with a second to-many join here (student__enrollments) in the same
+            # queryset would let Django's JOIN cross-multiply rows before the
+            # Sum is grouped, silently inflating every allocation total for a
+            # student with more than one matching enrollment row. A student_id
+            # membership subquery filters the same set of StudentFee rows
+            # without introducing that second join.
+            from students.models import StudentLevel
+
+            current_student_ids = StudentLevel.objects.filter(
+                section_id=section_id, is_current=True
+            ).values_list("student_id", flat=True)
+            qs = qs.filter(student_id__in=current_student_ids)
+
+        # Outstanding-balance filtering happens in SQL (HAVING, verified via
+        # .query during Phase 9C) BEFORE pagination - only the matching rows
+        # are counted/paginated, never the full active-StudentFee set.
+        qs = annotate_with_outstanding_balance(qs).filter(_outstanding__gt=0)
+
+        # Full-report total: ONE extra SQL aggregate over the SAME filtered
+        # queryset used for count/pagination below (same filters, same
+        # annotation, same HAVING clause - see Phase 9C-F report for the
+        # generated SQL: Django wraps this already-grouped queryset as a
+        # subquery and sums its _outstanding column). This must happen
+        # before .order_by()/pagination slice it, and it reads from the
+        # exact same `qs` so it can never drift from what `count`/`results`
+        # describe - it is not a second, independently-filtered query.
+        total_outstanding_amount = qs.aggregate(total=Sum("_outstanding"))["total"] or Decimal("0")
+
+        # annotate() with an aggregate-derived expression drops the model's
+        # default Meta.ordering (["-created_at"]) as a side effect - verified
+        # empirically in Phase 9C. Re-applying it here restores the exact
+        # ordering this report already had; it is not a new choice.
+        qs = qs.order_by("-created_at")
+
+        paginator = self.pagination_class()
+        page = paginator.paginate_queryset(qs, request, view=self)
+        page_rows = page if page is not None else qs
 
         rows = []
-        for student_fee in qs:
+        for student_fee in page_rows:
             outstanding = get_outstanding_balance(student_fee)
-            if outstanding <= 0:
-                continue
             rows.append(
                 {
                     "student": str(student_fee.student_id),
@@ -353,4 +415,9 @@ class OutstandingReportView(APIView):
                 }
             )
 
-        return Response({"count": len(rows), "results": rows})
+        if page is not None:
+            response = paginator.get_paginated_response(rows)
+            response.data["total_outstanding_amount"] = total_outstanding_amount
+            return response
+
+        return Response({"count": len(rows), "total_outstanding_amount": total_outstanding_amount, "results": rows})

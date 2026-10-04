@@ -22,7 +22,16 @@ from roles.permissions import HasPermission
 
 def can_student_access_content(student, content):
     """
-    Check if a student can access specific content based on targeting
+    Check if a student can access specific content based on targeting.
+
+    Unbatched reference implementation: resolves the student's current
+    enrollment and subject enrollments itself, and checks each targeting
+    relation with its own `.filter(...).exists()` query. Safe to call for
+    a single (student, content) pair. For checking MANY content items
+    against the SAME student, use filter_content_accessible_to_student()
+    below instead - it implements this exact same access rule without
+    repeating the student-level lookups or issuing one query per
+    targeting relation per content item (the confirmed N+1).
     """
     # Check explicit targeting
     if content.specific_students.filter(id=student.id).exists():
@@ -52,6 +61,69 @@ def can_student_access_content(student, content):
         return True
 
     return False
+
+
+def filter_content_accessible_to_student(student, queryset):
+    """
+    Applies the exact same access rule as can_student_access_content() to
+    every item in `queryset`, for one student, without the N+1 that
+    function has when called once per content item.
+
+    The student-side inputs (current enrollment incl. level/section,
+    and subject-enrollment ids) depend only on `student`, never on which
+    content is being checked, so they're resolved ONCE for the whole
+    batch instead of once per item. The content-side targeting relations
+    (specific_students/target_sections/target_levels/target_programs/
+    target_subjects) are prefetched in one query per relation (regardless
+    of how many content items are in `queryset`), then checked by
+    membership in Python instead of a fresh `.filter(...).exists()` call
+    per item per relation.
+
+    Returns a list of CourseContent ids - the same set
+    can_student_access_content() would return True for, item by item.
+    """
+    content_list = list(
+        queryset.prefetch_related(
+            "specific_students",
+            "target_sections",
+            "target_levels",
+            "target_programs",
+            "target_subjects",
+        )
+    )
+    if not content_list:
+        return []
+
+    current_enrollment = (
+        student.enrollments.filter(is_current=True).select_related("level", "section").first()
+    )
+    # Matches can_student_access_content()'s current_enrollment.level.program_id
+    # exactly, including its crash-on-level=None edge case (see Phase 9B
+    # report) - not changed here, since fixing it is outside this phase's scope.
+    current_program_id = current_enrollment.level.program_id if current_enrollment else None
+    student_subject_ids = set(student.subject_enrollments.values_list("subject_id", flat=True))
+
+    accessible_ids = []
+    for content in content_list:
+        if any(s.id == student.id for s in content.specific_students.all()):
+            accessible_ids.append(content.id)
+            continue
+
+        if current_enrollment:
+            if any(sec.id == current_enrollment.section_id for sec in content.target_sections.all()):
+                accessible_ids.append(content.id)
+                continue
+            if any(lvl.id == current_enrollment.level_id for lvl in content.target_levels.all()):
+                accessible_ids.append(content.id)
+                continue
+            if any(p.id == current_program_id for p in content.target_programs.all()):
+                accessible_ids.append(content.id)
+                continue
+
+        if any(subj.id in student_subject_ids for subj in content.target_subjects.all()):
+            accessible_ids.append(content.id)
+
+    return accessible_ids
 
 
 class CourseContentViewSet(viewsets.ModelViewSet):
@@ -89,11 +161,7 @@ class CourseContentViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(is_published=True)
 
             # Filter based on access control
-            accessible_ids = [
-                content.id
-                for content in queryset
-                if can_student_access_content(student, content)
-            ]
+            accessible_ids = filter_content_accessible_to_student(student, queryset)
             queryset = queryset.filter(id__in=accessible_ids)
 
         return queryset
@@ -226,13 +294,10 @@ class AssignmentViewSet(viewsets.ModelViewSet):
         profile = Profile.objects.filter(user_id=user.id).first()
         if profile and hasattr(profile, "student_record"):
             student = profile.student_record
-            accessible_content_ids = [
-                content.id
-                for content in CourseContent.objects.filter(
-                    content_type="assignment", is_published=True
-                )
-                if can_student_access_content(student, content)
-            ]
+            accessible_content_ids = filter_content_accessible_to_student(
+                student,
+                CourseContent.objects.filter(content_type="assignment", is_published=True),
+            )
             queryset = queryset.filter(content_id__in=accessible_content_ids)
 
         return queryset
