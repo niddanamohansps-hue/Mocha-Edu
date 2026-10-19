@@ -1,18 +1,25 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Query, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axiosInstance from "@/lib/axios";
 import { toast } from "sonner";
 import {
     FeeHead,
     FeeStructure,
+    InitiateOnlinePaymentInput,
+    InitiateOnlinePaymentResponse,
+    InitiateParentChildPaymentInput,
+    OnlinePaymentOrder,
+    OnlinePaymentOrdersResponse,
     OutstandingReportResponse,
     Payment,
     PaymentAllocationInput,
     PaymentMethod,
     StudentFeesResponse,
+    VerifyOnlinePaymentResponse,
 } from "@/types/Fees";
 
-function errorMessage(error: any, fallback: string) {
-    const data = error.response?.data;
+function errorMessage(error: unknown, fallback: string) {
+    const err = error as { response?: { data?: Record<string, unknown> } };
+    const data = err.response?.data;
     if (!data) return fallback;
     if (typeof data.error === "string") return data.error;
     for (const key of Object.keys(data)) {
@@ -224,6 +231,88 @@ export const useOutstandingReport = (academicYear?: string, sectionId?: string) 
             const qs = params.toString();
             const response = await axiosInstance.get(`/fees/reports/outstanding/${qs ? `?${qs}` : ""}`);
             return response.data as OutstandingReportResponse;
+        },
+    });
+};
+
+// === ONLINE PAYMENTS ===
+
+export const useInitiateOnlinePayment = () => {
+    return useMutation({
+        mutationFn: async (data: InitiateOnlinePaymentInput) => {
+            const response = await axiosInstance.post("/fees/online/initiate/", data);
+            return response.data as InitiateOnlinePaymentResponse;
+        },
+        onError: (error: unknown) => toast.error(errorMessage(error, "Failed to initiate online payment")),
+    });
+};
+
+export const useInitiateParentChildPayment = () => {
+    return useMutation({
+        mutationFn: async ({ student_id, ...data }: InitiateParentChildPaymentInput) => {
+            const response = await axiosInstance.post(`/parent-portal/children/${student_id}/pay-fees/`, data);
+            return response.data as InitiateOnlinePaymentResponse;
+        },
+        onError: (error: unknown) => toast.error(errorMessage(error, "Failed to initiate online payment")),
+    });
+};
+
+export const useVerifyOnlinePayment = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (data: { data?: string; encoded_data?: string; order_id?: string; transaction_uuid?: string }) => {
+            const response = await axiosInstance.post("/fees/online/verify/", data);
+            return response.data as VerifyOnlinePaymentResponse;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["fees", "student"] });
+            queryClient.invalidateQueries({ queryKey: ["fees", "payments"] });
+            queryClient.invalidateQueries({ queryKey: ["fees", "online", "orders"] });
+            queryClient.invalidateQueries({ queryKey: ["parent-portal", "fees"] });
+        },
+        onError: (error: unknown) => toast.error(errorMessage(error, "Failed to verify online payment")),
+    });
+};
+
+export const useOnlinePaymentOrder = (
+    orderId?: string,
+    options?: {
+        refetchInterval?:
+            | number
+            | false
+            | ((query: Query<OnlinePaymentOrder, Error, OnlinePaymentOrder, readonly unknown[]>) => number | false);
+    }
+) => {
+    return useQuery({
+        queryKey: ["fees", "online", "order", orderId],
+        queryFn: async () => {
+            const response = await axiosInstance.get(`/fees/online/orders/${orderId}/`);
+            return response.data as OnlinePaymentOrder;
+        },
+        enabled: !!orderId,
+        refetchInterval: options?.refetchInterval,
+    });
+};
+
+export const useOnlinePaymentOrders = (params?: { student?: string; status?: string; gateway?: string }) => {
+    return useQuery({
+        queryKey: ["fees", "online", "orders", params],
+        queryFn: async () => {
+            const sp = new URLSearchParams();
+            if (params?.student) sp.set("student", params.student);
+            if (params?.status) sp.set("status", params.status);
+            if (params?.gateway) sp.set("gateway", params.gateway);
+            const qs = sp.toString();
+            const response = await axiosInstance.get(`/fees/online/orders/${qs ? `?${qs}` : ""}`);
+            if (Array.isArray(response.data)) {
+                return {
+                    count: response.data.length,
+                    next: null,
+                    previous: null,
+                    results: response.data,
+                } as OnlinePaymentOrdersResponse;
+            }
+            return response.data as OnlinePaymentOrdersResponse;
         },
     });
 };

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axiosInstance from "@/lib/axios";
+import { isAxiosError } from "axios";
 import { toast } from "sonner";
 import type { PaginatedResponse } from "@/types/Pagination";
 import {
@@ -297,3 +298,97 @@ export const useBulkEnroll = () => {
         }
     });
 };
+
+// === AUTHORIZED FILE DOWNLOAD HELPERS ===
+
+function extractFilename(disposition: string | undefined, defaultFilename: string): string {
+    if (!disposition) return defaultFilename;
+    const utf8Match = /filename\*=UTF-8''([^;]+)/i.exec(disposition);
+    if (utf8Match && utf8Match[1]) {
+        try {
+            return decodeURIComponent(utf8Match[1]);
+        } catch {
+            return utf8Match[1];
+        }
+    }
+    const match = /filename="?([^";]+)"?/i.exec(disposition);
+    if (match && match[1]) {
+        return match[1].trim();
+    }
+    return defaultFilename;
+}
+
+async function parseBlobErrorMessage(err: unknown, fallbackMessage: string): Promise<string> {
+    if (!isAxiosError(err) || !err.response?.data) return fallbackMessage;
+    const data = err.response.data;
+    if (data instanceof Blob) {
+        try {
+            const text = await data.text();
+            const json = JSON.parse(text);
+            return json.error || json.detail || json.message || fallbackMessage;
+        } catch {
+            return fallbackMessage;
+        }
+    }
+    if (typeof data === "object") {
+        const obj = data as Record<string, unknown>;
+        if (typeof obj.error === "string") return obj.error;
+        if (typeof obj.detail === "string") return obj.detail;
+        if (typeof obj.message === "string") return obj.message;
+    }
+    return fallbackMessage;
+}
+
+export async function downloadCourseContentFile(contentId: string, defaultFilename = "course_material") {
+    try {
+        const response = await axiosInstance.get(`/course-content/content/${contentId}/download/`, {
+            responseType: "blob",
+        });
+
+        const filename = extractFilename(response.headers["content-disposition"], defaultFilename);
+        const blob = new Blob([response.data]);
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.setAttribute("download", filename);
+        document.body.appendChild(link);
+        link.click();
+        link.parentNode?.removeChild(link);
+        window.URL.revokeObjectURL(url);
+    } catch (err: unknown) {
+        const defaultMsg = isAxiosError(err) && err.response?.status === 403
+            ? "You do not have permission to download this content."
+            : isAxiosError(err) && err.response?.status === 404
+            ? "The requested file was not found."
+            : "Failed to download file.";
+        const message = await parseBlobErrorMessage(err, defaultMsg);
+        toast.error(message);
+    }
+}
+
+export async function downloadSubmissionFile(submissionId: string, defaultFilename = "submission") {
+    try {
+        const response = await axiosInstance.get(`/course-content/submissions/${submissionId}/download/`, {
+            responseType: "blob",
+        });
+
+        const filename = extractFilename(response.headers["content-disposition"], defaultFilename);
+        const blob = new Blob([response.data]);
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.setAttribute("download", filename);
+        document.body.appendChild(link);
+        link.click();
+        link.parentNode?.removeChild(link);
+        window.URL.revokeObjectURL(url);
+    } catch (err: unknown) {
+        const defaultMsg = isAxiosError(err) && err.response?.status === 403
+            ? "You do not have permission to download this submission."
+            : isAxiosError(err) && err.response?.status === 404
+            ? "The requested submission file was not found."
+            : "Failed to download submission.";
+        const message = await parseBlobErrorMessage(err, defaultMsg);
+        toast.error(message);
+    }
+}

@@ -26,9 +26,15 @@ services:
       - "8000:8000"
     env_file:
       - .env
+    environment:
+      # Migrations at container start are opt-in: only the exact value "true" runs them
+      # (see entrypoint.sh and the "Migration safety" section of README.md).
+      - RUN_MIGRATIONS_ON_START=${RUN_MIGRATIONS_ON_START:-false}
     depends_on:
       - db
-    restart: on-failure
+    # The cap applies to ANY backend failure, not only migration failures: after 3
+    # consecutive failed restarts the container stays stopped until it is started again.
+    restart: on-failure:3
 
 volumes:
   postgres_data:

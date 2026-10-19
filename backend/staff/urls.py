@@ -40,5 +40,6 @@ urlpatterns = [
         CredentialDistributionView.as_view(),
         name="instructor-credentials",
     ),
+    path("leaves/", include("staff.leave_urls")),
     path("", include(router.urls)),
 ]

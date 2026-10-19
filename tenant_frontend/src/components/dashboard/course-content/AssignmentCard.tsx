@@ -90,9 +90,6 @@ export function AssignmentCard({ assignment, isStudent, canCreate, onSubmitClick
                     <Button
                         size="sm"
                         onClick={() => {
-                            console.log("Submit button clicked for assignment:", assignment.id);
-                            console.log("Submission:", submission);
-
                             if (!submission) {
                                 alert("This assignment is not available for submission yet. Please contact your instructor.");
                                 return;

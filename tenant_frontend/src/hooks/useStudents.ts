@@ -96,13 +96,19 @@ export const usePortalActivation = () => {
     });
 };
 
-export const useStudents = (options: { page?: number; unenrolled?: boolean; pageSize?: number } = {}) => {
-    const { page = 1, unenrolled = false, pageSize = 20 } = options;
+export const useStudents = (
+    options: { page?: number; unenrolled?: boolean; pageSize?: number; search?: string; status?: string } = {}
+) => {
+    const { page = 1, unenrolled = false, pageSize = 20, search = "", status = "" } = options;
     return useQuery({
-        queryKey: ["students", { page, unenrolled, pageSize }],
+        queryKey: ["students", { page, unenrolled, pageSize, search, status }],
         queryFn: async () => {
             const response = await axiosInstance.get(`/students/list/`, {
-                params: { unenrolled, page, page_size: pageSize }
+                params: {
+                    unenrolled, page, page_size: pageSize,
+                    ...(search ? { search } : {}),
+                    ...(status ? { status } : {}),
+                }
             });
             return response.data as PaginatedResponse<Student>;
         }

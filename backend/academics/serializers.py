@@ -1,5 +1,6 @@
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
-from .models import Program, AcademicLevel, Section, Subject, SubjectAssignment
+from .models import AcademicYear, CalendarEvent, Program, AcademicLevel, Section, Subject, SubjectAssignment
 from staff.serializers import InstructorSerializer
 
 
@@ -84,3 +85,112 @@ class SubjectAssignmentSerializer(serializers.ModelSerializer):
             "instructor",
             "instructor_details",
         ]
+
+
+class AcademicYearSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AcademicYear
+        fields = ("id", "name", "start_date", "end_date", "is_current", "created_at", "updated_at")
+        read_only_fields = ("id", "is_current", "created_at", "updated_at")
+
+    def validate(self, attrs):
+        instance = AcademicYear(
+            name=attrs.get("name", getattr(self.instance, "name", "")),
+            start_date=attrs.get("start_date", getattr(self.instance, "start_date", None)),
+            end_date=attrs.get("end_date", getattr(self.instance, "end_date", None)),
+        )
+        try:
+            instance.clean()
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.message_dict)
+        return attrs
+
+    def validate_name(self, value):
+        qs = AcademicYear.objects.filter(name=value)
+        if self.instance is not None:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError("An academic year with this name already exists.")
+        return value
+
+
+class CalendarEventSerializer(serializers.ModelSerializer):
+    academic_year_name = serializers.CharField(source="academic_year.name", read_only=True)
+    event_type_display = serializers.CharField(source="get_event_type_display", read_only=True)
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
+    audience_display = serializers.CharField(source="get_audience_display", read_only=True)
+
+    class Meta:
+        model = CalendarEvent
+        fields = [
+            "id",
+            "title",
+            "description",
+            "event_type",
+            "event_type_display",
+            "start_date",
+            "end_date",
+            "start_time",
+            "end_time",
+            "is_all_day",
+            "is_holiday",
+            "status",
+            "status_display",
+            "academic_year",
+            "academic_year_name",
+            "location",
+            "audience",
+            "audience_display",
+            "created_by_id",
+            "created_by_username",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "id",
+            "created_by_id",
+            "created_by_username",
+            "created_at",
+            "updated_at",
+            "academic_year_name",
+            "event_type_display",
+            "status_display",
+            "audience_display",
+        ]
+
+    def to_internal_value(self, data):
+        data = data.copy() if hasattr(data, "copy") else dict(data)
+        if "event_type" in data and isinstance(data["event_type"], str):
+            data["event_type"] = data["event_type"].upper()
+        if "status" in data and isinstance(data["status"], str):
+            data["status"] = data["status"].upper()
+        if "audience" in data and isinstance(data["audience"], str):
+            data["audience"] = data["audience"].upper()
+        return super().to_internal_value(data)
+
+    def validate(self, attrs):
+        start_date = attrs.get("start_date", getattr(self.instance, "start_date", None))
+        end_date = attrs.get("end_date", getattr(self.instance, "end_date", None))
+        is_all_day = attrs.get("is_all_day", getattr(self.instance, "is_all_day", True))
+        start_time = attrs.get("start_time", getattr(self.instance, "start_time", None))
+        end_time = attrs.get("end_time", getattr(self.instance, "end_time", None))
+        event_type = attrs.get("event_type", getattr(self.instance, "event_type", "ACADEMIC"))
+
+        instance = CalendarEvent(
+            title=attrs.get("title", getattr(self.instance, "title", "")),
+            start_date=start_date,
+            end_date=end_date,
+            is_all_day=is_all_day,
+            start_time=start_time,
+            end_time=end_time,
+            event_type=event_type,
+        )
+        try:
+            instance.clean()
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.message_dict)
+
+        if instance.is_holiday:
+            attrs["is_holiday"] = True
+        return attrs
+

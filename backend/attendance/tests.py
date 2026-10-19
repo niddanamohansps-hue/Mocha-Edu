@@ -881,3 +881,78 @@ class SectionRosterOptimizationTests(AttendanceFixtureMixin, TransactionTestCase
         new_count = len(new_ctx.captured_queries)
         self.assertGreaterEqual(old_count, len(group))
         self.assertLessEqual(new_count, 4)
+
+
+class AcademicYearFallbackTests(TransactionTestCase):
+    """
+    Phase 1.1: a session's academic_year comes from the section's current
+    enrollment, never from the calendar year of the attendance date.
+    """
+
+    SCHEMA_NAME = "p11_att_school"
+    DOMAIN = "p11att.localhost"
+
+    def setUp(self):
+        from academics.models import AcademicLevel, Program, Section
+        from profiles.models import Profile
+        from students.models import Student, StudentLevel
+
+        connection.set_schema_to_public()
+        self.school = Organization.objects.create(schema_name=self.SCHEMA_NAME, name="P11 Att School")
+        Domain.objects.create(domain=self.DOMAIN, tenant=self.school, is_primary=True)
+        self.addCleanup(self._cleanup)
+        with tenant_context(self.school):
+            program = Program.objects.create(name="P11", code="P11")
+            level = AcademicLevel.objects.create(program=program, name="Class 7", order=7)
+            self.section = Section.objects.create(level=level, name="A", capacity=40)
+            self.student = Student.objects.create(
+                profile=Profile.objects.create(first_name="Anvi", last_name="Shah"),
+                enrollment_id="P11-ATT-1", status="active",
+            )
+            StudentLevel.objects.create(
+                student=self.student, level=level, section=self.section,
+                academic_year="2026-27", is_current=True,
+            )
+
+    def _cleanup(self):
+        connection.set_schema_to_public()
+        Organization.objects.filter(schema_name=self.SCHEMA_NAME).first() and self.school.delete(force_drop=True)
+
+    def _submit(self, date_str):
+        from .serializers import AttendanceSessionBulkSerializer
+
+        with tenant_context(self.school):
+            serializer = AttendanceSessionBulkSerializer(
+                data={
+                    "section": str(self.section.id),
+                    "date": date_str,
+                    "records": [{"student": str(self.student.id), "status": "present"}],
+                }
+            )
+            serializer.is_valid(raise_exception=True)
+            session, _, _ = serializer.save(request=None, recorded_by=None)
+            return session
+
+    def test_session_in_calendar_year_2026_keeps_school_year_2026_27(self):
+        session = self._submit("2026-09-15")
+        self.assertEqual(session.academic_year, "2026-27")
+        self.assertNotEqual(session.academic_year, "2026")
+
+    def test_resolved_year_matches_the_current_enrollment_not_the_date(self):
+        from .serializers import AttendanceSessionBulkSerializer
+
+        with tenant_context(self.school):
+            resolved = AttendanceSessionBulkSerializer._resolve_academic_year(self.section)
+        self.assertEqual(resolved, "2026-27")
+
+    def test_section_without_current_enrollment_refuses_instead_of_guessing(self):
+        from rest_framework import serializers as drf_serializers
+
+        from academics.models import Section
+
+        from .serializers import AttendanceSessionBulkSerializer
+
+        with tenant_context(self.school):
+            empty_section = Section.objects.create(level=self.section.level, name="Z", capacity=10)
+            with self.assertRaises(drf_serializers.ValidationError):
+                AttendanceSessionBulkSerializer._resolve_academic_year(empty_section)

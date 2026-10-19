@@ -1,3 +1,5 @@
+import type { OfficialTranscript, ReportCard } from "./Examinations";
+
 export interface ParentMe {
     parent_id: string;
     full_name: string;
@@ -73,11 +75,8 @@ export interface ChildExamResult {
     published_at: string;
 }
 
-export interface ChildReportCard {
-    student: { id: string; full_name: string; enrollment_id: string };
-    academic_year: string | null;
-    examinations: ChildExamResult[];
-}
+export interface ChildReportCard extends ReportCard {}
+export type ChildTranscript = OfficialTranscript;
 
 export interface ChildFee {
     id: string;

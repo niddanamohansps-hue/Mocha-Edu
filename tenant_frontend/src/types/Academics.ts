@@ -45,3 +45,14 @@ export interface SubjectAssignment {
     instructor: string | null;
     instructor_details: any; // Using any for now to avoid circular dependency with Staff types if not needed fully
 }
+
+export interface AcademicYear {
+    id: string;
+    name: string;
+    start_date: string;
+    end_date: string;
+    is_current: boolean;
+    created_at: string;
+    updated_at: string;
+}
+

@@ -140,7 +140,7 @@ class AttendanceSessionBulkSerializer(serializers.Serializer):
             section=section,
             date=date,
             defaults={
-                "academic_year": self._resolve_academic_year(section, date),
+                "academic_year": self._resolve_academic_year(section),
                 "recorded_by": recorded_by,
             },
         )
@@ -160,19 +160,24 @@ class AttendanceSessionBulkSerializer(serializers.Serializer):
         return session, created, change_summary
 
     @staticmethod
-    def _resolve_academic_year(section, date):
+    def _resolve_academic_year(section):
         """
-        Best-effort default: use the academic_year already in use by this
-        section's current roster, if any exist; otherwise fall back to the
-        submission date's year as a plain string, matching the free-text
-        academic_year convention already used on StudentLevel.
+        The academic year of the section's current enrollment, as recorded on
+        StudentLevel. Never derived from the calendar year: a school year like
+        "2026-27" must not become "2026" because a session falls in 2026.
         """
-        existing = (
-            get_section_roster(section.id)
-            .values_list("enrollments__academic_year", flat=True)
+        from students.models import StudentLevel
+
+        year = (
+            StudentLevel.objects.filter(section_id=section.id, is_current=True)
+            .values_list("academic_year", flat=True)
             .first()
         )
-        return existing or str(date.year)
+        if not year:
+            raise serializers.ValidationError(
+                {"section": "This section has no current enrollment, so its academic year cannot be determined."}
+            )
+        return year
 
 
 def apply_attendance_records(session, records, recorded_by):

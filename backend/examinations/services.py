@@ -644,3 +644,506 @@ def publish_examination(examination):
         _queue_result_published_notifications(examination, published_student_ids)
 
     return examination
+
+
+# --- Report Cards, Transcripts & Academic Record Helpers -------------------
+
+def get_institution_summary():
+    """
+    Returns institutional branding and contact information for the current tenant.
+    Combines Organization (public tenant row) and InstitutionProfile (tenant schema).
+    """
+    from django.db import connection
+    from profiles.models import InstitutionProfile
+
+    tenant = getattr(connection, "tenant", None)
+    if not tenant or getattr(tenant, "schema_name", None) == "public":
+        return {
+            "name": "Institution",
+            "address": "",
+            "phone": "",
+            "email": "",
+            "website": "",
+            "tagline": "",
+            "logo_url": None,
+        }
+
+    profile = InstitutionProfile.objects.filter(organization_id=tenant.id).first()
+    logo_url = None
+    if profile and profile.logo:
+        try:
+            logo_url = profile.logo.url
+        except Exception:
+            logo_url = None
+
+    return {
+        "name": tenant.name,
+        "address": getattr(tenant, "address", "") or "",
+        "phone": getattr(tenant, "phone", "") or "",
+        "email": getattr(tenant, "email", "") or "",
+        "website": getattr(profile, "website", "") or "",
+        "tagline": getattr(profile, "tagline", "") or "",
+        "logo_url": logo_url,
+    }
+
+
+def calculate_gpa(subject_breakdown, academic_year):
+    """
+    Weighted GPA calculation according to school grading configuration:
+    GPA = round(sum(grade_point * credits) / sum(credits), 2)
+
+    Rules:
+    - GradeBoundary.grade_point is nullable Decimal.
+    - Subject.credits is Decimal (defaults to 1.0).
+    - If GradeBoundaries do not exist for the academic year, or ANY boundary in that
+      academic year has grade_point is None: return None (GPA is unconfigured).
+    - If any graded subject in subject_breakdown has no matching boundary, or its
+      matching boundary has grade_point is None: return None.
+    - If a subject is marked absent or percentage/marks are None: result is incomplete,
+      return None.
+    - Never silently treat missing grade points as zero.
+    - Returns float rounded to 2 decimal places, or None.
+    """
+    if not subject_breakdown:
+        return None
+
+    from academics.models import Subject
+    from .models import GradeBoundary
+
+    boundaries = list(GradeBoundary.objects.filter(academic_year=academic_year).order_by("-min_percentage"))
+    if not boundaries:
+        return None
+
+    # If school hasn't configured grade_point on all boundaries for this year, GPA is unavailable
+    if any(b.grade_point is None for b in boundaries):
+        return None
+
+    subject_ids = [s.get("subject") for s in subject_breakdown if s.get("subject")]
+    subjects_by_id = {
+        str(sub.id): sub for sub in Subject.objects.filter(id__in=subject_ids)
+    }
+
+    weighted_points = 0.0
+    total_credits = 0.0
+
+    for item in subject_breakdown:
+        if item.get("is_absent") or item.get("percentage") is None or item.get("grade") is None:
+            return None
+
+        # Find matching boundary by grade label, or by percentage
+        matching_boundary = None
+        for b in boundaries:
+            if b.grade_label == item.get("grade"):
+                matching_boundary = b
+                break
+        if not matching_boundary:
+            exact_pct = Decimal(str(item.get("percentage")))
+            for b in boundaries:
+                if b.min_percentage <= exact_pct <= b.max_percentage:
+                    matching_boundary = b
+                    break
+
+        if not matching_boundary or matching_boundary.grade_point is None:
+            return None
+
+        sub_obj = subjects_by_id.get(str(item.get("subject")))
+        credits = float(sub_obj.credits) if sub_obj and sub_obj.credits is not None else 1.0
+        if credits <= 0:
+            continue
+
+        weighted_points += float(matching_boundary.grade_point) * credits
+        total_credits += credits
+
+    if total_credits == 0:
+        return None
+
+    return round(weighted_points / total_credits, 2)
+
+
+def get_student_attendance_summary(student_id, academic_year=None):
+    """
+    Retrieves student attendance summary and percentage via attendance.services.
+    """
+    from attendance.models import AttendanceSettings, StudentAttendance
+    from attendance.services import calculate_attendance_percentage
+
+    qs = StudentAttendance.objects.filter(student_id=student_id).select_related("session")
+    if academic_year:
+        qs = qs.filter(session__academic_year=academic_year)
+
+    counts = {}
+    total_days = 0
+    for row in qs:
+        counts[row.status] = counts.get(row.status, 0) + 1
+        total_days += 1
+
+    try:
+        settings = AttendanceSettings.get_solo()
+        percentage = calculate_attendance_percentage(counts, settings)
+    except Exception:
+        percentage = None
+
+    return {
+        "percentage": percentage,
+        "total_days": total_days,
+        "present_days": counts.get("present", 0),
+        "absent_days": counts.get("absent", 0),
+        "late_days": counts.get("late", 0),
+        "half_days": counts.get("half_day", 0),
+        "leave_days": counts.get("leave", 0),
+        "status_counts": counts,
+    }
+
+
+def get_student_promotion_summary(student_id, academic_year):
+    """
+    Returns the latest non-reversed promotion transition record where
+    source_academic_year matches the given academic year.
+    """
+    from students.models import PromotionRecord
+
+    records = (
+        PromotionRecord.objects.filter(
+            student_id=student_id,
+            source_academic_year=academic_year,
+        )
+        .exclude(action="reversed")
+        .select_related("source_level", "target_level", "target_section")
+        .order_by("-created_at")
+    )
+    for rec in records:
+        if not hasattr(rec, "reversal"):
+            return {
+                "action": rec.action,
+                "action_display": rec.get_action_display(),
+                "source_level": rec.source_level.name if rec.source_level else None,
+                "target_level": rec.target_level.name if rec.target_level else None,
+                "target_section": rec.target_section.name if rec.target_section else None,
+                "target_academic_year": rec.target_academic_year or None,
+                "reason": rec.reason or None,
+                "date": rec.created_at.date().isoformat() if rec.created_at else None,
+            }
+    return None
+
+
+def get_student_remarks(student_id, academic_year):
+    """
+    Returns remarks entered for the student in this academic year
+    (from exam marks or academic records).
+    """
+    from .models import ExamMark
+
+    marks_with_remarks = (
+        ExamMark.objects.filter(
+            student_id=student_id,
+            exam_schedule__academic_year=academic_year,
+        )
+        .exclude(remarks="")
+        .select_related("exam_schedule__subject", "exam_schedule__examination")
+    )
+
+    remarks_list = []
+    for mark in marks_with_remarks:
+        remarks_list.append({
+            "subject": mark.exam_schedule.subject.name,
+            "examination": mark.exam_schedule.examination.name,
+            "remarks": mark.remarks,
+        })
+    return remarks_list
+
+
+def sort_academic_years(year_strings):
+    """
+    Sorts academic year strings chronologically using academics.AcademicYear.start_date
+    with fallback to numeric/lexical sorting.
+    """
+    from academics.models import AcademicYear
+    import re
+
+    years_list = list(set(year_strings))
+    ay_map = {ay.name: ay.start_date for ay in AcademicYear.objects.filter(name__in=years_list)}
+
+    def sort_key(y_str):
+        if y_str in ay_map and ay_map[y_str]:
+            return (0, ay_map[y_str].isoformat())
+        match = re.search(r"\d{4}", y_str)
+        if match:
+            return (1, f"{int(match.group(0)):04d}_{y_str}")
+        return (2, y_str)
+
+    return sorted(years_list, key=sort_key)
+
+
+def user_can_access_student_report(request, student):
+    """
+    Object-level authorization for Student Report Card and Academic Transcript:
+    - Superuser / Owner: True
+    - Student: True if viewing their own record
+    - Parent: True if caller has parent record linked to this student AND has 'view_child_results' permission
+    - Staff: Requires 'view_results' permission. If instructor, requires teaching assignment for one of student's sections.
+    """
+    if is_owner(request):
+        return True
+
+    own_student = get_student_for_user(request.user)
+    if own_student is not None:
+        return own_student.id == student.id
+
+    from parent_portal.services import get_child_for_parent, get_parent_for_user
+    parent = get_parent_for_user(request.user)
+    if parent is not None:
+        from roles.permissions import HasPermission
+        if not HasPermission("view_child_results").has_permission(request, None):
+            return False
+        return get_child_for_parent(parent, student.id) is not None
+
+    from roles.permissions import HasPermission
+    if not HasPermission("view_results").has_permission(request, None):
+        return False
+
+    return user_can_access_student_result(request, student)
+
+
+def build_student_report_card(student, academic_year=None):
+    """
+    Builds the complete single-student, single-academic-year Report Card payload.
+    Never recalculates published ExamResult snapshots.
+    """
+    from django.utils import timezone
+    from academics.models import Subject
+    from .models import ExamResult, GradeBoundary
+
+    # Resolve academic year if not provided
+    if not academic_year:
+        current_enrollment = student.enrollments.filter(is_current=True).first()
+        if current_enrollment:
+            academic_year = current_enrollment.academic_year
+        else:
+            latest_result = ExamResult.objects.filter(student=student).order_by("-published_at").first()
+            academic_year = latest_result.academic_year if latest_result else "Current"
+
+    enrollment = student.enrollments.filter(academic_year=academic_year).select_related("level", "section").first()
+    if not enrollment:
+        enrollment = student.enrollments.filter(is_current=True).select_related("level", "section").first()
+
+    results_qs = (
+        ExamResult.objects.filter(student=student, academic_year=academic_year)
+        .select_related("examination", "examination__exam_type")
+        .order_by("examination__start_date")
+    )
+
+    boundaries = list(GradeBoundary.objects.filter(academic_year=academic_year).order_by("-min_percentage"))
+    has_gp = bool(boundaries) and not any(b.grade_point is None for b in boundaries)
+
+    # Pre-fetch all referenced subjects for credits
+    all_subject_ids = set()
+    for res in results_qs:
+        for item in res.subject_breakdown:
+            if item.get("subject"):
+                all_subject_ids.add(item["subject"])
+    subjects_map = {
+        str(sub.id): sub
+        for sub in Subject.objects.filter(id__in=all_subject_ids)
+    }
+
+    examinations_data = []
+    total_obtained_sum = Decimal("0")
+    total_max_sum = Decimal("0")
+    exam_gpas = []
+
+    for res in results_qs:
+        enriched_breakdown = []
+        for item in res.subject_breakdown:
+            sub_id = str(item.get("subject", ""))
+            sub_obj = subjects_map.get(sub_id)
+            credits = float(sub_obj.credits) if sub_obj and sub_obj.credits is not None else 1.0
+
+            grade_point = None
+            if has_gp and item.get("grade"):
+                for b in boundaries:
+                    if b.grade_label == item.get("grade"):
+                        grade_point = float(b.grade_point)
+                        break
+
+            enriched_breakdown.append({
+                **item,
+                "credits": credits,
+                "grade_point": grade_point,
+            })
+
+        exam_gpa = calculate_gpa(res.subject_breakdown, academic_year)
+        if exam_gpa is not None:
+            exam_gpas.append(exam_gpa)
+
+        total_obtained_sum += res.total_marks_obtained
+        total_max_sum += res.total_max_marks
+
+        examinations_data.append({
+            "id": str(res.id),
+            "examination": str(res.examination_id),
+            "examination_name": res.examination.name,
+            "exam_type": res.examination.exam_type.name if res.examination.exam_type else "",
+            "academic_year": res.academic_year,
+            "total_marks_obtained": float(res.total_marks_obtained),
+            "total_max_marks": float(res.total_max_marks),
+            "percentage": float(res.percentage),
+            "overall_grade": res.overall_grade,
+            "is_pass": res.is_pass,
+            "gpa": exam_gpa,
+            "subject_breakdown": enriched_breakdown,
+            "published_at": res.published_at.isoformat() if res.published_at else None,
+        })
+
+    overall_percentage = (
+        round(float(total_obtained_sum / total_max_sum) * 100, 2)
+        if total_max_sum > 0
+        else None
+    )
+    overall_grade = None
+    if overall_percentage is not None:
+        exact_pct = Decimal(str(overall_percentage))
+        for b in boundaries:
+            if b.min_percentage <= exact_pct <= b.max_percentage:
+                overall_grade = b.grade_label
+                break
+
+    overall_gpa = None
+    if has_gp and exam_gpas and len(exam_gpas) == len(examinations_data):
+        overall_gpa = round(sum(exam_gpas) / len(exam_gpas), 2)
+
+    all_passed = bool(examinations_data) and all(e["is_pass"] for e in examinations_data)
+
+    attendance = get_student_attendance_summary(student.id, academic_year)
+    promotion = get_student_promotion_summary(student.id, academic_year)
+    remarks = get_student_remarks(student.id, academic_year)
+    institution = get_institution_summary()
+
+    return {
+        "institution": institution,
+        "student": {
+            "id": str(student.id),
+            "full_name": f"{student.profile.first_name} {student.profile.last_name}",
+            "enrollment_id": student.enrollment_id,
+            "date_of_birth": student.profile.date_of_birth.isoformat() if student.profile.date_of_birth else None,
+            "gender": student.profile.gender or None,
+            "level": enrollment.level.name if enrollment and enrollment.level else None,
+            "section": enrollment.section.name if enrollment and enrollment.section else None,
+            "status": student.status,
+        },
+        "academic_year": academic_year,
+        "examinations": examinations_data,
+        "summary": {
+            "total_marks_obtained": float(total_obtained_sum),
+            "total_max_marks": float(total_max_sum),
+            "percentage": overall_percentage,
+            "overall_grade": overall_grade,
+            "gpa": overall_gpa,
+            "is_pass": all_passed,
+            "total_exams": len(examinations_data),
+        },
+        "attendance": attendance,
+        "promotion": promotion,
+        "remarks": remarks,
+        "generated_at": timezone.now().isoformat(),
+    }
+
+
+def build_student_transcript(student):
+    """
+    Builds the official multi-year Academic Transcript across all eligible
+    academic years where student has enrollments or published results.
+    Chronologically ordered from earliest to latest.
+    """
+    from django.utils import timezone
+    from .models import ExamResult
+
+    enrollment_years = list(student.enrollments.values_list("academic_year", flat=True))
+    result_years = list(ExamResult.objects.filter(student=student).values_list("academic_year", flat=True))
+    all_years = list(set(enrollment_years + result_years))
+    sorted_years = sort_academic_years(all_years)
+
+    years_data = []
+    total_obtained_all = Decimal("0")
+    total_max_all = Decimal("0")
+    total_credits_attempted = 0.0
+    total_credits_earned = 0.0
+    valid_year_gpas = []
+
+    for year in sorted_years:
+        report = build_student_report_card(student, academic_year=year)
+        summary = report["summary"]
+        examinations = report["examinations"]
+        enrollment_info = report["student"]
+        attendance = report["attendance"]
+        promotion = report["promotion"]
+
+        # Track credits
+        for exam in examinations:
+            for sub in exam.get("subject_breakdown", []):
+                cr = float(sub.get("credits", 1.0) or 1.0)
+                total_credits_attempted += cr
+                if sub.get("is_pass"):
+                    total_credits_earned += cr
+
+        total_obtained_all += Decimal(str(summary["total_marks_obtained"]))
+        total_max_all += Decimal(str(summary["total_max_marks"]))
+        if summary.get("gpa") is not None:
+            valid_year_gpas.append(summary["gpa"])
+
+        years_data.append({
+            "academic_year": year,
+            "level": enrollment_info.get("level"),
+            "section": enrollment_info.get("section"),
+            "examinations": examinations,
+            "summary": summary,
+            "attendance": attendance,
+            "promotion": promotion,
+        })
+
+    cumulative_percentage = (
+        round(float(total_obtained_all / total_max_all) * 100, 2)
+        if total_max_all > 0
+        else None
+    )
+
+    cgpa = (
+        round(sum(valid_year_gpas) / len(valid_year_gpas), 2)
+        if (valid_year_gpas and len(valid_year_gpas) == len(years_data))
+        else None
+    )
+
+    institution = get_institution_summary()
+
+    return {
+        "institution": institution,
+        "student": {
+            "id": str(student.id),
+            "full_name": f"{student.profile.first_name} {student.profile.last_name}",
+            "enrollment_id": student.enrollment_id,
+            "date_of_birth": student.profile.date_of_birth.isoformat() if student.profile.date_of_birth else None,
+            "gender": student.profile.gender or None,
+            "admission_date": student.admission_date.isoformat() if student.admission_date else None,
+            "status": student.status,
+        },
+        "years": years_data,
+        "cumulative_summary": {
+            "total_marks_obtained": float(total_obtained_all),
+            "total_max_marks": float(total_max_all),
+            "cumulative_percentage": cumulative_percentage,
+            "cgpa": cgpa,
+            "total_credits_attempted": round(total_credits_attempted, 1),
+            "total_credits_earned": round(total_credits_earned, 1),
+            "total_years": len(years_data),
+            "status": student.status,
+        },
+        "issuance": {
+            "issued_date": timezone.localdate().isoformat(),
+            "signatories": [
+                {"title": "Class Teacher"},
+                {"title": "Academic Coordinator"},
+                {"title": "Principal / Head of Institution"},
+            ],
+        },
+        "generated_at": timezone.now().isoformat(),
+    }
+

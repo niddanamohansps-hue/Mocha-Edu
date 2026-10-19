@@ -13,6 +13,7 @@ import Unauthorized from "@/components/Unauthorized";
 import { LoadingState } from "@/components/feedback/LoadingState";
 import { EmptyState } from "@/components/feedback/EmptyState";
 import { ErrorState } from "@/components/feedback/ErrorState";
+import { AttendanceHolidayAdvisory } from "@/components/dashboard/attendance/AttendanceHolidayAdvisory";
 
 const STATUS_OPTIONS: { value: AttendanceStatus; label: string }[] = [
     { value: "present", label: "Present" },
@@ -78,6 +79,9 @@ export default function StaffAttendancePage() {
                     </Button>
                 )}
             </div>
+
+            {/* Holiday & School Closure Advisory Banner */}
+            <AttendanceHolidayAdvisory date={date} />
 
             {isLoading ? (
                 <LoadingState className="py-20" />

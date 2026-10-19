@@ -19,9 +19,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import Unauthorized from "@/components/Unauthorized";
 import { StatusBadge } from "@/components/common/StatusBadge";
 
-function currentYear() {
-    return String(new Date().getFullYear());
-}
 
 export default function CollectPaymentPage() {
     const { can, isOwner } = usePermissions();
@@ -30,7 +27,7 @@ export default function CollectPaymentPage() {
     const canCollect = isOwner || can("collect_payments");
 
     const [studentId, setStudentId] = useState("");
-    const [academicYear] = useState(currentYear());
+    const [academicYear] = useState("");
 
     const { data: feesData, isLoading: loadingFees } = useStudentFees(studentId || undefined);
     const { data: payments } = useStudentPayments(studentId || undefined);

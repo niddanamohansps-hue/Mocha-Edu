@@ -72,7 +72,7 @@ export default function AdmissionWizard({ studentId }: AdmissionWizardProps) {
         resolver: zodResolver(enrollmentSchema) as any,
         defaultValues: {
             gender: 'male',
-            academic_year: new Date().getFullYear().toString(),
+            academic_year: "",
             parents: []
         },
         mode: "onBlur"

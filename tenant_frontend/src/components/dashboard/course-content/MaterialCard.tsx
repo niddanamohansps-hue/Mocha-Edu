@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -7,9 +8,11 @@ import {
     ExternalLink,
     Pin,
     Calendar,
-    User
+    User,
+    Loader2
 } from "lucide-react";
 import { contentTypeIcons, contentTypeColors } from "./constants";
+import { downloadCourseContentFile } from "@/hooks/useCourseContent";
 
 interface MaterialItem {
     id: string;
@@ -36,6 +39,7 @@ function formatFileSize(bytes: number | null) {
 }
 
 export function MaterialCard({ material }: MaterialCardProps) {
+    const [isDownloading, setIsDownloading] = useState(false);
     const Icon = contentTypeIcons[material.content_type] || FileText;
     const colorClass = contentTypeColors[material.content_type] || contentTypeColors.note;
 
@@ -83,10 +87,27 @@ export function MaterialCard({ material }: MaterialCardProps) {
                         size="sm"
                         variant="outline"
                         className="h-8 gap-2"
-                        onClick={() => window.open(material.file!, '_blank')}
+                        disabled={isDownloading}
+                        onClick={async () => {
+                            setIsDownloading(true);
+                            try {
+                                await downloadCourseContentFile(material.id, material.title);
+                            } finally {
+                                setIsDownloading(false);
+                            }
+                        }}
                     >
-                        <Download className="h-3 w-3" />
-                        Download
+                        {isDownloading ? (
+                            <>
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                                Downloading...
+                            </>
+                        ) : (
+                            <>
+                                <Download className="h-3 w-3" />
+                                Download
+                            </>
+                        )}
                     </Button>
                 ) : material.external_url ? (
                     <Button

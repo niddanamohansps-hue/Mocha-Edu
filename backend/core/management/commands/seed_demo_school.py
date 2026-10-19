@@ -306,10 +306,10 @@ class Command(BaseCommand):
             "view_examinations", "view_exam_reports",
             "view_dashboard",
         ])
-        grant("student", ["view_own_fees", "submit_assignment", "view_course_content"])
+        grant("student", ["view_own_fees", "pay_own_fees", "submit_assignment", "view_course_content"])
         grant("parent", [
             "view_own_children", "view_child_attendance", "view_child_timetable",
-            "view_child_results", "view_child_fees",
+            "view_child_results", "view_child_fees", "pay_child_fees",
         ])
         self.principal_role = grant(
             "principal", [

@@ -17,6 +17,7 @@ import Unauthorized from "@/components/Unauthorized";
 import { LoadingState } from "@/components/feedback/LoadingState";
 import { EmptyState } from "@/components/feedback/EmptyState";
 import { ErrorState } from "@/components/feedback/ErrorState";
+import { AttendanceHolidayAdvisory } from "@/components/dashboard/attendance/AttendanceHolidayAdvisory";
 
 const STATUS_OPTIONS: { value: AttendanceStatus; label: string }[] = [
     { value: "present", label: "Present" },
@@ -126,6 +127,9 @@ export default function MarkAttendancePage() {
                     </Button>
                 )}
             </div>
+
+            {/* Holiday & School Closure Advisory Banner */}
+            <AttendanceHolidayAdvisory date={date} />
 
             {!sectionId && (
                 <EmptyState title="Choose a section above to load its roster." className="py-16 text-slate-500 text-sm" />

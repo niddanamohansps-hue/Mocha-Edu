@@ -264,7 +264,7 @@ class StaffActivationSerializer(serializers.Serializer):
         from roles.models import Role
 
         # Block 'instructor' and 'owner' from this specific generic endpoint to prevent misuse
-        if value in ["instructor", "student"]:
+        if value in ["instructor", "student", "owner"]:
             raise serializers.ValidationError(
                 f"Invalid role selection: {value}. Use specific onboarding flows."
             )

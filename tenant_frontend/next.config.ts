@@ -1,5 +1,8 @@
 const nextConfig = {
   turbopack: {},
+  experimental: {
+    cpus: 1,
+  },
   webpack: (config: any) => {
     config.watchOptions = {
       poll: 1000,

@@ -9,6 +9,7 @@ from .views import (
     GradeBoundaryViewSet,
     StudentReportCardView,
     StudentResultsView,
+    StudentTranscriptView,
 )
 
 router = DefaultRouter()
@@ -25,6 +26,11 @@ urlpatterns = [
         "students/<uuid:student_id>/report-card/",
         StudentReportCardView.as_view(),
         name="student-report-card",
+    ),
+    path(
+        "students/<uuid:student_id>/transcript/",
+        StudentTranscriptView.as_view(),
+        name="student-transcript",
     ),
     path("reports/below-passing/", BelowPassingReportView.as_view(), name="below-passing-report"),
     path("", include(router.urls)),

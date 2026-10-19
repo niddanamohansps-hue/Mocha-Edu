@@ -6,6 +6,8 @@ from .views import (
     SectionViewSet,
     SubjectViewSet,
     SubjectAssignmentViewSet,
+    AcademicYearViewSet,
+    CalendarEventViewSet,
 )
 
 router = DefaultRouter()
@@ -14,6 +16,8 @@ router.register(r"levels", AcademicLevelViewSet)
 router.register(r"sections", SectionViewSet)
 router.register(r"subjects", SubjectViewSet)
 router.register(r"assignments", SubjectAssignmentViewSet, basename="assignment")
+router.register(r"academic-years", AcademicYearViewSet, basename="academic-year")
+router.register(r"calendar-events", CalendarEventViewSet, basename="calendar-event")
 
 urlpatterns = [
     path("", include(router.urls)),

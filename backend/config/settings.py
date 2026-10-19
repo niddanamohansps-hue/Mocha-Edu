@@ -5,6 +5,8 @@ from django.core.exceptions import ImproperlyConfigured
 import os
 import sys
 
+from config.db_identity import build_application_name
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Load secret key and debug
@@ -28,6 +30,32 @@ if not DEBUG and not FIELD_ENCRYPTION_KEY and not _RUNNING_TESTS:
         "python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\" "
         "and set it in the environment - see .env.example."
     )
+
+# Certificate integrity keys (certificates/services.py). A sealed certificate
+# records the id of the key that sealed it, so keys can be rotated without
+# invalidating issued certificates. Format: "id:secret,id:secret" (ids are
+# short labels such as 1, 2; secrets are long random strings). Keep retired
+# keys listed until no certificate still references them. Independent of
+# SECRET_KEY on purpose. Required whenever DEBUG=False (the app refuses to
+# start without it, like FIELD_ENCRYPTION_KEY); in local development a clearly
+# labelled "dev" key derived from SECRET_KEY is used so nothing needs setup.
+CERTIFICATE_INTEGRITY_KEYS = config("CERTIFICATE_INTEGRITY_KEYS", default="")
+CERTIFICATE_INTEGRITY_ACTIVE_KEY = config("CERTIFICATE_INTEGRITY_ACTIVE_KEY", default="")
+if not DEBUG and not _RUNNING_TESTS:
+    if not CERTIFICATE_INTEGRITY_KEYS or not CERTIFICATE_INTEGRITY_ACTIVE_KEY:
+        raise ImproperlyConfigured(
+            "CERTIFICATE_INTEGRITY_KEYS and CERTIFICATE_INTEGRITY_ACTIVE_KEY must be set when DEBUG=False "
+            "(see .env.example)."
+        )
+# Certificates sealed before key versioning carry an unversioned digest made
+# with SECRET_KEY. They stay verifiable while this is True; set it to False
+# once they have been re-sealed or retired. Old, unversioned digests are never
+# accepted for NEW seals either way.
+CERTIFICATE_ACCEPT_LEGACY_SEALS = config("CERTIFICATE_ACCEPT_LEGACY_SEALS", default=True, cast=bool)
+# ID cards printed before opaque tokens carry a signed token that embeds the
+# record UUID and schema name. They keep verifying while this is True; new
+# cards never use that format. Retire it once old cards are reprinted.
+ID_CARD_ACCEPT_LEGACY_TOKENS = config("ID_CARD_ACCEPT_LEGACY_TOKENS", default=True, cast=bool)
 
 # JWT cookie security: forces the `Secure` flag on JWT cookies. Defaults to
 # True whenever DEBUG=False so production is secure by default, while local
@@ -74,6 +102,8 @@ TENANT_APPS = (
     "parent_portal",
     "fees",
     "notifications",
+    "announcements",
+    "certificates",
     "dashboard",
 )
 
@@ -97,6 +127,7 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = "config.urls"
+PUBLIC_SCHEMA_URLCONF = "config.public_urls"
 
 TEMPLATES = [
     {
@@ -114,6 +145,21 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = "config.wsgi.application"
+
+# Environment identity (migration safety, Stage 2). Both are optional and only
+# drive a startup warning (core/checks.py) and the database application_name;
+# nothing is blocked. EDUSEKAI_ENV is a free label such as "development".
+# EDUSEKAI_EXPECTED_DATABASE is "name@host:port" and is compared literally with
+# DB_NAME / DB_HOST / DB_PORT (see config/db_identity.py).
+EDUSEKAI_ENV = config("EDUSEKAI_ENV", default="")
+EDUSEKAI_EXPECTED_DATABASE = config("EDUSEKAI_EXPECTED_DATABASE", default="")
+
+# Test-only exception for config/db_guard.py: lets the identity guard accept the Django
+# test database "test_<expected name>" (same host and port). Deliberately NOT read from
+# the environment or .env, so no deployment setting can turn it on. It is True only when
+# this process was started as `manage.py test` (argv based), and config/db_guard.py also
+# requires Django's test environment to be active before it honours it.
+EDUSEKAI_ALLOW_DERIVED_TEST_DB = _RUNNING_TESTS
 
 # Database
 DATABASES = {
@@ -134,6 +180,9 @@ DATABASES = {
         "PORT": config(
             "DB_PORT",
         ),
+        # Shown in pg_stat_activity and (with %a in log_line_prefix) in the
+        # PostgreSQL log, so a session can be traced to this project.
+        "OPTIONS": {"application_name": build_application_name(EDUSEKAI_ENV)},
     }
 }
 
@@ -164,7 +213,6 @@ AUTH_USER_MODEL = "accounts.User"
 
 AUTHENTICATION_BACKENDS = [
     "accounts.backends.TenantUsernameBackend",
-    "django.contrib.auth.backends.ModelBackend",
 ]
 
 # DRF
@@ -173,6 +221,10 @@ REST_FRAMEWORK = {
         "accounts.authentication.JWTCookieAuthentication",
     ),
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    # Strict fallback for any view that forgets to declare its own permissions: the caller must be
+    # authenticated and belong to the current tenant. Public endpoints (signup, login, refresh,
+    # public admissions, payment return URLs, ...) all declare AllowAny explicitly.
+    "DEFAULT_PERMISSION_CLASSES": ("accounts.tenant_access.IsTenantMember",),
     # Scoped rates for the narrow set of authentication-sensitive endpoints
     # that explicitly opt in via `throttle_classes`/`throttle_scope`. No
     # DEFAULT_THROTTLE_CLASSES is set, so normal authenticated API traffic
@@ -184,6 +236,13 @@ REST_FRAMEWORK = {
         "register_organization": "3/hour",
         "forgot_password": "5/hour",
         "reset_password": "10/min",
+        "public_admissions_apply": "15/hour",
+        "public_admissions_enquiry": "15/hour",
+        "public_admissions_status": "60/min",
+        "public_admissions_upload": "30/hour",
+        "public_admissions_info": "60/min",
+        "public_admissions_rotate": "10/hour",
+        "public_certificate_verify": "60/min",
     },
 }
 
@@ -201,6 +260,13 @@ REST_FRAMEWORK = {
 # genuinely proven, not just assumed.
 if len(sys.argv) > 1 and sys.argv[1] == "test":
     REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["login"] = "1000/min"
+    REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["public_admissions_apply"] = "1000/min"
+    REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["public_admissions_enquiry"] = "1000/min"
+    REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["public_admissions_status"] = "1000/min"
+    REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["public_admissions_upload"] = "1000/min"
+    REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["public_admissions_info"] = "1000/min"
+    REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["public_admissions_rotate"] = "1000/min"
+    REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["public_certificate_verify"] = "1000/min"
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "EduSekai API",
@@ -279,6 +345,36 @@ CELERY_TASK_TIME_LIMIT = 30
 CELERY_TASK_ALWAYS_EAGER = len(sys.argv) > 1 and sys.argv[1] == "test"
 CELERY_TASK_EAGER_PROPAGATES = True
 
+# Shared Redis Cache Configuration
+# In production and staging, multi-worker setups (Gunicorn/Uvicorn) share DRF throttling
+# counters and cached states via Redis DB 4 (isolated from Celery DB 3).
+# During automated test runs (`manage.py test`), LocMemCache is used so test isolation
+# is maintained without requiring an external running Redis instance.
+REDIS_CACHE_URL = config("REDIS_CACHE_URL", default=config("CACHE_URL", default="redis://localhost:6379/4"))
+
+if _RUNNING_TESTS:
+    # Django's test runner forces DEBUG=False, so the local-dev "dev" integrity
+    # key would not apply; give the test run explicit, obviously fake keys
+    # (only if none were supplied). Never used outside `manage.py test`.
+    if not CERTIFICATE_INTEGRITY_KEYS:
+        CERTIFICATE_INTEGRITY_KEYS = "1:test-only-integrity-key-not-a-secret"
+        CERTIFICATE_INTEGRITY_ACTIVE_KEY = "1"
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "edusekai-test-cache",
+        }
+    }
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": REDIS_CACHE_URL,
+            "KEY_PREFIX": "edusekai",
+            "TIMEOUT": 300,
+        }
+    }
+
 # Beat schedule: periodic tasks only, no per-run business logic lives here.
 # recover_stale_outbox_events (notifications/tasks.py) re-dispatches any
 # EmailOutboxEvent stuck in PENDING/RETRYING for longer than that module's
@@ -304,6 +400,17 @@ CELERY_BEAT_SCHEDULE = {
         "task": "notifications.tasks.recover_stale_outbox_events",
         "schedule": timedelta(minutes=10),
     },
+    # Publishes due scheduled announcements; an announcement goes out at most
+    # this long after its scheduled time. Safe to overlap (row-locked publish).
+    "publish-due-announcements": {
+        "task": "announcements.tasks.publish_due_announcements",
+        "schedule": timedelta(minutes=5),
+    },
+    # Reconciles pending online payment orders across active tenant schemas.
+    "reconcile-pending-online-payments": {
+        "task": "fees.tasks.reconcile_pending_online_payments",
+        "schedule": timedelta(minutes=5),
+    },
 }
 
 # CORS
@@ -316,12 +423,97 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
 ]
 CORS_ALLOW_CREDENTIALS = True
 
-# eSewa Payment Gateway
+# =====================================================================
+# Production TLS & Security Headers (Gate 3 Remediations)
+# =====================================================================
+
+# HTTPS enforcement: redirects all HTTP traffic to HTTPS in staging/production.
+# Disabled in local development (DEBUG=True) and during test runs.
+SECURE_SSL_REDIRECT = config(
+    "SECURE_SSL_REDIRECT", default=False if (DEBUG or _RUNNING_TESTS) else True, cast=bool
+)
+
+# Trusted reverse-proxy HTTPS protocol header.
+# Enabled only when explicitly behind a reverse proxy terminating SSL.
+# Fails closed (disabled) in local/test to prevent trusting spoofed headers.
+USE_SECURE_PROXY_SSL_HEADER = config(
+    "USE_SECURE_PROXY_SSL_HEADER", default=not DEBUG and not _RUNNING_TESTS, cast=bool
+)
+if USE_SECURE_PROXY_SSL_HEADER:
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+else:
+    SECURE_PROXY_SSL_HEADER = None
+
+# Session & CSRF cookie security
+SESSION_COOKIE_SECURE = config(
+    "SESSION_COOKIE_SECURE", default=not DEBUG and not _RUNNING_TESTS, cast=bool
+)
+CSRF_COOKIE_SECURE = config(
+    "CSRF_COOKIE_SECURE", default=not DEBUG and not _RUNNING_TESTS, cast=bool
+)
+SESSION_COOKIE_HTTPONLY = True
+CSRF_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SAMESITE = "Lax"
+
+# HTTP Strict Transport Security (HSTS)
+# In accordance with pre-production security policy, HSTS defaults to 0 (disabled)
+# until HTTPS is confirmed operational in production to prevent lockout.
+SECURE_HSTS_SECONDS = config("SECURE_HSTS_SECONDS", default=0, cast=int)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = config(
+    "SECURE_HSTS_INCLUDE_SUBDOMAINS", default=False, cast=bool
+)
+SECURE_HSTS_PRELOAD = config("SECURE_HSTS_PRELOAD", default=False, cast=bool)
+
+# Content Security & Frame Protection
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_BROWSER_XSS_FILTER = True
+X_FRAME_OPTIONS = config("X_FRAME_OPTIONS", default="DENY")
+SECURE_REFERRER_POLICY = config("SECURE_REFERRER_POLICY", default="same-origin")
+
+# CSRF Trusted Origins
+_csrf_raw = config("CSRF_TRUSTED_ORIGINS", default="", cast=Csv())
+CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in _csrf_raw if origin.strip()]
+if not CSRF_TRUSTED_ORIGINS and DEBUG:
+    CSRF_TRUSTED_ORIGINS = [
+        "http://localhost:3000",
+        "http://localhost:3555",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3555",
+    ]
+
+# =====================================================================
+# Private Media Delivery (BLK-01)
+# =====================================================================
+USE_X_ACCEL_REDIRECT = config("USE_X_ACCEL_REDIRECT", default=False, cast=bool)
+X_ACCEL_PREFIX = config("X_ACCEL_PREFIX", default="/protected_media/")
+
+# =====================================================================
+# Antivirus Scanning (BLK-04)
+# =====================================================================
+CLAMAV_ENABLED = config("CLAMAV_ENABLED", default=False if (DEBUG or _RUNNING_TESTS) else True, cast=bool)
+CLAMAV_HOST = config("CLAMAV_HOST", default="localhost")
+CLAMAV_PORT = config("CLAMAV_PORT", default=3310, cast=int)
+CLAMAV_TIMEOUT_SECONDS = config("CLAMAV_TIMEOUT_SECONDS", default=10, cast=int)
+CLAMAV_FAIL_CLOSED = config("CLAMAV_FAIL_CLOSED", default=True, cast=bool)
+
+
+# eSewa Payment Gateway. ESEWA_CLIENT_SECRET has no default: payments.utils
+# refuses to sign or verify without it, so an unset value must stay None.
 ESEWA_CLIENT_ID = config("ESEWA_CLIENT_ID", default="")
-ESEWA_CLIENT_SECRET = config("ESEWA_CLIENT_SECRET", default="")
+ESEWA_CLIENT_SECRET = config("ESEWA_CLIENT_SECRET", default=None)
 ESEWA_PRODUCT_CODE = config("ESEWA_PRODUCT_CODE", default="EPAYTEST")
+# Signup payment amount in NPR (plain decimal, max 2 places). Validated by
+# payments.utils.get_signup_payment_amount(); an invalid value fails closed.
+ESEWA_SIGNUP_PAYMENT_AMOUNT = config("ESEWA_SIGNUP_PAYMENT_AMOUNT", default="500")
 ESEWA_URL = config(
     "ESEWA_URL", default="https://rc-epay.esewa.com.np/api/epay/main/v2/form"
+)
+ESEWA_STATUS_URL = config(
+    "ESEWA_STATUS_URL", default="https://rc.esewa.com.np/api/epay/transaction/status/"
+)
+FEES_ALLOW_GLOBAL_GATEWAY_FALLBACK = config(
+    "FEES_ALLOW_GLOBAL_GATEWAY_FALLBACK", default=True, cast=bool
 )
 
 # Jazzmin Settings

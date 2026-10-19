@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axiosInstance from "@/lib/axios";
 import { toast } from "sonner";
-import { Program, AcademicLevel, Section, Subject, SubjectAssignment } from "../types/Academics";
+import { Program, AcademicLevel, Section, Subject, SubjectAssignment, AcademicYear } from "../types/Academics";
 
 // === PROGRAMS ===
 
@@ -319,3 +319,115 @@ export const useDeleteAssignment = () => {
         }
     });
 };
+
+// === ACADEMIC YEARS ===
+
+export const useAcademicYears = () => {
+    return useQuery({
+        queryKey: ["academic-years"],
+        queryFn: async () => {
+            const response = await axiosInstance.get("/academics/academic-years/?page_size=100");
+            const data = response.data;
+            if (Array.isArray(data)) {
+                return data as AcademicYear[];
+            }
+            if (data && Array.isArray(data.results)) {
+                return data.results as AcademicYear[];
+            }
+            return [] as AcademicYear[];
+        },
+        staleTime: 5 * 60 * 1000, // 5 minutes
+    });
+};
+
+export const useCreateAcademicYear = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (data: { name: string; start_date: string; end_date: string }) => {
+            const response = await axiosInstance.post("/academics/academic-years/", data);
+            return response.data as AcademicYear;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["academic-years"] });
+            toast.success("Academic year created successfully");
+        },
+        onError: (error: any) => {
+            const errorMsg =
+                error.response?.data?.name?.[0] ||
+                error.response?.data?.start_date?.[0] ||
+                error.response?.data?.end_date?.[0] ||
+                error.response?.data?.non_field_errors?.[0] ||
+                error.response?.data?.message ||
+                "Failed to create academic year";
+            toast.error(errorMsg);
+        },
+    });
+};
+
+export const useUpdateAcademicYear = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async ({ id, data }: { id: string; data: Partial<{ name: string; start_date: string; end_date: string }> }) => {
+            const response = await axiosInstance.patch(`/academics/academic-years/${id}/`, data);
+            return response.data as AcademicYear;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["academic-years"] });
+            toast.success("Academic year updated successfully");
+        },
+        onError: (error: any) => {
+            const errorMsg =
+                error.response?.data?.name?.[0] ||
+                error.response?.data?.start_date?.[0] ||
+                error.response?.data?.end_date?.[0] ||
+                error.response?.data?.non_field_errors?.[0] ||
+                error.response?.data?.message ||
+                "Failed to update academic year";
+            toast.error(errorMsg);
+        },
+    });
+};
+
+export const useDeleteAcademicYear = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (id: string) => {
+            await axiosInstance.delete(`/academics/academic-years/${id}/`);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["academic-years"] });
+            toast.success("Academic year deleted successfully");
+        },
+        onError: (error: any) => {
+            const errorMsg =
+                error.response?.data?.non_field_errors?.[0] ||
+                error.response?.data?.detail ||
+                error.response?.data?.message ||
+                "Failed to delete academic year";
+            toast.error(errorMsg);
+        },
+    });
+};
+
+export const useSetCurrentAcademicYear = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (id: string) => {
+            const response = await axiosInstance.post(`/academics/academic-years/${id}/set-current/`);
+            return response.data as AcademicYear;
+        },
+        onSuccess: (data) => {
+            queryClient.invalidateQueries({ queryKey: ["academic-years"] });
+            toast.success(`Academic year ${data.name} is now current`);
+        },
+        onError: (error: any) => {
+            const errorMsg =
+                error.response?.data?.non_field_errors?.[0] ||
+                error.response?.data?.detail ||
+                error.response?.data?.message ||
+                "Failed to set current academic year";
+            toast.error(errorMsg);
+        },
+    });
+};
+

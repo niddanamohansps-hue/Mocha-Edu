@@ -41,6 +41,18 @@ class StaffMemberViewSet(viewsets.ModelViewSet):
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
+        # Optional bounded server-side narrowing (used by pickers).
+        from django.db.models import Q
+
+        for term in (request.query_params.get("search") or "").split()[:5]:
+            queryset = queryset.filter(
+                Q(profile__first_name__icontains=term)
+                | Q(profile__last_name__icontains=term)
+                | Q(employee_id__icontains=term)
+            )
+        active = request.query_params.get("is_active")
+        if active in ("true", "false"):
+            queryset = queryset.filter(is_active=(active == "true"))
 
         page = self.paginate_queryset(queryset)
         if page is not None:

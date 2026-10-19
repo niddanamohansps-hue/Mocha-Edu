@@ -1,0 +1,568 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import axiosInstance from "@/lib/axios";
+import { toast } from "sonner";
+import { useMe } from "@/hooks/useAuth";
+import {
+    AdmissionEnquiry,
+    AdmissionApplication,
+    AdmissionDocument,
+    AdmissionInterview,
+    AdmissionsDashboardStats,
+    ApplicationStatus,
+    EnquiryStatus,
+    PublicAdmissionsInfo,
+    PublicEnquiryPayload,
+    PublicApplicationPayload,
+    PublicApplicationSubmissionResult,
+    PublicApplicationStatus,
+} from "@/types/Admissions";
+
+export function admissionsErrorMessage(error: unknown, fallback: string): string {
+    const data = (error as { response?: { data?: Record<string, unknown> } })?.response?.data;
+    if (!data || typeof data !== "object") return fallback;
+    if (typeof (data as any).error === "string") return (data as any).error;
+    if (typeof (data as any).detail === "string") return (data as any).detail;
+    for (const key of Object.keys(data)) {
+        const value = data[key];
+        const text = Array.isArray(value) ? value[0] : value;
+        if (typeof text === "string") return key === "non_field_errors" ? text : `${key.replace(/_/g, " ")}: ${text}`;
+    }
+    return fallback;
+}
+
+const ADMISSIONS_KEY = "admissions";
+
+export interface EnquiryFilters {
+    status?: EnquiryStatus | "";
+    academic_year?: string;
+    level?: string;
+    search?: string;
+}
+
+export interface ApplicationFilters {
+    status?: ApplicationStatus | "";
+    academic_year?: string;
+    level?: string;
+    reviewer?: string;
+    search?: string;
+}
+
+export const useAdmissionsDashboard = () => {
+    const { data: user } = useMe();
+    return useQuery({
+        queryKey: [ADMISSIONS_KEY, "dashboard", user?.id],
+        queryFn: async () => {
+            const res = await axiosInstance.get("/admissions/dashboard/");
+            return res.data as AdmissionsDashboardStats;
+        },
+        enabled: !!user,
+    });
+};
+
+export const useEnquiries = (filters?: EnquiryFilters) => {
+    const { data: user } = useMe();
+    return useQuery({
+        queryKey: [ADMISSIONS_KEY, "enquiries", user?.id, filters],
+        queryFn: async () => {
+            const params: Record<string, string> = {};
+            if (filters?.status) params.status = filters.status;
+            if (filters?.academic_year) params.academic_year = filters.academic_year;
+            if (filters?.level) params.level = filters.level;
+            if (filters?.search) params.search = filters.search;
+
+            const res = await axiosInstance.get("/admissions/enquiries/", { params });
+            const data = res.data;
+            if (Array.isArray(data)) return data as AdmissionEnquiry[];
+            if (data && Array.isArray(data.results)) return data.results as AdmissionEnquiry[];
+            return [] as AdmissionEnquiry[];
+        },
+        enabled: !!user,
+    });
+};
+
+export const useEnquiry = (id?: string) => {
+    return useQuery({
+        queryKey: [ADMISSIONS_KEY, "enquiry", id],
+        queryFn: async () => {
+            const res = await axiosInstance.get(`/admissions/enquiries/${id}/`);
+            return res.data as AdmissionEnquiry;
+        },
+        enabled: !!id,
+    });
+};
+
+export const useCreateEnquiry = () => {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (payload: Partial<AdmissionEnquiry>) => {
+            const res = await axiosInstance.post("/admissions/enquiries/", payload);
+            return res.data as AdmissionEnquiry;
+        },
+        onSuccess: (data) => {
+            toast.success(`Enquiry ${data.enquiry_number} created successfully`);
+            qc.invalidateQueries({ queryKey: [ADMISSIONS_KEY] });
+        },
+        onError: (err) => {
+            toast.error(admissionsErrorMessage(err, "Failed to create enquiry"));
+        },
+    });
+};
+
+export const useUpdateEnquiry = () => {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async ({ id, data }: { id: string; data: Partial<AdmissionEnquiry> }) => {
+            const res = await axiosInstance.patch(`/admissions/enquiries/${id}/`, data);
+            return res.data as AdmissionEnquiry;
+        },
+        onSuccess: () => {
+            toast.success("Enquiry updated successfully");
+            qc.invalidateQueries({ queryKey: [ADMISSIONS_KEY] });
+        },
+        onError: (err) => {
+            toast.error(admissionsErrorMessage(err, "Failed to update enquiry"));
+        },
+    });
+};
+
+export const useDeleteEnquiry = () => {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (id: string) => {
+            await axiosInstance.delete(`/admissions/enquiries/${id}/`);
+        },
+        onSuccess: () => {
+            toast.success("Enquiry deleted successfully");
+            qc.invalidateQueries({ queryKey: [ADMISSIONS_KEY] });
+        },
+        onError: (err) => {
+            toast.error(admissionsErrorMessage(err, "Failed to delete enquiry"));
+        },
+    });
+};
+
+export const useConvertEnquiry = () => {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (id: string) => {
+            const res = await axiosInstance.post(`/admissions/enquiries/${id}/convert/`);
+            return res.data as AdmissionApplication;
+        },
+        onSuccess: (data) => {
+            toast.success(`Enquiry converted to application ${data.application_number}`);
+            qc.invalidateQueries({ queryKey: [ADMISSIONS_KEY] });
+        },
+        onError: (err) => {
+            toast.error(admissionsErrorMessage(err, "Failed to convert enquiry"));
+        },
+    });
+};
+
+export const useApplications = (filters?: ApplicationFilters) => {
+    const { data: user } = useMe();
+    return useQuery({
+        queryKey: [ADMISSIONS_KEY, "applications", user?.id, filters],
+        queryFn: async () => {
+            const params: Record<string, string> = {};
+            if (filters?.status) params.status = filters.status;
+            if (filters?.academic_year) params.academic_year = filters.academic_year;
+            if (filters?.level) params.level = filters.level;
+            if (filters?.reviewer) params.reviewer = filters.reviewer;
+            if (filters?.search) params.search = filters.search;
+
+            const res = await axiosInstance.get("/admissions/applications/", { params });
+            const data = res.data;
+            if (Array.isArray(data)) return data as AdmissionApplication[];
+            if (data && Array.isArray(data.results)) return data.results as AdmissionApplication[];
+            return [] as AdmissionApplication[];
+        },
+        enabled: !!user,
+    });
+};
+
+export const useApplication = (id?: string) => {
+    return useQuery({
+        queryKey: [ADMISSIONS_KEY, "application", id],
+        queryFn: async () => {
+            const res = await axiosInstance.get(`/admissions/applications/${id}/`);
+            return res.data as AdmissionApplication;
+        },
+        enabled: !!id,
+    });
+};
+
+export const useCreateApplication = () => {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (payload: Partial<AdmissionApplication>) => {
+            const res = await axiosInstance.post("/admissions/applications/", payload);
+            return res.data as AdmissionApplication;
+        },
+        onSuccess: (data) => {
+            toast.success(`Application ${data.application_number} submitted`);
+            qc.invalidateQueries({ queryKey: [ADMISSIONS_KEY] });
+        },
+        onError: (err) => {
+            toast.error(admissionsErrorMessage(err, "Failed to create application"));
+        },
+    });
+};
+
+export const useUpdateApplication = () => {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async ({ id, data }: { id: string; data: Partial<AdmissionApplication> }) => {
+            const res = await axiosInstance.patch(`/admissions/applications/${id}/`, data);
+            return res.data as AdmissionApplication;
+        },
+        onSuccess: () => {
+            toast.success("Application updated successfully");
+            qc.invalidateQueries({ queryKey: [ADMISSIONS_KEY] });
+        },
+        onError: (err) => {
+            toast.error(admissionsErrorMessage(err, "Failed to update application"));
+        },
+    });
+};
+
+export const useTransitionApplicationStatus = () => {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async ({
+            id,
+            status,
+            notes,
+            reason,
+        }: {
+            id: string;
+            status: ApplicationStatus;
+            notes?: string;
+            reason?: string;
+        }) => {
+            const res = await axiosInstance.post(`/admissions/applications/${id}/status/`, {
+                status,
+                notes,
+                reason,
+            });
+            return res.data as AdmissionApplication;
+        },
+        onSuccess: (data) => {
+            toast.success(`Application status transitioned to ${data.status.replace(/_/g, " ")}`);
+            qc.invalidateQueries({ queryKey: [ADMISSIONS_KEY] });
+        },
+        onError: (err) => {
+            toast.error(admissionsErrorMessage(err, "Status transition failed"));
+        },
+    });
+};
+
+export const useAssignReviewer = () => {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async ({ id, staff_id }: { id: string; staff_id: string | null }) => {
+            const res = await axiosInstance.post(`/admissions/applications/${id}/assign/`, {
+                staff_id,
+            });
+            return res.data as AdmissionApplication;
+        },
+        onSuccess: () => {
+            toast.success("Reviewer assigned successfully");
+            qc.invalidateQueries({ queryKey: [ADMISSIONS_KEY] });
+        },
+        onError: (err) => {
+            toast.error(admissionsErrorMessage(err, "Failed to assign reviewer"));
+        },
+    });
+};
+
+export const useMakeAdmissionDecision = () => {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async ({
+            id,
+            decision,
+            reason,
+            notes,
+        }: {
+            id: string;
+            decision: "approved" | "rejected" | "waitlisted";
+            reason?: string;
+            notes?: string;
+        }) => {
+            const res = await axiosInstance.post(`/admissions/applications/${id}/decide/`, {
+                decision,
+                reason,
+                notes,
+            });
+            return res.data as AdmissionApplication;
+        },
+        onSuccess: (data) => {
+            toast.success(`Decision recorded: ${data.status.toUpperCase()}`);
+            qc.invalidateQueries({ queryKey: [ADMISSIONS_KEY] });
+        },
+        onError: (err) => {
+            toast.error(admissionsErrorMessage(err, "Failed to record decision"));
+        },
+    });
+};
+
+export const useEnrollApplication = () => {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async ({ id, section_id }: { id: string; section_id?: string | null }) => {
+            const res = await axiosInstance.post(`/admissions/applications/${id}/enroll/`, {
+                section_id,
+            });
+            return res.data as {
+                message: string;
+                student_id: string;
+                enrollment_id: string;
+                application: AdmissionApplication;
+            };
+        },
+        onSuccess: (data) => {
+            toast.success(`Student enrolled successfully! ID: ${data.enrollment_id}`);
+            qc.invalidateQueries({ queryKey: [ADMISSIONS_KEY] });
+            qc.invalidateQueries({ queryKey: ["students"] });
+        },
+        onError: (err) => {
+            toast.error(admissionsErrorMessage(err, "Enrollment conversion failed"));
+        },
+    });
+};
+
+export const useUploadAdmissionDocument = () => {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async ({ id, formData }: { id: string; formData: FormData }) => {
+            const res = await axiosInstance.post(`/admissions/applications/${id}/documents/`, formData, {
+                headers: { "Content-Type": "multipart/form-data" },
+            });
+            return res.data as AdmissionDocument;
+        },
+        onSuccess: () => {
+            toast.success("Document uploaded successfully");
+            qc.invalidateQueries({ queryKey: [ADMISSIONS_KEY] });
+        },
+        onError: (err) => {
+            toast.error(admissionsErrorMessage(err, "Document upload failed"));
+        },
+    });
+};
+
+export const useVerifyAdmissionDocument = () => {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (documentId: string) => {
+            const res = await axiosInstance.post(`/admissions/documents/${documentId}/verify/`);
+            return res.data as AdmissionDocument;
+        },
+        onSuccess: () => {
+            toast.success("Document marked as verified");
+            qc.invalidateQueries({ queryKey: [ADMISSIONS_KEY] });
+        },
+        onError: (err) => {
+            toast.error(admissionsErrorMessage(err, "Failed to verify document"));
+        },
+    });
+};
+
+export const useRejectAdmissionDocument = () => {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async ({ documentId, reason }: { documentId: string; reason: string }) => {
+            const res = await axiosInstance.post(`/admissions/documents/${documentId}/reject/`, {
+                reason,
+            });
+            return res.data as AdmissionDocument;
+        },
+        onSuccess: () => {
+            toast.success("Document rejected with recorded reason");
+            qc.invalidateQueries({ queryKey: [ADMISSIONS_KEY] });
+        },
+        onError: (err) => {
+            toast.error(admissionsErrorMessage(err, "Failed to reject document"));
+        },
+    });
+};
+
+export const useScheduleInterview = () => {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async ({ id, data }: { id: string; data: Partial<AdmissionInterview> }) => {
+            const res = await axiosInstance.post(`/admissions/applications/${id}/interviews/`, data);
+            return res.data as AdmissionInterview;
+        },
+        onSuccess: () => {
+            toast.success("Interview scheduled successfully");
+            qc.invalidateQueries({ queryKey: [ADMISSIONS_KEY] });
+        },
+        onError: (err) => {
+            toast.error(admissionsErrorMessage(err, "Failed to schedule interview"));
+        },
+    });
+};
+
+export const useUpdateInterview = () => {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async ({ interviewId, data }: { interviewId: string; data: Partial<AdmissionInterview> }) => {
+            const res = await axiosInstance.patch(`/admissions/interviews/${interviewId}/`, data);
+            return res.data as AdmissionInterview;
+        },
+        onSuccess: () => {
+            toast.success("Interview assessment recorded");
+            qc.invalidateQueries({ queryKey: [ADMISSIONS_KEY] });
+        },
+        onError: (err) => {
+            toast.error(admissionsErrorMessage(err, "Failed to update interview"));
+        },
+    });
+};
+
+// =====================================================================
+// Public Admissions Self-Service Hooks (No Staff Login Required)
+// =====================================================================
+
+export const usePublicAdmissionsInfo = () => {
+    return useQuery({
+        queryKey: [ADMISSIONS_KEY, "public", "info"],
+        queryFn: async () => {
+            const res = await axiosInstance.get("/admissions/public/info/");
+            return res.data as PublicAdmissionsInfo;
+        },
+        staleTime: 5 * 60 * 1000,
+    });
+};
+
+export const useSubmitPublicEnquiry = () => {
+    return useMutation({
+        mutationFn: async (payload: PublicEnquiryPayload) => {
+            const res = await axiosInstance.post("/admissions/public/enquiries/", payload);
+            return res.data as { success: boolean; enquiry_number: string; message: string };
+        },
+        onSuccess: (data) => {
+            toast.success(data.message || "Enquiry submitted successfully");
+        },
+        onError: (err) => {
+            toast.error(admissionsErrorMessage(err, "Failed to submit enquiry"));
+        },
+    });
+};
+
+export const useSubmitPublicApplication = () => {
+    return useMutation({
+        mutationFn: async (payload: PublicApplicationPayload) => {
+            const res = await axiosInstance.post("/admissions/public/applications/", payload);
+            return res.data as PublicApplicationSubmissionResult;
+        },
+        onSuccess: (data) => {
+            toast.success(data.message || `Application ${data.application_number} submitted successfully!`);
+        },
+        onError: (err) => {
+            toast.error(admissionsErrorMessage(err, "Failed to submit application"));
+        },
+    });
+};
+
+export const usePublicApplicationStatus = (
+    applicationNumber?: string,
+    token?: string
+) => {
+    return useQuery({
+        queryKey: [ADMISSIONS_KEY, "public", "status", applicationNumber, token],
+        queryFn: async () => {
+            if (!applicationNumber || !token) {
+                throw new Error("Application number and access token are required.");
+            }
+            const res = await axiosInstance.get(
+                `/admissions/public/applications/${encodeURIComponent(applicationNumber.trim())}/status/`,
+                {
+                    headers: {
+                        "X-Application-Token": token.trim(),
+                    },
+                }
+            );
+            return res.data as PublicApplicationStatus;
+        },
+        enabled: Boolean(applicationNumber?.trim() && token?.trim()),
+        retry: false,
+    });
+};
+
+export const useUploadPublicDocument = () => {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async ({
+            applicationNumber,
+            token,
+            formData,
+        }: {
+            applicationNumber: string;
+            token: string;
+            formData: FormData;
+        }) => {
+            const res = await axiosInstance.post(
+                `/admissions/public/applications/${encodeURIComponent(applicationNumber.trim())}/documents/`,
+                formData,
+                {
+                    headers: {
+                        "X-Application-Token": token.trim(),
+                        "Content-Type": "multipart/form-data",
+                    },
+                }
+            );
+            return res.data as { success: boolean; message: string };
+        },
+        onSuccess: (data, variables) => {
+            toast.success(data.message || "Document uploaded successfully!");
+            qc.invalidateQueries({
+                queryKey: [ADMISSIONS_KEY, "public", "status", variables.applicationNumber, variables.token],
+            });
+        },
+        onError: (err) => {
+            toast.error(admissionsErrorMessage(err, "Failed to upload document"));
+        },
+    });
+};
+
+export const useRotatePublicToken = () => {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async ({
+            applicationNumber,
+            currentToken,
+        }: {
+            applicationNumber: string;
+            currentToken: string;
+        }) => {
+            const res = await axiosInstance.post(
+                `/admissions/public/applications/${encodeURIComponent(applicationNumber.trim())}/rotate-token/`,
+                {},
+                {
+                    headers: {
+                        "X-Application-Token": currentToken.trim(),
+                    },
+                }
+            );
+            return res.data as {
+                success: boolean;
+                application_number: string;
+                access_token: string;
+                access_token_expires_at: string;
+                message: string;
+            };
+        },
+        onSuccess: (data) => {
+            toast.success(data.message || "Access token rotated successfully!");
+            qc.invalidateQueries({
+                queryKey: [ADMISSIONS_KEY, "public"],
+            });
+        },
+        onError: (err) => {
+            toast.error(admissionsErrorMessage(err, "Failed to rotate access token"));
+        },
+    });
+};
+
+

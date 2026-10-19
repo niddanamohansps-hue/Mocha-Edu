@@ -6,6 +6,7 @@ import {
     ChildFeesResponse,
     ChildReportCard,
     ChildTimetableResponse,
+    ChildTranscript,
     LinkedChild,
     ParentMe,
     UpcomingExam,
@@ -75,12 +76,24 @@ export const useChildResults = (studentId: string | undefined) => {
     });
 };
 
-export const useChildReportCard = (studentId: string | undefined) => {
+export const useChildReportCard = (studentId: string | undefined, academicYear?: string) => {
     return useQuery({
-        queryKey: ["parent-portal", "report-card", studentId],
+        queryKey: ["parent-portal", "report-card", studentId, academicYear],
         queryFn: async () => {
-            const response = await axiosInstance.get(`/parent-portal/children/${studentId}/report-card/`);
+            const params = academicYear ? `?academic_year=${academicYear}` : "";
+            const response = await axiosInstance.get(`/parent-portal/children/${studentId}/report-card/${params}`);
             return response.data as ChildReportCard;
+        },
+        enabled: !!studentId,
+    });
+};
+
+export const useChildTranscript = (studentId: string | undefined) => {
+    return useQuery({
+        queryKey: ["parent-portal", "transcript", studentId],
+        queryFn: async () => {
+            const response = await axiosInstance.get(`/parent-portal/children/${studentId}/transcript/`);
+            return response.data as ChildTranscript;
         },
         enabled: !!studentId,
     });

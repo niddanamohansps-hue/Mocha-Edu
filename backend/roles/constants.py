@@ -464,6 +464,12 @@ SYSTEM_PERMISSIONS = [
         "module": "Parent Portal",
         "description": "Allows a parent to view a linked child's fees, payments, and outstanding balance",
     },
+    {
+        "codename": "pay_child_fees",
+        "name": "Pay Child Fees",
+        "module": "Parent Portal",
+        "description": "Allows a parent to initiate online payment for their linked child's fees",
+    },
     # Fees
     {
         "codename": "view_fees",
@@ -495,6 +501,12 @@ SYSTEM_PERMISSIONS = [
         "module": "Fees",
         "description": "Allows a student to view their own fees and payment history",
     },
+    {
+        "codename": "pay_own_fees",
+        "name": "Pay Own Fees",
+        "module": "Fees",
+        "description": "Allows a student to initiate online payment for their own fees",
+    },
     # Dashboard
     {
         "codename": "view_dashboard",
@@ -502,11 +514,160 @@ SYSTEM_PERMISSIONS = [
         "module": "Dashboard",
         "description": "View the cross-module admin/staff dashboard summary (student/staff/academic counts, attendance, fees, promotion activity)",
     },
+    # Announcements
+    {
+        "codename": "view_announcements",
+        "name": "View Announcements",
+        "module": "Announcements",
+        "description": "View school announcements and their status",
+    },
+    {
+        "codename": "manage_announcements",
+        "name": "Manage Announcements",
+        "module": "Announcements",
+        "description": "Create, edit, schedule, publish, and archive announcements for a scoped audience (staff, parents, students, a section, or a level)",
+    },
+    {
+        "codename": "broadcast_announcements",
+        "name": "Broadcast Announcements",
+        "module": "Announcements",
+        "description": "Publish an announcement to everyone in the school (required in addition to Manage Announcements)",
+    },
     # Audit Log
     {
         "codename": "view_audit_log",
         "name": "View Audit Log",
         "module": "Audit",
         "description": "View the tenant's security audit trail (role changes, password changes, and other sensitive actions)",
+    },
+    # Academic Calendar
+    {
+        "codename": "view_calendar_events",
+        "name": "View Calendar Events",
+        "module": "Calendar",
+        "description": "View school academic calendar, holidays, closures, and events",
+    },
+    {
+        "codename": "manage_calendar_events",
+        "name": "Manage Calendar Events",
+        "module": "Calendar",
+        "description": "Create, update, publish, cancel, and delete school calendar events and holidays",
+    },
+    # Admissions Management
+    {
+        "codename": "view_admissions",
+        "name": "View Admissions",
+        "module": "Admissions",
+        "description": "View admissions pipeline, enquiries, applications, and documents",
+    },
+    {
+        "codename": "manage_admission_enquiries",
+        "name": "Manage Admission Enquiries",
+        "module": "Admissions",
+        "description": "Create, update, assign, and convert admission enquiries",
+    },
+    {
+        "codename": "manage_admission_applications",
+        "name": "Manage Admission Applications",
+        "module": "Admissions",
+        "description": "Create, update, submit, and manage student admission applications",
+    },
+    {
+        "codename": "review_admission_documents",
+        "name": "Review Admission Documents",
+        "module": "Admissions",
+        "description": "Review, verify, and reject applicant documents with recorded reasons",
+    },
+    {
+        "codename": "review_admission_applications",
+        "name": "Review Admission Applications",
+        "module": "Admissions",
+        "description": "Assess applicants and record interview or assessment evaluations",
+    },
+    {
+        "codename": "make_admission_decisions",
+        "name": "Make Admission Decisions",
+        "module": "Admissions",
+        "description": "Approve, reject, waitlist, or issue offers for admission applications",
+    },
+    {
+        "codename": "enroll_admitted_students",
+        "name": "Enroll Admitted Students",
+        "module": "Admissions",
+        "description": "Convert approved applicants into enrolled student records",
+    },
+    # Staff Leave Management
+    {
+        "codename": "view_own_leaves",
+        "name": "View Own Leaves",
+        "module": "Staff",
+        "description": "View own leave balances and leave applications history",
+    },
+    {
+        "codename": "apply_staff_leave",
+        "name": "Apply for Leave",
+        "module": "Staff",
+        "description": "Submit leave applications for self",
+    },
+    {
+        "codename": "cancel_own_leave",
+        "name": "Cancel Own Leave",
+        "module": "Staff",
+        "description": "Cancel own pending or upcoming approved leave applications",
+    },
+    {
+        "codename": "view_all_leaves",
+        "name": "View All Staff Leaves",
+        "module": "Staff",
+        "description": "View leave applications and balances across all staff members",
+    },
+    {
+        "codename": "manage_staff_leaves",
+        "name": "Manage & Approve Staff Leaves",
+        "module": "Staff",
+        "description": "Review, approve, or reject staff leave applications",
+    },
+    {
+        "codename": "manage_leave_types",
+        "name": "Manage Leave Types & Allocations",
+        "module": "Staff",
+        "description": "Configure school leave types, annual entitlements, and balance allocations",
+    },
+    # Certificates and ID cards
+    {
+        "codename": "view_certificates",
+        "name": "View Certificates",
+        "module": "Certificates",
+        "description": "List and view issued certificates",
+    },
+    {
+        "codename": "issue_certificates",
+        "name": "Issue Certificates",
+        "module": "Certificates",
+        "description": "Issue bonafide and character certificates",
+    },
+    {
+        "codename": "approve_certificates",
+        "name": "Approve Certificates",
+        "module": "Certificates",
+        "description": "Approve and issue transfer and experience certificates (approver is recorded on the certificate)",
+    },
+    {
+        "codename": "cancel_certificates",
+        "name": "Cancel Certificates",
+        "module": "Certificates",
+        "description": "Cancel or reissue any issued certificate",
+    },
+    {
+        "codename": "manage_certificate_settings",
+        "name": "Manage Certificate Settings",
+        "module": "Certificates",
+        "description": "Configure signatory name, title and signature image",
+    },
+    {
+        "codename": "generate_id_cards",
+        "name": "Generate ID Cards",
+        "module": "Certificates",
+        "description": "Generate and print student and staff ID cards",
     },
 ]

@@ -214,10 +214,12 @@ Even if application code attempted to query another tenant's data, PostgreSQL wo
 ### Automated Seeding
 
 **Public Tenant Setup:**
-The `seed_public.py` script runs automatically during container startup via `entrypoint.sh`. It ensures:
+The `seed_public.py` script is **not** run automatically at container start any more. Run it once by hand after the shared migrations have been applied (`docker compose exec backend python seed_public.py`, or `python seed_public.py` from `backend/`). It ensures:
 - Public tenant exists with `localhost` domain mapping
 - Superuser account is created from environment variables
 - Infrastructure is ready for the first school registration
+
+`seed_public.py` has no database-identity check yet, so confirm which database the environment points at before running it.
 
 **Tenant Role Initialization:**
 Django signals detect when a new tenant schema is migrated and automatically seed:
@@ -226,6 +228,77 @@ Django signals detect when a new tenant schema is migrated and automatically see
 - Role-permission assignments (Owner gets all permissions)
 
 This ensures every school starts with a functional RBAC system without manual setup.
+
+### Migration safety
+
+`python manage.py migrate` and `python manage.py migrate_schemas` are the **same command** in this project (`django-tenants` replaces `migrate`). With no options they migrate the shared schema and **every tenant**. For that reason `manage.py` refuses to apply migrations unless the scope and the target database are stated explicitly.
+
+**Requirements for an apply**
+- Exactly one scope: `--shared`, `--tenant`, or `--schema NAME` (`--schema public` is the shared schema). Combinations such as `--shared --tenant` or `--schema acme --tenant`, and repeated scope options, are refused: run the shared and tenant steps as separate commands.
+- `--apply`.
+- `--confirm-database NAME`, equal to the configured database name (`DB_NAME`).
+- `EDUSEKAI_EXPECTED_DATABASE=name@host:port` set for the process (in `.env` or in the shell) and equal to the configured `DB_NAME`, `DB_HOST` and `DB_PORT` **exactly**. `127.0.0.1` and `localhost` are different identities, and there is no exception for `test_` databases. An unset or malformed value refuses the apply.
+
+**Commands** (development database `edusekai_db`; run from `backend/`)
+```bash
+# Inspect (no --apply or confirmation, but exactly one scope and a matching EDUSEKAI_EXPECTED_DATABASE; see the caveat below)
+python manage.py migrate_schemas --shared --plan
+python manage.py showmigrations
+
+# Apply
+python manage.py migrate_schemas --shared --apply --confirm-database edusekai_db
+python manage.py migrate_schemas --tenant --apply --confirm-database edusekai_db
+python manage.py migrate_schemas --schema <tenant> --apply --confirm-database edusekai_db
+python manage.py migrate_schemas --schema <tenant> <app> --apply --confirm-database edusekai_db   # one app, forward only
+```
+Staging and production identities are not documented here: each environment sets its own `EDUSEKAI_ENV` and `EDUSEKAI_EXPECTED_DATABASE`, and the release procedure is defined by the project owner.
+
+**Protected operations** also need `--allow-destructive`: an explicit migration name (for example `certificates 0001`, or `zero`), `--fake`, `--fake-initial`, `--prune` and `--run-syncdb`. `--prune --plan` counts as protected (Django prunes before it plans). `--allow-destructive` is refused when none of these is present.
+
+**Refused**
+- A bare `migrate` / `migrate_schemas`, or an apply without a scope, `--apply` or the confirmation.
+- `--list` and `-l`: `django-tenants` accepts them but nothing reads them, so the command would carry on and apply migrations. Use `python manage.py showmigrations` instead. To look at one tenant, `tenant_command showmigrations --schema=<tenant>` does not migrate anything (this form has not been exercised in this project yet).
+- `tenant_command` / `all_tenants_command` lines that contain, as a separate token at any position, `migrate`, `migrate_schemas`, `tenant_command` or `all_tenants_command`. Migrations cannot be routed through the wrappers, and wrappers cannot be nested (a wrapper inside a wrapper would reach `migrate_schemas` without passing the gate). The check is by token, not by position, so `--no-public`, `--schema` and the nesting depth do not matter. **Known limitation:** a separate token equal to one of those names is refused even when it is only an argument value, for example `tenant_command shell -s migrate` for a tenant schema named `migrate` (the inline form `--schema=migrate` is a single token and is not affected). Other wrapped commands, such as `tenant_command showmigrations --schema=<tenant>`, are not affected.
+- `--settings` / `--pythonpath` and a `--database` other than `default` when applying or running `--plan` / `--check`, so the identity check cannot be pointed at a different configuration.
+- A first argument that starts with `-`, other than the exact forms `manage.py --help`, `manage.py -h` and `manage.py --version` (for example `manage.py --settings=x migrate_schemas ...`). `--help` and `--version` after a command name are still accepted: they exit without migrating.
+- `--plan` / `--check` without exactly one scope, without `EDUSEKAI_EXPECTED_DATABASE`, or against a database that does not match it.
+- More than one scope, or a repeated scope option (an apply names exactly one scope).
+- Unknown options and abbreviated options (Django accepts abbreviations, which could hide a protected option).
+
+**Messages.** Refusals never echo what you typed. An unrecognized or abbreviated token is reported only by its position (`token #N`, where `manage.py` is `#0`); option values, schema names, confirmation values and positional arguments are never printed, so a secret typed by mistake is not repeated on screen or in logs.
+
+**The notice.** When a command passes the gate, stderr shows `Migration gate: checks passed for database ...`. It is printed only after every gate check has passed, and it only means that the gate's own checks passed and the command is being handed to Django. It does not mean Django accepted the arguments or that any migration was applied.
+
+**`--plan` and `--check` are not guaranteed to be read-only, so they are checked like an apply.** They need exactly one scope and the same target checks (a valid `EDUSEKAI_EXPECTED_DATABASE` that matches exactly, no `--settings` / `--pythonpath`, only the `default` database). They do not need `--apply` or `--confirm-database`, and those two are refused when given with them. When the checks pass, stderr says `Migration gate: checks passed for the configured database ...` and that the operation is not guaranteed to be read-only and that the notice does not mean Django accepted the arguments. A protected operation combined with them (for example `--prune --plan`) is an apply and needs all the apply flags. For every schema, `django-tenants` calls `MigrationRecorder.ensure_schema()` before running the command, which creates the `django_migrations` table if that schema does not have one. `--check` also stops at the first schema with pending migrations.
+
+**Disposable database rehearsals.** Set **both** `DB_NAME` and `EDUSEKAI_EXPECTED_DATABASE` for that single process. An apply then uses the normal apply flags; a plan-only run (shown after it) uses neither `--apply` nor `--confirm-database`. There is no bypass flag, and setting both wrongly defeats the check:
+```bash
+DB_NAME=my_disposable_db EDUSEKAI_EXPECTED_DATABASE=my_disposable_db@127.0.0.1:5432 \
+  python manage.py migrate_schemas --shared --apply --confirm-database my_disposable_db
+# plan only (same variables; no --apply or --confirm-database):
+DB_NAME=my_disposable_db EDUSEKAI_EXPECTED_DATABASE=my_disposable_db@127.0.0.1:5432 \
+  python manage.py migrate_schemas --shared --plan
+```
+
+**Docker**
+- Migrations at container start are off by default. Only `RUN_MIGRATIONS_ON_START=true` (exactly) runs them; `makemigrations` is never run at start. Generate migrations while developing and commit them.
+- When enabled, the entrypoint applies the shared migrations and then the tenant migrations as two separate gated steps, and `EDUSEKAI_EXPECTED_DATABASE` must be in the container environment. If a step fails the server does not start, and migrations that were already applied are not reversed automatically.
+- A deliberate one-off run is preferred over migrating on every start, for example `docker compose run --rm backend python manage.py migrate_schemas --shared --apply --confirm-database <DB_NAME>` and then the `--tenant` form (this has not been exercised in this project yet).
+- `docker compose run` (like `docker compose up`) executes the image entrypoint before your command. If `RUN_MIGRATIONS_ON_START=true` is set in `.env` or your shell, a one-off `docker compose run --rm backend ...` therefore applies the shared and tenant migrations through the entrypoint first, and only then runs your command (this has not been exercised in this project).
+- In Docker the confirmation is supplied by the entrypoint: it passes `--confirm-database "$DB_NAME"` from the container's own `DB_NAME`, so there is no human typing step. The protections on that path are the exact `true` opt-in switch, the required `EDUSEKAI_EXPECTED_DATABASE` identity check, the single explicit scope per step, and failing fast.
+- Safer one-off workflow: keep `RUN_MIGRATIONS_ON_START` unset or `false` (or pass `-e RUN_MIGRATIONS_ON_START=false` to `docker compose run`; untested here), inspect with `docker compose run --rm backend python manage.py migrate_schemas --shared --plan` (this needs `EDUSEKAI_EXPECTED_DATABASE` in the container environment, equal to the intended `name@host:port`; otherwise the gate refuses it), then apply with flags you type yourself: `docker compose run --rm backend python manage.py migrate_schemas --shared --apply --confirm-database <DB_NAME>` and then the `--tenant` form.
+- `docker-compose.yml` sets `restart: on-failure:3` for the backend. The cap applies to **any** backend failure, not only migration failures: after 3 consecutive failed restarts the container stays stopped until it is started again. If a start-time migration fails, stop the service, fix the cause and unset `RUN_MIGRATIONS_ON_START` instead of letting it retry.
+- `entrypoint.sh` is copied into the image at build time, so rebuild the image after changing it. An old image still runs its old entrypoint.
+- Seed the public tenant by hand (see Automated Seeding above).
+
+**What the gate does not protect.** It only inspects `python manage.py ...` on the command line. It does not see `call_command(...)` (used by Django's test runner and by tenant provisioning), `django-admin`, `python -m django`, `manage.py shell` sessions, or other scripts, which can still migrate. It guards against accidents; it is not a security boundary. The identity check compares configuration values (the settings module), not the connection that is actually opened: libpq environment variables, service files, an `OPTIONS` entry, a proxy or DNS can still lead to another server. Hardening for the environment and `OPTIONS` is deferred.
+
+**Commands outside the gate.** The gate looks only at `migrate` / `migrate_schemas` (and refuses them when routed through `tenant_command` / `all_tenants_command`). It is not a universal database-change guard. These are **not** guarded:
+- `django-tenants` schema management: `create_tenant`, `clone_tenant`, `delete_tenant`, `rename_schema`, `create_missing_schemas`, `create_domain`, `delete_domain`, `create_tenant_superuser`, `collectstatic_schemas`, and `tenant_command` / `all_tenants_command` running any command other than a migration.
+- Tenant creation through other routes: the `register_organization` API signup and the `seed_demo_school` / `seed_realistic_school` commands create an `Organization`, which creates and migrates that tenant's schema through `call_command`, which the gate cannot see.
+- Project commands and scripts that write data or schema objects: `populate_test_data`, `backfill_academic_years`, `seed_public.py`, and `cleanup_public_db.py` (which can drop tables when run as a script).
+- Django commands that change the database by other routes, for example `flush`, `loaddata`, `dbshell`, `shell` and `createsuperuser`; `makemigrations` writes migration files only.
+Guards for the tenant-administration commands are a separate, later decision.
 
 ### Integrity Audit Scripts
 
@@ -374,6 +447,11 @@ Required `.env` variables:
 
 **Database:**
 - `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`
+
+**Environment identity and migrations:**
+- `EDUSEKAI_ENV` - optional label used in the database application name
+- `EDUSEKAI_EXPECTED_DATABASE` - `name@host:port`; warned about at startup and required to apply migrations
+- `RUN_MIGRATIONS_ON_START` - Docker only; `true` (exactly) applies migrations at container start (default: off)
 
 **Authentication:**
 - `SECRET_KEY` - Django secret for signing tokens

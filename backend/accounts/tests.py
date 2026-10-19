@@ -113,11 +113,24 @@ class EduSekaiIdentityJanitorTest(TransactionTestCase):
             login_b, "SECURITY FLAW: Local username leaked across schools"
         )
 
-        # STEP 4: Global login should still work if enabled, but let's test isolation
-        login_global = authenticate(
+        # STEP 4: Global login should work in associated school or public schema, but isolated from unrelated schools
+        connection.set_schema(self.school_a.schema_name)
+        login_global_a = authenticate(
             username=self.identity_username, password=self.identity_password
         )
-        self.assertIsNotNone(login_global, "Global identifier login failed")
+        self.assertIsNotNone(login_global_a, "Global identifier login failed in associated school")
+
+        connection.set_schema(self.school_b.schema_name)
+        login_global_b = authenticate(
+            username=self.identity_username, password=self.identity_password
+        )
+        self.assertIsNone(login_global_b, "SECURITY FLAW: User logged into unrelated school using global identifier")
+
+        connection.set_schema_to_public()
+        login_global_pub = authenticate(
+            username=self.identity_username, password=self.identity_password
+        )
+        self.assertIsNotNone(login_global_pub, "Global identifier login failed in public schema")
 
     def test_janitor_audit_discovery(self):
         """
@@ -141,8 +154,10 @@ class EduSekaiIdentityJanitorTest(TransactionTestCase):
 
     def tearDown(self):
         connection.set_schema_to_public()
+        Domain.objects.filter(tenant__in=[self.school_a, self.school_b]).delete()
         self.school_a.delete(force_drop=True)
         self.school_b.delete(force_drop=True)
+        User.objects.filter(username=self.identity_username).delete()
 
 
 class SecurityFixesTest(TransactionTestCase):
@@ -163,10 +178,16 @@ class SecurityFixesTest(TransactionTestCase):
         self.user = User.objects.create_user(
             username="sectestuser", email="sec@sectest.com", password=self.password
         )
+        with tenant_context(self.school):
+            Profile.objects.create(
+                user_id=self.user.id, first_name="Sec", last_name="User"
+            )
 
     def tearDown(self):
         connection.set_schema_to_public()
+        Domain.objects.filter(tenant=self.school).delete()
         self.school.delete(force_drop=True)
+        self.user.delete()
 
     def test_logout_blacklists_refresh_token(self):
         from rest_framework.test import APIClient
@@ -264,11 +285,17 @@ class SecurityHardeningTest(TransactionTestCase):
             email="hardening@sectest.com",
             password=self.password,
         )
+        with tenant_context(self.school):
+            Profile.objects.create(
+                user_id=self.user.id, first_name="Hardening", last_name="User"
+            )
 
     def tearDown(self):
         cache.clear()
         connection.set_schema_to_public()
+        Domain.objects.filter(tenant=self.school).delete()
         self.school.delete(force_drop=True)
+        self.user.delete()
 
     @override_settings(COOKIE_SECURE=True)
     def test_jwt_cookies_are_secure_when_cookie_secure_enabled(self):
@@ -406,11 +433,18 @@ class PasswordResetFlowTest(TransactionTestCase):
             email="pwreset.user@example.com",
             password=self.password,
         )
+        with tenant_context(self.school):
+            Profile.objects.create(
+                user_id=self.user.id, first_name="PwReset", last_name="User"
+            )
 
     def tearDown(self):
         cache.clear()
         connection.set_schema_to_public()
+        Domain.objects.filter(tenant=self.school).delete()
         self.school.delete(force_drop=True)
+        self.user.delete()
+        User.objects.filter(username="domaincaseuser").delete()
 
     def _request_reset(self, email="pwreset.user@example.com"):
         client = APIClient()

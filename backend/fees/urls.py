@@ -6,6 +6,12 @@ from .views import (
     CancelStudentFeeView,
     FeeHeadViewSet,
     FeeStructureViewSet,
+    OnlinePaymentCallbackView,
+    OnlinePaymentInitiateView,
+    OnlinePaymentOrderDetailView,
+    OnlinePaymentOrderListView,
+    OnlinePaymentOrderReconcileView,
+    OnlinePaymentVerifyView,
     OutstandingReportView,
     PaymentReceiptView,
     RecordPaymentView,
@@ -20,6 +26,12 @@ router.register(r"heads", FeeHeadViewSet, basename="fee-head")
 router.register(r"structures", FeeStructureViewSet, basename="fee-structure")
 
 urlpatterns = [
+    path("online/initiate/", OnlinePaymentInitiateView.as_view(), name="online-payment-initiate"),
+    path("online/verify/", OnlinePaymentVerifyView.as_view(), name="online-payment-verify"),
+    path("online/callback/", OnlinePaymentCallbackView.as_view(), name="online-payment-callback"),
+    path("online/orders/", OnlinePaymentOrderListView.as_view(), name="online-payment-order-list"),
+    path("online/orders/<uuid:order_id>/", OnlinePaymentOrderDetailView.as_view(), name="online-payment-order-detail"),
+    path("online/orders/<uuid:order_id>/reconcile/", OnlinePaymentOrderReconcileView.as_view(), name="online-payment-order-reconcile"),
     path("students/<uuid:student_id>/", StudentFeesView.as_view(), name="student-fees"),
     path("students/<uuid:student_id>/assign/", AssignStudentFeeView.as_view(), name="student-fee-assign"),
     path("students/<uuid:student_id>/fees/<uuid:fee_id>/", StudentFeeUpdateView.as_view(), name="student-fee-update"),

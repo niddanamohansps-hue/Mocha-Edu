@@ -1,10 +1,13 @@
+import base64
 from decimal import Decimal
+import json
+import uuid
 
 from django.db.models import Sum
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import status, viewsets
-from rest_framework.permissions import IsAuthenticated
+from rest_framework import serializers, status, viewsets
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -12,12 +15,16 @@ from core.audit import log_action
 from core.pagination import StandardResultsPagination
 from roles.permissions import HasPermission
 
-from .models import FeeHead, FeeStructure, Payment, StudentFee
+from .gateways import PaymentConfigurationError, PaymentGatewayError
+from .models import FeeHead, FeeStructure, OnlinePaymentOrder, Payment, StudentFee
 from .serializers import (
     AssignStudentFeeSerializer,
     CancelStudentFeeSerializer,
     FeeHeadSerializer,
     FeeStructureSerializer,
+    OnlinePaymentOrderInitiateSerializer,
+    OnlinePaymentOrderSerializer,
+    OnlinePaymentVerifySerializer,
     PaymentSerializer,
     RecordPaymentSerializer,
     ReversePaymentSerializer,
@@ -29,11 +36,20 @@ from .services import (
     annotate_with_outstanding_balance,
     assign_student_fee,
     cancel_student_fee,
+    get_child_for_parent,
+    get_linked_children,
     get_outstanding_balance,
+    get_parent_for_user,
     get_staff_member_for_user,
+    get_student_for_user,
+    initiate_online_payment_order,
+    reconcile_online_payment_order,
     record_payment,
     reverse_payment,
+    settle_online_payment_order,
     update_student_fee,
+    user_can_initiate_student_online_payment,
+    user_can_view_online_order,
     user_can_view_student_finances,
 )
 
@@ -421,3 +437,273 @@ class OutstandingReportView(APIView):
             return response
 
         return Response({"count": len(rows), "total_outstanding_amount": total_outstanding_amount, "results": rows})
+
+
+class OnlinePaymentInitiateView(APIView):
+    """
+    POST /api/fees/online/initiate/
+    Initiates an online payment order for a student.
+    Authorized for:
+    - Staff/Owner with 'collect_payments'
+    - Student paying for themselves with 'pay_own_fees'
+    - Parent paying for their linked child with 'pay_child_fees'
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        from students.models import Student
+
+        serializer = OnlinePaymentOrderInitiateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        student = get_object_or_404(Student.objects.select_related("profile"), id=data["student"])
+
+        if not user_can_initiate_student_online_payment(request, student):
+            return Response(
+                {"error": "You do not have permission to initiate fee payments for this student."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            order, gateway_payload = initiate_online_payment_order(
+                student=student,
+                amount=data["amount"],
+                allocations=[
+                    {"student_fee_id": a["student_fee"], "amount": a["amount"]}
+                    for a in data["allocations"]
+                ],
+                gateway=data.get("gateway", "esewa"),
+                created_by=request.user,
+                ttl_minutes=data.get("ttl_minutes", 60),
+                return_url=data.get("return_url", ""),
+                failure_url=data.get("failure_url", ""),
+            )
+        except (PaymentConfigurationError, PaymentGatewayError) as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        log_action(
+            request,
+            action="online_payment_initiated",
+            model_name="OnlinePaymentOrder",
+            object_id=order.id,
+            changes={
+                "student": str(student.id),
+                "amount": str(order.amount),
+                "gateway": order.gateway,
+                "gateway_order_id": order.gateway_order_id,
+            },
+        )
+
+        payload_dict = {
+            "gateway": gateway_payload.gateway,
+            "gateway_url": gateway_payload.gateway_url,
+            "method": gateway_payload.method,
+            "form_parameters": gateway_payload.form_parameters,
+            "order_id": gateway_payload.order_id,
+            "gateway_order_id": gateway_payload.gateway_order_id,
+        }
+
+        return Response(
+            {
+                "order": OnlinePaymentOrderSerializer(order).data,
+                "gateway_payload": payload_dict,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class OnlinePaymentVerifyView(APIView):
+    """
+    POST/GET /api/fees/online/verify/
+    Verifies the gateway callback or redirect payload and settles the payment order.
+    Idempotent: repeated calls for already settled or reconciled orders return existing status safely.
+    Security: HMAC signature check against secret key verifies payload integrity before settlement.
+    """
+    permission_classes = [AllowAny]
+
+    def _process_verify(self, request, payload_data):
+        encoded_data = payload_data.get("data") or payload_data.get("encoded_data")
+        order_id = payload_data.get("order_id")
+
+        # If order_id not explicitly supplied, extract from payload if base64 encoded
+        if not order_id and encoded_data:
+            try:
+                padded = encoded_data + "=" * ((4 - len(encoded_data) % 4) % 4)
+                decoded_bytes = base64.b64decode(padded)
+                decoded_json = json.loads(decoded_bytes.decode("utf-8"))
+                order_id = decoded_json.get("transaction_uuid")
+            except Exception:
+                pass
+        elif not order_id and isinstance(payload_data, dict):
+            order_id = payload_data.get("transaction_uuid")
+
+        if not order_id:
+            return Response(
+                {"error": "Could not identify transaction order ID from request."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        recorded_by = None
+        if request.user and request.user.is_authenticated:
+            recorded_by = get_staff_member_for_user(request.user)
+
+        try:
+            result = settle_online_payment_order(
+                order_id_or_gateway_order_id=order_id,
+                raw_callback_payload=payload_data,
+                recorded_by=recorded_by,
+            )
+        except serializers.ValidationError as exc:
+            return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        order = result.get("order")
+        if request.user and request.user.is_authenticated and order:
+            log_action(
+                request,
+                action="online_payment_settled",
+                model_name="OnlinePaymentOrder",
+                object_id=order.id,
+                changes={"status": result.get("status")},
+            )
+
+        response_data = {
+            "status": result.get("status"),
+            "order": OnlinePaymentOrderSerializer(order).data if order else None,
+            "receipt_number": result.get("receipt_number", ""),
+            "reason": result.get("reason", ""),
+        }
+        return Response(response_data, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        return self._process_verify(request, request.data)
+
+    def get(self, request):
+        return self._process_verify(request, request.query_params.dict())
+
+
+class OnlinePaymentCallbackView(OnlinePaymentVerifyView):
+    """
+    GET /api/fees/online/callback/
+    Dedicated redirect endpoint for gateways returning via browser GET (e.g. eSewa v2 success_url).
+    """
+    pass
+
+
+class OnlinePaymentOrderDetailView(APIView):
+    """
+    GET /api/fees/online/orders/<uuid:order_id>/
+    Retrieves full details of an online payment order.
+    Scoped by user_can_view_online_order.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, order_id):
+        order = get_object_or_404(
+            OnlinePaymentOrder.objects.select_related("student__profile", "payment"),
+            id=order_id,
+        )
+
+        if not user_can_view_online_order(request, order):
+            return Response(
+                {"error": "You do not have permission to view this payment order."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        return Response(OnlinePaymentOrderSerializer(order).data)
+
+
+class OnlinePaymentOrderListView(APIView):
+    """
+    GET /api/fees/online/orders/
+    Lists online payment orders scoped by caller role.
+    """
+    permission_classes = [IsAuthenticated]
+    pagination_class = StandardResultsPagination
+
+    def get(self, request):
+        qs = OnlinePaymentOrder.objects.select_related("student__profile", "payment").order_by("-created_at")
+
+        # Role scoping
+        has_staff_perm = (
+            HasPermission("view_fees").has_permission(request, None)
+            or HasPermission("collect_payments").has_permission(request, None)
+        )
+
+        if not has_staff_perm:
+            own_student = get_student_for_user(request.user)
+            parent = get_parent_for_user(request.user)
+
+            if own_student is not None and HasPermission("view_own_fees").has_permission(request, None):
+                qs = qs.filter(student=own_student)
+            elif parent is not None and HasPermission("view_child_fees").has_permission(request, None):
+                child_ids = [rel.student_id for rel in get_linked_children(parent)]
+                qs = qs.filter(student_id__in=child_ids)
+            else:
+                return Response(
+                    {"error": "You do not have permission to view payment orders."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+        else:
+            student_id = request.query_params.get("student")
+            if student_id:
+                qs = qs.filter(student_id=student_id)
+
+        status_filter = request.query_params.get("status")
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+
+        gateway_filter = request.query_params.get("gateway")
+        if gateway_filter:
+            qs = qs.filter(gateway=gateway_filter)
+
+        paginator = self.pagination_class()
+        page = paginator.paginate_queryset(qs, request, view=self)
+        if page is not None:
+            return paginator.get_paginated_response(OnlinePaymentOrderSerializer(page, many=True).data)
+
+        return Response(OnlinePaymentOrderSerializer(qs, many=True).data)
+
+
+class OnlinePaymentOrderReconcileView(APIView):
+    """
+    POST /api/fees/online/orders/<uuid:order_id>/reconcile/
+    Allows administrative staff to trigger an on-demand status check and reconciliation with the gateway.
+    """
+    permission_classes = [IsAuthenticated, HasPermission("collect_payments")]
+
+    def post(self, request, order_id):
+        order = get_object_or_404(
+            OnlinePaymentOrder.objects.select_related("student__profile", "payment"),
+            id=order_id,
+        )
+        staff_member = get_staff_member_for_user(request.user)
+
+        try:
+            result = reconcile_online_payment_order(order, recorded_by=staff_member)
+        except serializers.ValidationError as exc:
+            return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        order.refresh_from_db()
+
+        log_action(
+            request,
+            action="online_payment_reconciled",
+            model_name="OnlinePaymentOrder",
+            object_id=order.id,
+            changes={"status": order.status, "reason": order.reconciliation_reason},
+        )
+
+        return Response(
+            {
+                "status": result.get("status"),
+                "gateway_status": result.get("gateway_status"),
+                "order": OnlinePaymentOrderSerializer(order).data,
+                "reason": order.reconciliation_reason,
+            },
+            status=status.HTTP_200_OK,
+        )

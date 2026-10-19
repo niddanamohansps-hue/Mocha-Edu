@@ -1,5 +1,6 @@
-from rest_framework import viewsets, status, permissions
+from rest_framework import mixins, viewsets, status, permissions
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from django.db.models import Q
 from django.utils import timezone
@@ -15,9 +16,20 @@ from .serializers import (
     AssignmentSerializer,
     AssignmentSubmissionSerializer,
     CreateAssignmentSerializer,
+    GradeSubmissionSerializer,
+    SubmitAssignmentSerializer,
 )
 from students.models import Student
 from roles.permissions import HasPermission
+from accounts.tenant_access import HasAnyPermission, IsTenantMember
+
+
+def _student_for_user(user):
+    """The caller's own Student record (via the tenant Profile soft-link), or None."""
+    from profiles.models import Profile
+
+    profile = Profile.objects.filter(user_id=user.id).first()
+    return getattr(profile, "student_record", None) if profile else None
 
 
 def can_student_access_content(student, content):
@@ -137,7 +149,7 @@ class CourseContentViewSet(viewsets.ModelViewSet):
     pagination_class = StandardResultsPagination
 
     def get_permissions(self):
-        if self.action in ["list", "retrieve"]:
+        if self.action in ["list", "retrieve", "download"]:
             return [permissions.IsAuthenticated(), HasPermission("view_course_content")]
         return [permissions.IsAuthenticated(), HasPermission("manage_course_content")]
 
@@ -212,8 +224,53 @@ class CourseContentViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(content, many=True)
         return Response(serializer.data)
 
+    @action(detail=True, methods=["get"])
+    def download(self, request, pk=None):
+        content = self.get_object()
+        if not content.file:
+            return Response(
+                {"error": "No file attached to this content."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
 
-class SubjectEnrollmentViewSet(viewsets.ModelViewSet):
+        user = request.user
+        authorized = False
+
+        if getattr(user, "is_superuser", False):
+            authorized = True
+        else:
+            from roles.permissions import HasPermission
+            if (
+                HasPermission("view_course_content").has_permission(request, self)
+                or HasPermission("manage_course_content").has_permission(request, self)
+            ):
+                authorized = True
+            else:
+                from profiles.models import Profile
+                profile = Profile.objects.filter(user_id=user.id).first()
+                if profile and hasattr(profile, "student_record"):
+                    student = profile.student_record
+                    if content.is_published and can_student_access_content(student, content):
+                        authorized = True
+
+        if not authorized:
+            return Response(
+                {"error": "You do not have permission to download this file."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        from django.http import FileResponse
+        return FileResponse(content.file.open("rb"), as_attachment=True)
+
+
+class SubjectEnrollmentViewSet(
+    mixins.CreateModelMixin,
+    mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
+    mixins.DestroyModelMixin,
+    viewsets.GenericViewSet,
+):
+    # Enrollment rows are immutable (student, subject, year): no PUT/PATCH. Remove and re-create instead.
     queryset = SubjectEnrollment.objects.all().select_related(
         "student__profile", "subject__level"
     )
@@ -223,11 +280,27 @@ class SubjectEnrollmentViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ["list", "retrieve"]:
-            return [permissions.IsAuthenticated()]
+            return [permissions.IsAuthenticated(), IsTenantMember()]
         return [
             permissions.IsAuthenticated(),
+            IsTenantMember(),
             HasPermission("manage_subject_enrollment"),
         ]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        if self.action in ["list", "retrieve"]:
+            # A student reads only their own enrollments; managers read all; nobody else reads any.
+            student = _student_for_user(self.request.user)
+            if student is not None:
+                return queryset.filter(student=student)
+            if not HasPermission("manage_subject_enrollment").has_permission(
+                self.request, self
+            ):
+                raise PermissionDenied(
+                    "You do not have permission to view subject enrollments."
+                )
+        return queryset
 
     @action(detail=False, methods=["post"])
     def bulk_enroll(self, request):
@@ -236,7 +309,7 @@ class SubjectEnrollmentViewSet(viewsets.ModelViewSet):
         Payload: {
             "subject_id": "uuid",
             "student_ids": ["uuid1", "uuid2"],
-            "academic_year": "2081"
+            "academic_year": "2026-27"
         }
         """
         subject_id = request.data.get("subject_id")
@@ -249,15 +322,26 @@ class SubjectEnrollmentViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        created_count = 0
-        for student_id in student_ids:
-            _, created = SubjectEnrollment.objects.get_or_create(
-                student_id=student_id,
-                subject_id=subject_id,
-                academic_year=academic_year,
+        from django.db import transaction
+        from students.models import StudentLevel
+
+        known_years = set(StudentLevel.objects.values_list("academic_year", flat=True).distinct())
+        if academic_year not in known_years:
+            return Response(
+                {"error": f"Unknown academic year '{academic_year}'. Use a year that exists for this school."},
+                status=status.HTTP_400_BAD_REQUEST,
             )
-            if created:
-                created_count += 1
+
+        created_count = 0
+        with transaction.atomic():
+            for student_id in student_ids:
+                _, created = SubjectEnrollment.objects.get_or_create(
+                    student_id=student_id,
+                    subject_id=subject_id,
+                    academic_year=academic_year,
+                )
+                if created:
+                    created_count += 1
 
         return Response(
             {
@@ -413,7 +497,12 @@ class AssignmentViewSet(viewsets.ModelViewSet):
         return students
 
 
-class AssignmentSubmissionViewSet(viewsets.ModelViewSet):
+class AssignmentSubmissionViewSet(
+    mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet
+):
+    # Read-only resource plus the explicit submit / grade / download actions below. There is
+    # deliberately no create, update or delete route: submissions are created when an
+    # assignment is created, and changed only through submit (student) or grade (grader).
     queryset = AssignmentSubmission.objects.all().select_related(
         "assignment__content", "student__profile", "graded_by__profile"
     )
@@ -425,23 +514,28 @@ class AssignmentSubmissionViewSet(viewsets.ModelViewSet):
     pagination_class = StandardResultsPagination
 
     def get_permissions(self):
+        # Every action requires tenant membership (the cookie-auth gate enforces it too).
+        base = [permissions.IsAuthenticated(), IsTenantMember()]
         if self.action == "submit":
-            return [permissions.IsAuthenticated(), HasPermission("submit_assignment")]
-        if self.action in ["grade", "bulk_grade"]:
-            return [permissions.IsAuthenticated(), HasPermission("grade_assignment")]
-        return [permissions.IsAuthenticated()]
+            return base + [HasPermission("submit_assignment")]
+        if self.action == "grade":
+            return base + [HasPermission("grade_assignment")]
+        return base
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        user = self.request.user
 
-        # Students only see their own submissions
-        from profiles.models import Profile
+        # Students only ever reach their own submissions.
+        student = _student_for_user(self.request.user)
+        if student is not None:
+            return queryset.filter(student=student)
 
-        profile = Profile.objects.filter(user_id=user.id).first()
-        if profile and hasattr(profile, "student_record"):
-            student = profile.student_record
-            queryset = queryset.filter(student=student)
+        # Listing / reading submissions of other students needs a grading or course-management
+        # permission. (submit / grade / download make their own object-level decisions below.)
+        if self.action in ["list", "retrieve"] and not HasAnyPermission(
+            "grade_assignment", "manage_course_content"
+        ).has_permission(self.request, self):
+            raise PermissionDenied("You do not have permission to view submissions.")
 
         return queryset
 
@@ -459,10 +553,22 @@ class AssignmentSubmissionViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
+        # Work can be resubmitted until it is graded; a graded result is final here.
+        if submission.status == "graded":
+            return Response(
+                {"error": "This submission has already been graded and can no longer be changed."},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        # Only the submission fields are accepted (file size is validated here, on the real path).
+        submit_serializer = SubmitAssignmentSerializer(data=request.data)
+        submit_serializer.is_valid(raise_exception=True)
+        data = submit_serializer.validated_data
+
         # Update submission
-        submission.submission_file = request.data.get("submission_file")
-        submission.submission_text = request.data.get("submission_text", "")
-        submission.submission_url = request.data.get("submission_url", "")
+        submission.submission_file = data.get("submission_file")
+        submission.submission_text = data.get("submission_text", "")
+        submission.submission_url = data.get("submission_url", "")
         submission.submitted_at = timezone.now()
         submission.status = "submitted"
         submission.save()
@@ -486,16 +592,19 @@ class AssignmentSubmissionViewSet(viewsets.ModelViewSet):
             )
         staff_member = profile.staff_record
 
-        score = request.data.get("score")
-        feedback = request.data.get("feedback", "")
-
-        if score is None:
+        if submission.status not in ("submitted", "graded"):
             return Response(
-                {"error": "Score is required"}, status=status.HTTP_400_BAD_REQUEST
+                {"error": "Only submitted work can be graded."},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
-        submission.score = score
-        submission.feedback = feedback
+        grade_serializer = GradeSubmissionSerializer(
+            data=request.data, context={"submission": submission}
+        )
+        grade_serializer.is_valid(raise_exception=True)
+
+        submission.score = grade_serializer.validated_data["score"]
+        submission.feedback = grade_serializer.validated_data.get("feedback", "")
         submission.graded_by = staff_member
         submission.graded_at = timezone.now()
         submission.status = "graded"
@@ -503,3 +612,44 @@ class AssignmentSubmissionViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(submission)
         return Response(serializer.data)
+
+    @action(detail=True, methods=["get"])
+    def download(self, request, pk=None):
+        submission = self.get_object()
+        if not submission.submission_file:
+            return Response(
+                {"error": "No file attached to this submission."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        user = request.user
+        authorized = False
+
+        if getattr(user, "is_superuser", False):
+            authorized = True
+        elif submission.student.profile and submission.student.profile.user_id == user.id:
+            authorized = True
+        else:
+            from roles.permissions import HasPermission
+            if (
+                HasPermission("grade_assignment").has_permission(request, self)
+                or HasPermission("manage_course_content").has_permission(request, self)
+            ):
+                authorized = True
+            else:
+                try:
+                    from parent_portal.services import get_child_for_parent, get_parent_for_user
+                    parent = get_parent_for_user(user)
+                    if parent and get_child_for_parent(parent, submission.student_id):
+                        authorized = True
+                except Exception:
+                    pass
+
+        if not authorized:
+            return Response(
+                {"error": "You do not have permission to download this file."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        from django.http import FileResponse
+        return FileResponse(submission.submission_file.open("rb"), as_attachment=True)

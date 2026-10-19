@@ -23,7 +23,7 @@ export function useLogin() {
     return useMutation({
         mutationFn: login,
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["me"] });
+            queryClient.clear();
             localStorage.removeItem("active_role");
             toast.success("Logged in successfully");
         },
@@ -38,9 +38,16 @@ export function useLogout() {
     return useMutation({
         mutationFn: logout,
         onSuccess: () => {
-            queryClient.setQueryData(["me"], null);
+            queryClient.clear();
             localStorage.removeItem("active_role");
             toast.success("Logged out successfully");
+            window.location.href = "/login";
+        },
+        onError: () => {
+            // Even if the server logout endpoint fails (e.g. token expired/invalid),
+            // purge local cache and redirect to login to prevent stale data retention.
+            queryClient.clear();
+            localStorage.removeItem("active_role");
             window.location.href = "/login";
         }
     });

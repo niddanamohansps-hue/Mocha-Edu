@@ -10,15 +10,12 @@ import Unauthorized from "@/components/Unauthorized";
 import { EmptyState } from "@/components/feedback/EmptyState";
 import { ErrorState } from "@/components/feedback/ErrorState";
 
-function currentYear() {
-    return String(new Date().getFullYear());
-}
 
 export default function GradingPage() {
     const { can, isOwner } = usePermissions();
     const canManage = isOwner || can("manage_grading");
 
-    const [academicYear, setAcademicYear] = useState(currentYear());
+    const [academicYear, setAcademicYear] = useState("");
     const { data: boundaries, isLoading, isError, refetch } = useGradeBoundaries(academicYear);
     const { mutate: createBoundary, isPending } = useCreateGradeBoundary();
     const { mutate: deleteBoundary } = useDeleteGradeBoundary();

@@ -2,6 +2,7 @@ from django.contrib.auth.backends import ModelBackend
 from django.contrib.auth import get_user_model
 from django.db import connection
 from profiles.models import Profile
+from roles.models import UserRole
 
 User = get_user_model()
 
@@ -47,9 +48,13 @@ class TenantUsernameBackend(ModelBackend):
             # Table might not exist in this context or other DB error
             pass
 
-        # Fallback to global identifier
+        # Fallback to global identifier - only allowed if user has a valid tenant association
         user = get_global_user(username)
         if user and user.check_password(password):
-            return user
+            if user.is_superuser:
+                return user
+            if Profile.objects.filter(user_id=user.id).exists() or UserRole.objects.filter(user=user).exists():
+                return user
+            return None
 
         return None

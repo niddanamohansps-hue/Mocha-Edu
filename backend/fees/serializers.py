@@ -2,7 +2,15 @@ from decimal import Decimal
 
 from rest_framework import serializers
 
-from .models import FeeHead, FeeStructure, Payment, PaymentAllocation, StudentFee
+from .models import (
+    GATEWAY_CHOICES,
+    FeeHead,
+    FeeStructure,
+    OnlinePaymentOrder,
+    Payment,
+    PaymentAllocation,
+    StudentFee,
+)
 from .services import get_amount_paid, get_outstanding_balance
 
 
@@ -160,3 +168,112 @@ class PaymentSerializer(serializers.ModelSerializer):
 
     def get_is_reversed(self, obj):
         return hasattr(obj, "reversal")
+
+
+class OnlinePaymentOrderSerializer(serializers.ModelSerializer):
+    student_name = serializers.SerializerMethodField()
+    receipt_number = serializers.SerializerMethodField()
+
+    class Meta:
+        model = OnlinePaymentOrder
+        fields = [
+            "id",
+            "student",
+            "student_name",
+            "amount",
+            "gateway",
+            "status",
+            "allocations_snapshot",
+            "gateway_order_id",
+            "gateway_reference",
+            "gateway_response",
+            "reconciliation_reason",
+            "created_by_user_id",
+            "created_at",
+            "updated_at",
+            "expires_at",
+            "completed_at",
+            "payment",
+            "receipt_number",
+        ]
+        read_only_fields = fields
+
+    def get_student_name(self, obj):
+        profile = getattr(obj.student, "profile", None)
+        if profile:
+            return f"{profile.first_name} {profile.last_name}"
+        return ""
+
+    def get_receipt_number(self, obj):
+        return obj.payment.receipt_number if obj.payment else None
+
+
+class OnlinePaymentOrderInitiateSerializer(serializers.Serializer):
+    student = serializers.UUIDField(required=True)
+    amount = serializers.DecimalField(max_digits=10, decimal_places=2, required=True)
+    gateway = serializers.ChoiceField(choices=GATEWAY_CHOICES, default="esewa")
+    allocations = PaymentAllocationInputSerializer(many=True, required=True)
+    return_url = serializers.CharField(required=False, allow_blank=True, default="")
+    failure_url = serializers.CharField(required=False, allow_blank=True, default="")
+    ttl_minutes = serializers.IntegerField(required=False, default=60, min_value=5, max_value=1440)
+
+    def validate_amount(self, value):
+        if value <= Decimal("0"):
+            raise serializers.ValidationError("Payment amount must be positive.")
+        return value
+
+    def validate(self, attrs):
+        amount = attrs.get("amount")
+        allocations = attrs.get("allocations", [])
+        if not allocations:
+            raise serializers.ValidationError({"allocations": "At least one allocation is required."})
+
+        total_allocated = sum((Decimal(str(a["amount"])) for a in allocations), Decimal("0"))
+        if total_allocated != amount:
+            raise serializers.ValidationError(
+                {"allocations": "The sum of allocations must equal the payment amount."}
+            )
+
+        fee_ids = [a["student_fee"] for a in allocations]
+        if len(set(fee_ids)) != len(fee_ids):
+            raise serializers.ValidationError({"allocations": "Duplicate fee record in the same payment."})
+
+        return attrs
+
+
+class ParentPortalChildPayFeeSerializer(serializers.Serializer):
+    amount = serializers.DecimalField(max_digits=10, decimal_places=2, required=True)
+    gateway = serializers.ChoiceField(choices=GATEWAY_CHOICES, default="esewa")
+    allocations = PaymentAllocationInputSerializer(many=True, required=True)
+    return_url = serializers.CharField(required=False, allow_blank=True, default="")
+    failure_url = serializers.CharField(required=False, allow_blank=True, default="")
+    ttl_minutes = serializers.IntegerField(required=False, default=60, min_value=5, max_value=1440)
+
+    def validate_amount(self, value):
+        if value <= Decimal("0"):
+            raise serializers.ValidationError("Payment amount must be positive.")
+        return value
+
+    def validate(self, attrs):
+        amount = attrs.get("amount")
+        allocations = attrs.get("allocations", [])
+        if not allocations:
+            raise serializers.ValidationError({"allocations": "At least one allocation is required."})
+
+        total_allocated = sum((Decimal(str(a["amount"])) for a in allocations), Decimal("0"))
+        if total_allocated != amount:
+            raise serializers.ValidationError(
+                {"allocations": "The sum of allocations must equal the payment amount."}
+            )
+
+        fee_ids = [a["student_fee"] for a in allocations]
+        if len(set(fee_ids)) != len(fee_ids):
+            raise serializers.ValidationError({"allocations": "Duplicate fee record in the same payment."})
+
+        return attrs
+
+
+class OnlinePaymentVerifySerializer(serializers.Serializer):
+    order_id = serializers.UUIDField(required=False, allow_null=True)
+    data = serializers.CharField(required=False, allow_blank=True)
+    encoded_data = serializers.CharField(required=False, allow_blank=True)

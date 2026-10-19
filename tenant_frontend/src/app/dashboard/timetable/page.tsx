@@ -26,22 +26,21 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import Unauthorized from "@/components/Unauthorized";
+import { useAcademicYear } from "@/providers/AcademicYearProvider";
 import { LoadingState } from "@/components/feedback/LoadingState";
 import { EmptyState } from "@/components/feedback/EmptyState";
 import { ErrorState } from "@/components/feedback/ErrorState";
 
 const WORKING_DAYS = [0, 1, 2, 3, 4, 5]; // Monday-Saturday shown by default; Sunday (6) is rare for school timetables
 
-function currentYear() {
-    return String(new Date().getFullYear());
-}
 
 export default function TimetablePage() {
     const { can, isOwner } = usePermissions();
+    const { selectedYear } = useAcademicYear();
+    const academicYear = selectedYear?.name || "";
     const canManage = isOwner || can("manage_timetable");
     const canView = isOwner || can("view_timetable");
 
-    const [academicYear, setAcademicYear] = useState(currentYear());
     const [sectionId, setSectionId] = useState("");
     const { data: sections } = useSections();
     const { data: subjects } = useSubjects();
@@ -158,9 +157,14 @@ export default function TimetablePage() {
                         </SelectContent>
                     </Select>
                 </div>
-                <div className="w-40">
+                <div className="w-48">
                     <label className="text-xs font-medium text-slate-500 mb-1 block">Academic Year</label>
-                    <Input value={academicYear} onChange={(e) => setAcademicYear(e.target.value)} />
+                    <div className="flex items-center gap-1.5 h-9 px-3 rounded-md border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-sm font-medium text-slate-700 dark:text-slate-300">
+                        <span className="truncate">{academicYear || "No year selected"}</span>
+                        {selectedYear?.is_current && (
+                            <span className="text-[10px] bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 px-1 py-0.2 rounded font-medium ml-auto">Current</span>
+                        )}
+                    </div>
                 </div>
             </div>
 

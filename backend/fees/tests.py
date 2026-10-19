@@ -18,7 +18,22 @@ from roles.models import Permission, Role, UserRole
 from staff.models import StaffMember
 from students.models import Student, StudentLevel
 
-from .models import FeeHead, FeeStructure, Payment, PaymentAllocation, StudentFee
+from .gateways import (
+    EsewaGatewayAdapter,
+    MockGatewayAdapter,
+    PaymentConfigurationError,
+    get_gateway_adapter,
+    get_gateway_credentials,
+)
+from .models import (
+    FeeHead,
+    FeeStructure,
+    OnlinePaymentOrder,
+    Payment,
+    PaymentAllocation,
+    StudentFee,
+    TenantPaymentGatewayConfig,
+)
 from .services import (
     annotate_with_allocation_total,
     assign_student_fee,
@@ -26,12 +41,17 @@ from .services import (
     get_amount_paid,
     get_outstanding_balance,
     get_total_allocated,
+    initiate_online_payment_order,
+    reconcile_online_payment_order,
     record_payment,
     reverse_payment,
+    settle_online_payment_order,
     update_student_fee,
     user_can_view_student_finances,
 )
 from .signals import DEFAULT_FEE_HEADS
+from .tasks import reconcile_pending_online_payments
+
 
 
 class FeesFixtureMixin:
@@ -1001,6 +1021,22 @@ class EndToEndScenarioTest(FeesFixtureMixin, TransactionTestCase):
         self.assertEqual(Decimal(str(parent_resp.data["total_outstanding"])), Decimal("0"))
         self.assertEqual(len(parent_resp.data["payments"]), 1)
 
+        # Authorized linked parent can view child's receipt
+        parent_receipt_resp = parent_client.get(
+            f"/api/fees/payments/{payment_resp.data['id']}/receipt/", HTTP_HOST=self.DOMAIN
+        )
+        self.assertEqual(parent_receipt_resp.status_code, 200)
+        self.assertEqual(parent_receipt_resp.data["receipt_number"], receipt_number)
+
+        # Unlinked parent is strictly forbidden from viewing another student's receipt
+        self._give_role_only(self.parent2_user, ["view_child_fees"])
+        parent2_client = self._client_as(self.parent2_user)
+        parent2_receipt_resp = parent2_client.get(
+            f"/api/fees/payments/{payment_resp.data['id']}/receipt/", HTTP_HOST=self.DOMAIN
+        )
+        self.assertEqual(parent2_receipt_resp.status_code, 403)
+
+
 
 class AllocationAggregationTests(FeesFixtureMixin, TransactionTestCase):
     """
@@ -1461,3 +1497,941 @@ class OutstandingReportTotalAggregateTests(FeesFixtureMixin, TransactionTestCase
         ]
         # Fixed cost regardless of row count: paginated SELECT, COUNT, total aggregate.
         self.assertLessEqual(len(allocation_selects), 3)
+
+
+class OnlinePaymentDomainAndGatewayTests(FeesFixtureMixin, TransactionTestCase):
+    """
+    Tests for TenantPaymentGatewayConfig credentials resolution, encryption at rest,
+    and eSewa v2 EPAY cryptographic signature verification.
+    """
+
+    def test_tenant_gateway_config_encryption_at_rest(self):
+        with tenant_context(self.school):
+            config = TenantPaymentGatewayConfig.objects.create(
+                gateway="esewa",
+                merchant_code="SCHOOL_ESEWA_01",
+                is_active=True,
+            )
+            config.set_secret("super_secret_merchant_key_123")
+            config.save()
+
+            # The stored DB field must not be plaintext
+            raw_db_val = TenantPaymentGatewayConfig.objects.values_list("encrypted_secret", flat=True).get(id=config.id)
+            self.assertNotEqual(raw_db_val, "super_secret_merchant_key_123")
+            self.assertFalse("super_secret" in raw_db_val)
+
+            # Decryption returns the original secret
+            reloaded = TenantPaymentGatewayConfig.objects.get(id=config.id)
+            self.assertEqual(reloaded.get_secret(), "super_secret_merchant_key_123")
+
+    def test_tenant_credentials_precedence(self):
+        with tenant_context(self.school):
+            TenantPaymentGatewayConfig.objects.create(
+                gateway="esewa",
+                merchant_code="TENANT_CUSTOM_MERCHANT",
+                encrypted_secret="",
+            )
+            cfg = TenantPaymentGatewayConfig.objects.get(gateway="esewa")
+            cfg.set_secret("custom_secret_abc")
+            cfg.save()
+
+            creds = get_gateway_credentials("esewa")
+            self.assertTrue(creds["is_tenant_custom"])
+            self.assertEqual(creds["merchant_code"], "TENANT_CUSTOM_MERCHANT")
+            self.assertEqual(creds["secret_key"], "custom_secret_abc")
+
+    def test_inactive_tenant_gateway_fails_closed_when_fallback_disabled(self):
+        with tenant_context(self.school):
+            TenantPaymentGatewayConfig.objects.create(
+                gateway="esewa",
+                merchant_code="INACTIVE_MERCHANT",
+                is_active=False,
+                allow_global_fallback=False,
+            )
+            with self.assertRaises(PaymentConfigurationError) as cm:
+                get_gateway_credentials("esewa")
+            self.assertIn("disabled for this tenant", str(cm.exception))
+
+    def test_global_fallback_when_no_tenant_config(self):
+        with tenant_context(self.school):
+            with self.settings(
+                ESEWA_PRODUCT_CODE="GLOBAL_EPAYTEST",
+                ESEWA_CLIENT_SECRET="global_secret_key_xyz",
+                FEES_ALLOW_GLOBAL_GATEWAY_FALLBACK=True,
+            ):
+                creds = get_gateway_credentials("esewa")
+                self.assertFalse(creds["is_tenant_custom"])
+                self.assertEqual(creds["merchant_code"], "GLOBAL_EPAYTEST")
+                self.assertEqual(creds["secret_key"], "global_secret_key_xyz")
+
+    def test_global_fallback_disabled_raises_error(self):
+        with tenant_context(self.school):
+            with self.settings(FEES_ALLOW_GLOBAL_GATEWAY_FALLBACK=False):
+                with self.assertRaises(PaymentConfigurationError) as cm:
+                    get_gateway_credentials("esewa")
+                self.assertIn("global fallback is disabled", str(cm.exception))
+
+    def test_esewa_v2_signature_generation_and_verification(self):
+        secret_key = "8gBm/:&EnhH.1/q"
+        message = "total_amount=100.00,transaction_uuid=11-201-13,product_code=EPAYTEST"
+        adapter = EsewaGatewayAdapter()
+        sig = adapter.generate_signature(secret_key, message)
+        self.assertTrue(isinstance(sig, str))
+        self.assertGreater(len(sig), 20)
+
+        # Verification with matching parameters
+        import base64
+        import json
+        payload_dict = {
+            "transaction_code": "TX-999888",
+            "status": "COMPLETE",
+            "total_amount": "100.00",
+            "transaction_uuid": "11-201-13",
+            "product_code": "EPAYTEST",
+            "signed_field_names": "transaction_code,status,total_amount,transaction_uuid,product_code",
+        }
+        signed_msg = ",".join(f"{f}={payload_dict[f]}" for f in payload_dict["signed_field_names"].split(","))
+        payload_dict["signature"] = adapter.generate_signature(secret_key, signed_msg)
+
+        encoded_data = base64.b64encode(json.dumps(payload_dict).encode("utf-8")).decode("utf-8")
+
+        with tenant_context(self.school):
+            with self.settings(ESEWA_PRODUCT_CODE="EPAYTEST", ESEWA_CLIENT_SECRET=secret_key):
+                order = OnlinePaymentOrder(
+                    amount=Decimal("100.00"),
+                    gateway_order_id="11-201-13",
+                    gateway="esewa",
+                )
+                res = adapter.verify_callback(order, {"data": encoded_data})
+                self.assertTrue(res.is_valid, res.error_message)
+                self.assertEqual(res.gateway_reference, "TX-999888")
+                self.assertEqual(res.verified_amount, Decimal("100.00"))
+
+    def test_esewa_v2_tampered_payload_rejected(self):
+        secret_key = "8gBm/:&EnhH.1/q"
+        adapter = EsewaGatewayAdapter()
+
+        import base64
+        import json
+        payload_dict = {
+            "transaction_code": "TX-999888",
+            "status": "COMPLETE",
+            "total_amount": "100.00",
+            "transaction_uuid": "11-201-13",
+            "product_code": "EPAYTEST",
+            "signed_field_names": "transaction_code,status,total_amount,transaction_uuid,product_code",
+        }
+        signed_msg = ",".join(f"{f}={payload_dict[f]}" for f in payload_dict["signed_field_names"].split(","))
+        payload_dict["signature"] = adapter.generate_signature(secret_key, signed_msg)
+        # Tamper amount without recalculating signature
+        payload_dict["total_amount"] = "500.00"
+
+        encoded_data = base64.b64encode(json.dumps(payload_dict).encode("utf-8")).decode("utf-8")
+
+        with tenant_context(self.school):
+            with self.settings(ESEWA_PRODUCT_CODE="EPAYTEST", ESEWA_CLIENT_SECRET=secret_key):
+                order = OnlinePaymentOrder(
+                    amount=Decimal("500.00"),
+                    gateway_order_id="11-201-13",
+                    gateway="esewa",
+                )
+                res = adapter.verify_callback(order, {"data": encoded_data})
+                self.assertFalse(res.is_valid)
+                self.assertIn("signature verification failed", res.error_message)
+
+
+class OnlineFeeInitiationAndSettlementTests(FeesFixtureMixin, TransactionTestCase):
+    """
+    Tests for initiate_online_payment_order, settle_online_payment_order,
+    interim cash settlement conflicts (Option B), and idempotency.
+    """
+
+    def setUp(self):
+        super().setUp()
+        with tenant_context(self.school):
+            self.fee1 = assign_student_fee(
+                student=self.student1,
+                fee_head=self.fee_head,
+                academic_year="2026",
+                amount_due=Decimal("1000.00"),
+            )
+            # Configure tenant gateway credentials for test school
+            cfg = TenantPaymentGatewayConfig.objects.create(
+                gateway="esewa",
+                merchant_code="TEST_SCHOOL_ESEWA",
+                is_active=True,
+            )
+            cfg.set_secret("test_esewa_secret_key_888")
+            cfg.save()
+
+    def _generate_valid_esewa_callback(self, order, secret_key="test_esewa_secret_key_888", merchant_code="TEST_SCHOOL_ESEWA"):
+        import base64
+        import json
+        adapter = EsewaGatewayAdapter()
+        payload = {
+            "transaction_code": f"TX-ESEWA-{uuid_module.uuid4().hex[:8].upper()}",
+            "status": "COMPLETE",
+            "total_amount": str(order.amount),
+            "transaction_uuid": order.gateway_order_id,
+            "product_code": merchant_code,
+            "signed_field_names": "transaction_code,status,total_amount,transaction_uuid,product_code",
+        }
+        msg = ",".join(f"{f}={payload[f]}" for f in payload["signed_field_names"].split(","))
+        payload["signature"] = adapter.generate_signature(secret_key, msg)
+        return base64.b64encode(json.dumps(payload).encode("utf-8")).decode("utf-8")
+
+    def test_initiate_online_payment_order_success(self):
+        with tenant_context(self.school):
+            order, payload = initiate_online_payment_order(
+                student=self.student1,
+                amount=Decimal("500.00"),
+                allocations=[{"student_fee_id": self.fee1.id, "amount": Decimal("500.00")}],
+                gateway="esewa",
+                created_by=self.student1_user,
+                return_url="https://feestest.localhost/fees/payment-response",
+                failure_url="https://feestest.localhost/fees/payment-response?failed=1",
+            )
+            self.assertEqual(order.status, "pending")
+            self.assertEqual(order.amount, Decimal("500.00"))
+            self.assertEqual(order.student, self.student1)
+            self.assertEqual(len(order.allocations_snapshot), 1)
+            self.assertEqual(order.allocations_snapshot[0]["student_fee_id"], str(self.fee1.id))
+            self.assertEqual(order.allocations_snapshot[0]["amount"], "500.00")
+
+            # Payload checks
+            self.assertEqual(payload.gateway, "esewa")
+            self.assertEqual(payload.form_parameters["product_code"], "TEST_SCHOOL_ESEWA")
+            self.assertEqual(payload.form_parameters["amount"], "500.00")
+            self.assertTrue("signature" in payload.form_parameters)
+
+    def test_initiate_order_invalid_amount_or_allocations_rejected(self):
+        from rest_framework.exceptions import ValidationError
+        with tenant_context(self.school):
+            # Negative amount
+            with self.assertRaises(ValidationError):
+                initiate_online_payment_order(
+                    student=self.student1,
+                    amount=Decimal("-100"),
+                    allocations=[{"student_fee_id": self.fee1.id, "amount": Decimal("-100")}],
+                )
+
+            # Sum mismatch
+            with self.assertRaises(ValidationError):
+                initiate_online_payment_order(
+                    student=self.student1,
+                    amount=Decimal("500"),
+                    allocations=[{"student_fee_id": self.fee1.id, "amount": Decimal("300")}],
+                )
+
+            # Allocation exceeds outstanding balance (1000)
+            with self.assertRaises(ValidationError):
+                initiate_online_payment_order(
+                    student=self.student1,
+                    amount=Decimal("1500"),
+                    allocations=[{"student_fee_id": self.fee1.id, "amount": Decimal("1500")}],
+                )
+
+            # Fee belongs to another student
+            fee2 = assign_student_fee(
+                student=self.student2,
+                fee_head=self.fee_head,
+                academic_year="2026",
+                amount_due=Decimal("500.00"),
+            )
+            with self.assertRaises(ValidationError):
+                initiate_online_payment_order(
+                    student=self.student1,
+                    amount=Decimal("500"),
+                    allocations=[{"student_fee_id": fee2.id, "amount": Decimal("500")}],
+                )
+
+    def test_settle_online_payment_order_successful_atomic_allocation(self):
+        with tenant_context(self.school):
+            order, _ = initiate_online_payment_order(
+                student=self.student1,
+                amount=Decimal("600.00"),
+                allocations=[{"student_fee_id": self.fee1.id, "amount": Decimal("600.00")}],
+                gateway="esewa",
+                created_by=self.student1_user,
+            )
+
+            callback_data = self._generate_valid_esewa_callback(order)
+            result = settle_online_payment_order(
+                order_id_or_gateway_order_id=order.id,
+                raw_callback_payload={"data": callback_data},
+            )
+
+            self.assertEqual(result["status"], "success")
+            order.refresh_from_db()
+            self.assertEqual(order.status, "success")
+            self.assertIsNotNone(order.payment)
+            self.assertEqual(order.payment.amount, Decimal("600.00"))
+            self.assertEqual(order.payment.method, "online")
+            self.assertTrue(order.payment.receipt_number.startswith("RCPT-"))
+            self.assertEqual(order.payment.gateway_reference, order.gateway_reference)
+
+            # Outstanding balance of fee1 drops from 1000 to 400
+            self.fee1.refresh_from_db()
+            self.assertEqual(get_outstanding_balance(self.fee1), Decimal("400.00"))
+            self.assertEqual(get_amount_paid(self.fee1), Decimal("600.00"))
+
+    def test_settle_online_payment_order_idempotent_duplicate_callback(self):
+        with tenant_context(self.school):
+            order, _ = initiate_online_payment_order(
+                student=self.student1,
+                amount=Decimal("400.00"),
+                allocations=[{"student_fee_id": self.fee1.id, "amount": Decimal("400.00")}],
+                gateway="esewa",
+            )
+            callback_data = self._generate_valid_esewa_callback(order)
+
+            # First settlement
+            res1 = settle_online_payment_order(
+                order_id_or_gateway_order_id=order.id,
+                raw_callback_payload={"data": callback_data},
+            )
+            self.assertEqual(res1["status"], "success")
+            first_payment_id = res1["payment"].id
+
+            # Second settlement with identical callback (simulating browser reload / retry webhook)
+            res2 = settle_online_payment_order(
+                order_id_or_gateway_order_id=order.id,
+                raw_callback_payload={"data": callback_data},
+            )
+            self.assertEqual(res2["status"], "already_completed")
+            self.assertEqual(res2["payment"].id, first_payment_id)
+
+            # Check that Payment count did NOT increase
+            self.assertEqual(Payment.objects.filter(student=self.student1).count(), 1)
+            self.assertEqual(PaymentAllocation.objects.filter(student_fee=self.fee1).count(), 1)
+            self.fee1.refresh_from_db()
+            self.assertEqual(get_outstanding_balance(self.fee1), Decimal("600.00"))
+
+    def test_settle_interim_cash_settlement_conflict_requires_reconciliation(self):
+        """
+        OPTION B Verification:
+        1. Parent initiates online payment of 1000 for Tuition.
+        2. Student pays 700 cash at desk in the interim. Outstanding drops to 300.
+        3. eSewa callback arrives for 1000.
+        4. Allocation (1000) exceeds outstanding (300).
+        5. Invariant protected: NO broken Payment created.
+        6. Order transitions to 'reconciliation_required', preserving ref_id and reason.
+        """
+        with tenant_context(self.school):
+            order, _ = initiate_online_payment_order(
+                student=self.student1,
+                amount=Decimal("1000.00"),
+                allocations=[{"student_fee_id": self.fee1.id, "amount": Decimal("1000.00")}],
+                gateway="esewa",
+            )
+
+            # Cash payment recorded at desk
+            record_payment(
+                student=self.student1,
+                amount=Decimal("700.00"),
+                method="cash",
+                allocations=[{"student_fee_id": self.fee1.id, "amount": Decimal("700.00")}],
+                recorded_by=self.finance_staff_member,
+                reference_note="Cash at counter",
+            )
+            self.fee1.refresh_from_db()
+            self.assertEqual(get_outstanding_balance(self.fee1), Decimal("300.00"))
+
+            # eSewa callback for 1000 arrives
+            callback_data = self._generate_valid_esewa_callback(order)
+            result = settle_online_payment_order(
+                order_id_or_gateway_order_id=order.id,
+                raw_callback_payload={"data": callback_data},
+            )
+
+            # Must require reconciliation, NOT create invalid payment
+            self.assertEqual(result["status"], "reconciliation_required")
+            self.assertIn("exceeds current outstanding", result["reason"])
+
+            order.refresh_from_db()
+            self.assertEqual(order.status, "reconciliation_required")
+            self.assertIsNone(order.payment)  # No payment linked!
+            self.assertTrue(len(order.gateway_reference) > 0)  # Preserved ref_id!
+            self.assertTrue(len(order.reconciliation_reason) > 0)
+
+            # Fee outstanding balance remains exactly 300 (not corrupted or negative)
+            self.fee1.refresh_from_db()
+            self.assertEqual(get_outstanding_balance(self.fee1), Decimal("300.00"))
+            self.assertEqual(get_amount_paid(self.fee1), Decimal("700.00"))
+
+            # Only 1 payment exists (the cash one)
+            self.assertEqual(Payment.objects.filter(student=self.student1).count(), 1)
+
+    def test_settle_interim_fee_cancellation_requires_reconciliation(self):
+        with tenant_context(self.school):
+            order, _ = initiate_online_payment_order(
+                student=self.student1,
+                amount=Decimal("500.00"),
+                allocations=[{"student_fee_id": self.fee1.id, "amount": Decimal("500.00")}],
+                gateway="esewa",
+            )
+
+            # Fee cancelled in interim
+            cancel_student_fee(self.fee1, reason="Fee waived by principal")
+            self.fee1.refresh_from_db()
+            self.assertEqual(self.fee1.status, "cancelled")
+
+            callback_data = self._generate_valid_esewa_callback(order)
+            result = settle_online_payment_order(
+                order_id_or_gateway_order_id=order.id,
+                raw_callback_payload={"data": callback_data},
+            )
+
+            self.assertEqual(result["status"], "reconciliation_required")
+            self.assertIn("cancelled", result["reason"])
+            order.refresh_from_db()
+            self.assertEqual(order.status, "reconciliation_required")
+            self.assertIsNone(order.payment)
+
+    def test_reconcile_online_payment_order_with_mock_gateway(self):
+        with tenant_context(self.school):
+            order, _ = initiate_online_payment_order(
+                student=self.student1,
+                amount=Decimal("250.00"),
+                allocations=[{"student_fee_id": self.fee1.id, "amount": Decimal("250.00")}],
+                gateway="mock",
+            )
+            self.assertEqual(order.status, "pending")
+
+            res = reconcile_online_payment_order(order)
+            self.assertEqual(res["status"], "success")
+
+            order.refresh_from_db()
+            self.assertEqual(order.status, "success")
+            self.assertIsNotNone(order.payment)
+            self.assertEqual(order.payment.amount, Decimal("250.00"))
+            self.fee1.refresh_from_db()
+            self.assertEqual(get_outstanding_balance(self.fee1), Decimal("750.00"))
+
+    def test_tenant_isolation_orders(self):
+        school_b = self._build_school(schema_name="school_b_fees", domain="schoolb.localhost")
+        with tenant_context(school_b):
+            prog = Program.objects.create(name="B High", code="BH")
+            lvl = AcademicLevel.objects.create(program=prog, name="L1", order=1)
+            sec = Section.objects.create(level=lvl, name="B1", capacity=30)
+            prof_b = Profile.objects.create(first_name="Bob", last_name="Student")
+            st_b = Student.objects.create(profile=prof_b, enrollment_id="ENR-B-1", status="active")
+            StudentLevel.objects.create(
+                student=st_b, level=lvl, section=sec, academic_year="2026", is_current=True
+            )
+            fh_b = FeeHead.objects.create(name="B Tuition")
+            fee_b = assign_student_fee(
+                student=st_b,
+                fee_head=fh_b,
+                academic_year="2026",
+                amount_due=Decimal("500.00"),
+            )
+            cfg_b = TenantPaymentGatewayConfig.objects.create(
+                gateway="esewa",
+                merchant_code="SCHOOL_B_MERCHANT",
+                is_active=True,
+            )
+            cfg_b.set_secret("secret_b_999")
+            cfg_b.save()
+
+            order_b, _ = initiate_online_payment_order(
+                student=st_b,
+                amount=Decimal("500.00"),
+                allocations=[{"student_fee_id": fee_b.id, "amount": Decimal("500.00")}],
+                gateway="esewa",
+            )
+
+        # In school A, order_b must not exist
+        with tenant_context(self.school):
+            from rest_framework.exceptions import ValidationError
+            with self.assertRaises(ValidationError):
+                settle_online_payment_order(
+                    order_id_or_gateway_order_id=order_b.id,
+                    raw_callback_payload={},
+                )
+            self.assertFalse(OnlinePaymentOrder.objects.filter(id=order_b.id).exists())
+
+
+class OnlinePaymentAPITests(FeesFixtureMixin, TransactionTestCase):
+    """
+    Integration tests for Online Fee Payment REST API endpoints:
+    - POST /api/fees/online/initiate/
+    - POST /api/parent-portal/children/<id>/pay-fees/
+    - POST /api/fees/online/verify/
+    - GET /api/fees/online/callback/
+    - GET /api/fees/online/orders/<id>/
+    - GET /api/fees/online/orders/
+    - POST /api/fees/online/orders/<id>/reconcile/
+    """
+
+    def setUp(self):
+        super().setUp()
+        with tenant_context(self.school):
+            self.fee1 = assign_student_fee(
+                student=self.student1,
+                fee_head=self.fee_head,
+                academic_year="2026",
+                amount_due=Decimal("1000.00"),
+            )
+            cfg = TenantPaymentGatewayConfig.objects.create(
+                gateway="esewa",
+                merchant_code="TEST_SCHOOL_ESEWA",
+                is_active=True,
+            )
+            cfg.set_secret("test_esewa_secret_key_888")
+            cfg.save()
+
+    def _generate_valid_esewa_callback(self, order, secret_key="test_esewa_secret_key_888", merchant_code="TEST_SCHOOL_ESEWA"):
+        import base64
+        import json
+        adapter = EsewaGatewayAdapter()
+        payload = {
+            "transaction_code": f"TX-ESEWA-{uuid_module.uuid4().hex[:8].upper()}",
+            "status": "COMPLETE",
+            "total_amount": str(order.amount),
+            "transaction_uuid": order.gateway_order_id,
+            "product_code": merchant_code,
+            "signed_field_names": "transaction_code,status,total_amount,transaction_uuid,product_code",
+        }
+        msg = ",".join(f"{f}={payload[f]}" for f in payload["signed_field_names"].split(","))
+        payload["signature"] = adapter.generate_signature(secret_key, msg)
+        return base64.b64encode(json.dumps(payload).encode("utf-8")).decode("utf-8")
+
+    def test_student_initiate_online_payment_api_success(self):
+        self._give_role_only(self.student1_user, ["pay_own_fees"])
+        client = self._client_as(self.student1_user)
+
+        data = {
+            "student": str(self.student1.id),
+            "amount": "500.00",
+            "gateway": "esewa",
+            "allocations": [{"student_fee": str(self.fee1.id), "amount": "500.00"}],
+            "return_url": "https://feestest.localhost/fees/payment-response",
+            "failure_url": "https://feestest.localhost/fees/payment-response?failed=1",
+        }
+        resp = client.post("/api/fees/online/initiate/", data, format="json", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.status_code, 201)
+        self.assertEqual(resp.data["order"]["amount"], "500.00")
+        self.assertEqual(resp.data["order"]["status"], "pending")
+        self.assertEqual(resp.data["gateway_payload"]["gateway"], "esewa")
+        self.assertEqual(resp.data["gateway_payload"]["form_parameters"]["product_code"], "TEST_SCHOOL_ESEWA")
+        self.assertTrue("signature" in resp.data["gateway_payload"]["form_parameters"])
+
+    def test_student_initiate_without_pay_own_fees_denied(self):
+        self._give_role_only(self.student1_user, ["view_own_fees"])
+        client = self._client_as(self.student1_user)
+
+        data = {
+            "student": str(self.student1.id),
+            "amount": "500.00",
+            "gateway": "esewa",
+            "allocations": [{"student_fee": str(self.fee1.id), "amount": "500.00"}],
+        }
+        resp = client.post("/api/fees/online/initiate/", data, format="json", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.status_code, 403)
+
+    def test_student_initiate_for_different_student_denied(self):
+        self._give_role_only(self.student1_user, ["pay_own_fees"])
+        client = self._client_as(self.student1_user)
+
+        data = {
+            "student": str(self.student2.id),
+            "amount": "500.00",
+            "gateway": "esewa",
+            "allocations": [{"student_fee": str(self.fee1.id), "amount": "500.00"}],
+        }
+        resp = client.post("/api/fees/online/initiate/", data, format="json", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.status_code, 403)
+
+    def test_staff_initiate_online_payment_api_success(self):
+        self._give_role_only(self.finance_user, ["collect_payments"])
+        client = self._client_as(self.finance_user)
+
+        data = {
+            "student": str(self.student1.id),
+            "amount": "300.00",
+            "gateway": "esewa",
+            "allocations": [{"student_fee": str(self.fee1.id), "amount": "300.00"}],
+        }
+        resp = client.post("/api/fees/online/initiate/", data, format="json", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.status_code, 201)
+        self.assertEqual(resp.data["order"]["amount"], "300.00")
+
+    def test_parent_portal_child_pay_fee_success(self):
+        self._give_role_only(self.parent1_user, ["view_own_children", "pay_child_fees"])
+        client = self._client_as(self.parent1_user)
+
+        data = {
+            "amount": "400.00",
+            "gateway": "esewa",
+            "allocations": [{"student_fee": str(self.fee1.id), "amount": "400.00"}],
+            "return_url": "https://feestest.localhost/parent-portal/fees/callback",
+        }
+        resp = client.post(
+            f"/api/parent-portal/children/{self.student1.id}/pay-fees/",
+            data,
+            format="json",
+            HTTP_HOST=self.DOMAIN,
+        )
+        self.assertEqual(resp.status_code, 201)
+        self.assertEqual(resp.data["order"]["amount"], "400.00")
+        self.assertEqual(str(resp.data["order"]["student"]), str(self.student1.id))
+        self.assertEqual(resp.data["order"]["created_by_user_id"], str(self.parent1_user.id))
+
+    def test_parent_portal_child_pay_fee_unrelated_child_denied(self):
+        self._give_role_only(self.parent1_user, ["view_own_children", "pay_child_fees"])
+        client = self._client_as(self.parent1_user)
+
+        data = {
+            "amount": "400.00",
+            "gateway": "esewa",
+            "allocations": [{"student_fee": str(self.fee1.id), "amount": "400.00"}],
+        }
+        resp = client.post(
+            f"/api/parent-portal/children/{self.student2.id}/pay-fees/",
+            data,
+            format="json",
+            HTTP_HOST=self.DOMAIN,
+        )
+        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(resp.data["error"], "You do not have access to this child.")
+
+    def test_parent_portal_child_pay_fee_without_permission_denied(self):
+        self._give_role_only(self.parent1_user, ["view_own_children", "view_child_fees"])
+        client = self._client_as(self.parent1_user)
+
+        data = {
+            "amount": "400.00",
+            "gateway": "esewa",
+            "allocations": [{"student_fee": str(self.fee1.id), "amount": "400.00"}],
+        }
+        resp = client.post(
+            f"/api/parent-portal/children/{self.student1.id}/pay-fees/",
+            data,
+            format="json",
+            HTTP_HOST=self.DOMAIN,
+        )
+        self.assertEqual(resp.status_code, 403)
+
+    def test_online_payment_verify_api_success(self):
+        with tenant_context(self.school):
+            order, _ = initiate_online_payment_order(
+                student=self.student1,
+                amount=Decimal("600.00"),
+                allocations=[{"student_fee_id": self.fee1.id, "amount": Decimal("600.00")}],
+                gateway="esewa",
+                created_by=self.student1_user,
+            )
+
+        callback_b64 = self._generate_valid_esewa_callback(order)
+        client = APIClient()
+        resp = client.post(
+            "/api/fees/online/verify/",
+            {"data": callback_b64},
+            format="json",
+            HTTP_HOST=self.DOMAIN,
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data["status"], "success")
+        self.assertTrue(resp.data["receipt_number"])
+
+        with tenant_context(self.school):
+            order.refresh_from_db()
+            self.assertEqual(order.status, "success")
+            self.assertIsNotNone(order.payment)
+            self.assertEqual(order.payment.amount, Decimal("600.00"))
+            self.assertEqual(order.payment.receipt_number, resp.data["receipt_number"])
+
+    def test_online_payment_verify_api_idempotent(self):
+        with tenant_context(self.school):
+            order, _ = initiate_online_payment_order(
+                student=self.student1,
+                amount=Decimal("600.00"),
+                allocations=[{"student_fee_id": self.fee1.id, "amount": Decimal("600.00")}],
+                gateway="esewa",
+                created_by=self.student1_user,
+            )
+
+        callback_b64 = self._generate_valid_esewa_callback(order)
+        client = APIClient()
+        # First verification
+        resp1 = client.post(
+            "/api/fees/online/verify/",
+            {"data": callback_b64},
+            format="json",
+            HTTP_HOST=self.DOMAIN,
+        )
+        self.assertEqual(resp1.status_code, 200)
+        self.assertEqual(resp1.data["status"], "success")
+
+        # Second verification (idempotent callback)
+        with tenant_context(self.school):
+            payment_count_before = Payment.objects.count()
+
+        resp2 = client.post(
+            "/api/fees/online/verify/",
+            {"data": callback_b64},
+            format="json",
+            HTTP_HOST=self.DOMAIN,
+        )
+        self.assertEqual(resp2.status_code, 200)
+        self.assertEqual(resp2.data["status"], "already_completed")
+        self.assertEqual(resp2.data["receipt_number"], resp1.data["receipt_number"])
+
+        with tenant_context(self.school):
+            payment_count_after = Payment.objects.count()
+            self.assertEqual(payment_count_before, payment_count_after)
+
+    def test_online_payment_verify_api_tampered_signature_rejected(self):
+        with tenant_context(self.school):
+            order, _ = initiate_online_payment_order(
+                student=self.student1,
+                amount=Decimal("500.00"),
+                allocations=[{"student_fee_id": self.fee1.id, "amount": Decimal("500.00")}],
+                gateway="esewa",
+            )
+
+        # Forge signature with wrong secret
+        tampered_b64 = self._generate_valid_esewa_callback(order, secret_key="forged_attacker_secret")
+        client = APIClient()
+        resp = client.post(
+            "/api/fees/online/verify/",
+            {"data": tampered_b64},
+            format="json",
+            HTTP_HOST=self.DOMAIN,
+        )
+        self.assertEqual(resp.status_code, 400)
+        with tenant_context(self.school):
+            order.refresh_from_db()
+            self.assertEqual(order.status, "failed")
+            self.assertIsNone(order.payment)
+
+    def test_online_payment_verify_api_interim_cash_settlement_conflict_option_b(self):
+        with tenant_context(self.school):
+            order, _ = initiate_online_payment_order(
+                student=self.student1,
+                amount=Decimal("500.00"),
+                allocations=[{"student_fee_id": self.fee1.id, "amount": Decimal("500.00")}],
+                gateway="esewa",
+            )
+
+            # Cash settlement at counter in interim reduces outstanding balance below 500
+            record_payment(
+                student=self.student1,
+                amount=Decimal("800.00"),
+                method="cash",
+                allocations=[{"student_fee_id": self.fee1.id, "amount": Decimal("800.00")}],
+                recorded_by=self.finance_staff_member,
+            )
+            self.fee1.refresh_from_db()
+            self.assertEqual(get_outstanding_balance(self.fee1), Decimal("200.00"))
+
+        callback_b64 = self._generate_valid_esewa_callback(order)
+        client = APIClient()
+        resp = client.post(
+            "/api/fees/online/verify/",
+            {"data": callback_b64},
+            format="json",
+            HTTP_HOST=self.DOMAIN,
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data["status"], "reconciliation_required")
+        self.assertIn("exceeds current outstanding", resp.data["reason"])
+
+        with tenant_context(self.school):
+            order.refresh_from_db()
+            self.assertEqual(order.status, "reconciliation_required")
+            self.assertIsNone(order.payment)
+            self.assertTrue(order.gateway_reference)
+
+    def test_online_payment_callback_get_endpoint(self):
+        with tenant_context(self.school):
+            order, _ = initiate_online_payment_order(
+                student=self.student1,
+                amount=Decimal("350.00"),
+                allocations=[{"student_fee_id": self.fee1.id, "amount": Decimal("350.00")}],
+                gateway="esewa",
+            )
+
+        callback_b64 = self._generate_valid_esewa_callback(order)
+        client = APIClient()
+        resp = client.get(
+            f"/api/fees/online/callback/?data={callback_b64}",
+            HTTP_HOST=self.DOMAIN,
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data["status"], "success")
+
+    def test_online_payment_order_detail_view_permissions(self):
+        with tenant_context(self.school):
+            order, _ = initiate_online_payment_order(
+                student=self.student1,
+                amount=Decimal("200.00"),
+                allocations=[{"student_fee_id": self.fee1.id, "amount": Decimal("200.00")}],
+                gateway="esewa",
+                created_by=self.student1_user,
+            )
+
+        # Student1 sees own order
+        self._give_role_only(self.student1_user, ["view_own_fees"])
+        c_student = self._client_as(self.student1_user)
+        resp = c_student.get(f"/api/fees/online/orders/{order.id}/", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data["id"], str(order.id))
+
+        # Parent1 (linked to Student1) sees order
+        self._give_role_only(self.parent1_user, ["view_child_fees"])
+        c_parent1 = self._client_as(self.parent1_user)
+        resp = c_parent1.get(f"/api/fees/online/orders/{order.id}/", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.status_code, 200)
+
+        # Parent2 (linked to Student2) is forbidden
+        self._give_role_only(self.parent2_user, ["view_child_fees"])
+        c_parent2 = self._client_as(self.parent2_user)
+        resp = c_parent2.get(f"/api/fees/online/orders/{order.id}/", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.status_code, 403)
+
+        # Staff with view_fees sees order
+        self._give_role_only(self.finance_user, ["view_fees"])
+        c_staff = self._client_as(self.finance_user)
+        resp = c_staff.get(f"/api/fees/online/orders/{order.id}/", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.status_code, 200)
+
+    def test_online_payment_order_list_view_scoping(self):
+        with tenant_context(self.school):
+            fee2 = assign_student_fee(
+                student=self.student2,
+                fee_head=self.fee_head,
+                academic_year="2026",
+                amount_due=Decimal("800.00"),
+            )
+            order1, _ = initiate_online_payment_order(
+                student=self.student1,
+                amount=Decimal("100.00"),
+                allocations=[{"student_fee_id": self.fee1.id, "amount": Decimal("100.00")}],
+                gateway="esewa",
+                created_by=self.student1_user,
+            )
+            order2, _ = initiate_online_payment_order(
+                student=self.student2,
+                amount=Decimal("200.00"),
+                allocations=[{"student_fee_id": fee2.id, "amount": Decimal("200.00")}],
+                gateway="esewa",
+                created_by=self.parent2_user,
+            )
+
+        # Student1 sees only order1
+        self._give_role_only(self.student1_user, ["view_own_fees"])
+        c_student = self._client_as(self.student1_user)
+        resp = c_student.get("/api/fees/online/orders/", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.status_code, 200)
+        order_ids = [o["id"] for o in resp.data["results"]]
+        self.assertIn(str(order1.id), order_ids)
+        self.assertNotIn(str(order2.id), order_ids)
+
+        # Parent2 sees only order2
+        self._give_role_only(self.parent2_user, ["view_child_fees"])
+        c_parent2 = self._client_as(self.parent2_user)
+        resp = c_parent2.get("/api/fees/online/orders/", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.status_code, 200)
+        order_ids = [o["id"] for o in resp.data["results"]]
+        self.assertNotIn(str(order1.id), order_ids)
+        self.assertIn(str(order2.id), order_ids)
+
+        # Staff with view_fees sees both
+        self._give_role_only(self.finance_user, ["view_fees"])
+        c_staff = self._client_as(self.finance_user)
+        resp = c_staff.get("/api/fees/online/orders/", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.status_code, 200)
+        order_ids = [o["id"] for o in resp.data["results"]]
+        self.assertIn(str(order1.id), order_ids)
+        self.assertIn(str(order2.id), order_ids)
+
+    def test_online_payment_manual_reconcile_endpoint(self):
+        with tenant_context(self.school):
+            order, _ = initiate_online_payment_order(
+                student=self.student1,
+                amount=Decimal("300.00"),
+                allocations=[{"student_fee_id": self.fee1.id, "amount": Decimal("300.00")}],
+                gateway="mock",
+            )
+            self.assertEqual(order.status, "pending")
+
+        self._give_role_only(self.finance_user, ["collect_payments"])
+        client = self._client_as(self.finance_user)
+        resp = client.post(
+            f"/api/fees/online/orders/{order.id}/reconcile/",
+            {},
+            HTTP_HOST=self.DOMAIN,
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data["status"], "success")
+
+        with tenant_context(self.school):
+            order.refresh_from_db()
+            self.assertEqual(order.status, "success")
+            self.assertIsNotNone(order.payment)
+
+
+class OnlinePaymentCeleryReconciliationTests(FeesFixtureMixin, TransactionTestCase):
+    """
+    Tests for the Celery periodic task reconcile_pending_online_payments().
+    """
+
+    def setUp(self):
+        super().setUp()
+        with tenant_context(self.school):
+            self.fee1 = assign_student_fee(
+                student=self.student1,
+                fee_head=self.fee_head,
+                academic_year="2026",
+                amount_due=Decimal("1000.00"),
+            )
+
+    def test_reconcile_pending_online_payments_task(self):
+        with tenant_context(self.school):
+            # Order 1: Mock gateway completes upon status inquiry
+            order1, _ = initiate_online_payment_order(
+                student=self.student1,
+                amount=Decimal("300.00"),
+                allocations=[{"student_fee_id": self.fee1.id, "amount": Decimal("300.00")}],
+                gateway="mock",
+            )
+
+        summary = reconcile_pending_online_payments(batch_size=10, time_budget=10)
+
+        self.assertGreaterEqual(summary["schemas_checked"], 1)
+        self.assertEqual(summary["errors"], 0)
+        self.assertEqual(summary["success"], 1)
+
+        with tenant_context(self.school):
+            order1.refresh_from_db()
+            self.assertEqual(order1.status, "success")
+            self.assertIsNotNone(order1.payment)
+
+    def test_reconcile_task_handles_expired_orders(self):
+        with tenant_context(self.school):
+            from django.utils import timezone
+            order, _ = initiate_online_payment_order(
+                student=self.student1,
+                amount=Decimal("200.00"),
+                allocations=[{"student_fee_id": self.fee1.id, "amount": Decimal("200.00")}],
+                gateway="esewa",
+            )
+            order.expires_at = timezone.now() - datetime.timedelta(minutes=30)
+            order.save(update_fields=["expires_at"])
+
+        from unittest.mock import patch
+        from .gateways import GatewayStatusResult
+
+        with patch.object(
+            EsewaGatewayAdapter,
+            "query_status",
+            return_value=GatewayStatusResult(status="NOT_FOUND", error_message="Order not found"),
+        ):
+            summary = reconcile_pending_online_payments(batch_size=10, time_budget=10)
+
+        with tenant_context(self.school):
+            order.refresh_from_db()
+            self.assertEqual(order.status, "expired")
+            self.assertIn("expired without gateway confirmation", order.reconciliation_reason)

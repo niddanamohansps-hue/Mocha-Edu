@@ -1240,3 +1240,181 @@ class ExamPublicationBulkOptimizationTests(ExamFixtureMixin, TransactionTestCase
         # queries PER additional student (30 extra students would have
         # added 200+ queries - see Phase 9G report's measured before/after).
         self.assertLessEqual(large_count, small_count + 3, f"small={small_count} large={large_count}")
+
+
+class ReportCardAndTranscriptTests(ExamFixtureMixin, TransactionTestCase):
+    """
+    Test suite for Phase 2: Printable Student Report Cards and Academic Transcripts.
+    Verifies:
+    - Object-level authorization for students, parents, instructors, staff, and owner
+    - Weighted GPA calculations according to configured grade points and subject credits
+    - Handling of unconfigured grade points (returns None, never silent zero)
+    - Chronological multi-year transcript ordering and cumulative totals
+    - Integration with attendance percentage and non-reversed promotion records
+    - Immutability of published ExamResult snapshots
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.client = APIClient()
+
+        with tenant_context(self.school):
+            # Give second subject 2.0 credits, first subject 1.0 credit
+            self.subject.credits = Decimal("1.0")
+            self.subject.save()
+            self.second_subject.credits = Decimal("2.0")
+            self.second_subject.save()
+
+            # Create schedules for student
+            self.sched1 = ExamSchedule.objects.create(
+                examination=self.examination, academic_year="2026", subject=self.subject, section=self.section_a,
+                date=datetime.date(2026, 6, 2), start_time=datetime.time(9, 0), end_time=datetime.time(10, 0),
+                max_marks=Decimal("100"), pass_marks=Decimal("40"),
+            )
+            self.sched2 = ExamSchedule.objects.create(
+                examination=self.examination, academic_year="2026", subject=self.second_subject, section=self.section_a,
+                date=datetime.date(2026, 6, 3), start_time=datetime.time(9, 0), end_time=datetime.time(10, 0),
+                max_marks=Decimal("100"), pass_marks=Decimal("40"),
+            )
+
+            # Enter marks: Subject 1: 95% (A+, gp 4.0, cr 1.0), Subject 2: 70% (B, gp 3.0, cr 2.0)
+            ExamMark.objects.create(exam_schedule=self.sched1, student=self.student, marks_obtained=Decimal("95"))
+            ExamMark.objects.create(exam_schedule=self.sched2, student=self.student, marks_obtained=Decimal("70"))
+
+            from .services import publish_examination
+            from unittest import mock
+            with mock.patch("examinations.services._queue_result_published_notifications"):
+                publish_examination(self.examination)
+
+    def test_gpa_calculation_weighted(self):
+        """GPA = (4.0 * 1.0 + 3.0 * 2.0) / (1.0 + 2.0) = 10.0 / 3.0 = 3.33"""
+        from .services import calculate_gpa
+        with tenant_context(self.school):
+            result = ExamResult.objects.get(examination=self.examination, student=self.student)
+            gpa = calculate_gpa(result.subject_breakdown, "2026")
+            self.assertIsNotNone(gpa)
+            self.assertEqual(gpa, 3.33)
+
+    def test_gpa_calculation_unconfigured_grade_points_returns_none(self):
+        """If any GradeBoundary for that year has grade_point=None, GPA must return None."""
+        from .services import calculate_gpa
+        with tenant_context(self.school):
+            b = GradeBoundary.objects.filter(academic_year="2026", grade_label="A+").first()
+            b.grade_point = None
+            b.save()
+
+            result = ExamResult.objects.get(examination=self.examination, student=self.student)
+            gpa = calculate_gpa(result.subject_breakdown, "2026")
+            self.assertIsNone(gpa)
+
+    def test_gpa_calculation_absent_subject_returns_none(self):
+        """If a student was absent or mark is incomplete, GPA must return None (incomplete)."""
+        from .services import calculate_gpa
+        breakdown = [
+            {"subject": str(self.subject.id), "subject_name": "Math", "marks_obtained": None, "max_marks": 100.0,
+             "percentage": None, "grade": None, "is_absent": True, "is_pass": False}
+        ]
+        with tenant_context(self.school):
+            gpa = calculate_gpa(breakdown, "2026")
+            self.assertIsNone(gpa)
+
+    def test_student_can_view_own_report_card(self):
+        self.client.force_authenticate(user=self.student_user)
+        response = self.client.get(
+            f"/api/examinations/students/{self.student.id}/report-card/",
+            HTTP_HOST=self.DOMAIN,
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["student"]["id"], str(self.student.id))
+        self.assertEqual(data["academic_year"], "2026")
+        self.assertIn("institution", data)
+        self.assertIn("summary", data)
+        self.assertIn("attendance", data)
+        self.assertEqual(len(data["examinations"]), 1)
+        self.assertEqual(data["examinations"][0]["gpa"], 3.33)
+
+    def test_student_cannot_view_other_student_report_card(self):
+        self.client.force_authenticate(user=self.student_user)
+        response = self.client.get(
+            f"/api/examinations/students/{self.student2.id}/report-card/",
+            HTTP_HOST=self.DOMAIN,
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_staff_without_permission_cannot_view_report_card(self):
+        user = self._build_user("exam_no_perm_staff", "staff")
+        self.client.force_authenticate(user=user)
+        response = self.client.get(
+            f"/api/examinations/students/{self.student.id}/report-card/",
+            HTTP_HOST=self.DOMAIN,
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_staff_with_view_results_can_view_report_card(self):
+        user = self._build_user("exam_results_staff", "staff")
+        self._give_role_only(user, ["view_results"])
+        self.client.force_authenticate(user=user)
+        response = self.client.get(
+            f"/api/examinations/students/{self.student.id}/report-card/",
+            HTTP_HOST=self.DOMAIN,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["student"]["id"], str(self.student.id))
+
+    def test_owner_can_view_student_report_card(self):
+        self.client.force_authenticate(user=self.owner_user)
+        response = self.client.get(
+            f"/api/examinations/students/{self.student.id}/report-card/",
+            HTTP_HOST=self.DOMAIN,
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_student_can_view_own_transcript(self):
+        self.client.force_authenticate(user=self.student_user)
+        response = self.client.get(
+            f"/api/examinations/students/{self.student.id}/transcript/",
+            HTTP_HOST=self.DOMAIN,
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["student"]["id"], str(self.student.id))
+        self.assertIn("years", data)
+        self.assertIn("cumulative_summary", data)
+        self.assertIn("issuance", data)
+        self.assertEqual(len(data["years"]), 1)
+        self.assertEqual(data["years"][0]["academic_year"], "2026")
+        self.assertEqual(data["cumulative_summary"]["cgpa"], 3.33)
+
+    def test_student_cannot_view_other_student_transcript(self):
+        self.client.force_authenticate(user=self.student_user)
+        response = self.client.get(
+            f"/api/examinations/students/{self.student2.id}/transcript/",
+            HTTP_HOST=self.DOMAIN,
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_published_results_are_immutable_during_report_card_generation(self):
+        """
+        Verify that generating a report card does not mutate or recalculate
+        the stored ExamResult record or its subject_breakdown.
+        """
+        with tenant_context(self.school):
+            before = ExamResult.objects.get(examination=self.examination, student=self.student)
+            before_obtained = before.total_marks_obtained
+            before_percentage = before.percentage
+            before_breakdown = list(before.subject_breakdown)
+
+        self.client.force_authenticate(user=self.student_user)
+        response = self.client.get(
+            f"/api/examinations/students/{self.student.id}/report-card/",
+            HTTP_HOST=self.DOMAIN,
+        )
+        self.assertEqual(response.status_code, 200)
+
+        with tenant_context(self.school):
+            after = ExamResult.objects.get(examination=self.examination, student=self.student)
+            self.assertEqual(after.total_marks_obtained, before_obtained)
+            self.assertEqual(after.percentage, before_percentage)
+            self.assertEqual(after.subject_breakdown, before_breakdown)
+

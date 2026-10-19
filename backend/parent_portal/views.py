@@ -296,9 +296,10 @@ class ChildFeesView(APIView):
 
 
 class ChildReportCardView(APIView):
-    """Aggregation only, mirroring examinations.views.StudentReportCardView's
-    exact response shape - no PDF, no stored ReportCard model, just every
-    published ExamResult for the student rendered together."""
+    """
+    Renders published examination results, attendance, promotion status, GPA, and school branding
+    for the selected child within one academic year.
+    """
 
     permission_classes = [IsAuthenticated, HasPermission("view_child_results")]
 
@@ -311,21 +312,105 @@ class ChildReportCardView(APIView):
         if student is None:
             return Response(NO_CHILD_ACCESS, status=403)
 
-        from examinations.models import ExamResult
+        from examinations.services import build_student_report_card
 
         academic_year = request.query_params.get("academic_year")
-        results = ExamResult.objects.filter(student=student).select_related("examination")
-        if academic_year:
-            results = results.filter(academic_year=academic_year)
+        report_card = build_student_report_card(student, academic_year=academic_year)
+        return Response(report_card)
+
+
+class ChildTranscriptView(APIView):
+    """
+    Renders official multi-year academic transcript for the selected child.
+    """
+
+    permission_classes = [IsAuthenticated, HasPermission("view_child_results")]
+
+    def get(self, request, student_id):
+        parent = get_parent_for_user(request.user)
+        if parent is None:
+            return Response(NOT_A_PARENT, status=403)
+
+        student = get_child_for_parent(parent, student_id)
+        if student is None:
+            return Response(NO_CHILD_ACCESS, status=403)
+
+        from examinations.services import build_student_transcript
+
+        transcript = build_student_transcript(student)
+        return Response(transcript)
+
+
+class ChildPayFeeView(APIView):
+    """
+    POST /api/parent-portal/children/<uuid:student_id>/pay-fees/
+    Initiates an online payment order for the parent's linked child.
+    Strictly checks parent record and StudentParentRelation before initiating.
+    """
+
+    permission_classes = [IsAuthenticated, HasPermission("pay_child_fees")]
+
+    def post(self, request, student_id):
+        parent = get_parent_for_user(request.user)
+        if parent is None:
+            return Response(NOT_A_PARENT, status=403)
+
+        student = get_child_for_parent(parent, student_id)
+        if student is None:
+            return Response(NO_CHILD_ACCESS, status=403)
+
+        from core.audit import log_action
+        from fees.gateways import PaymentConfigurationError, PaymentGatewayError
+        from fees.serializers import OnlinePaymentOrderSerializer, ParentPortalChildPayFeeSerializer
+        from fees.services import initiate_online_payment_order
+
+        serializer = ParentPortalChildPayFeeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        try:
+            order, gateway_payload = initiate_online_payment_order(
+                student=student,
+                amount=data["amount"],
+                allocations=[
+                    {"student_fee_id": a["student_fee"], "amount": a["amount"]}
+                    for a in data["allocations"]
+                ],
+                gateway=data.get("gateway", "esewa"),
+                created_by=request.user,
+                ttl_minutes=data.get("ttl_minutes", 60),
+                return_url=data.get("return_url", ""),
+                failure_url=data.get("failure_url", ""),
+            )
+        except (PaymentConfigurationError, PaymentGatewayError) as exc:
+            return Response({"error": str(exc)}, status=503)
+
+        log_action(
+            request,
+            action="online_payment_initiated",
+            model_name="OnlinePaymentOrder",
+            object_id=order.id,
+            changes={
+                "student": str(student.id),
+                "amount": str(order.amount),
+                "gateway": order.gateway,
+                "gateway_order_id": order.gateway_order_id,
+            },
+        )
+
+        payload_dict = {
+            "gateway": gateway_payload.gateway,
+            "gateway_url": gateway_payload.gateway_url,
+            "method": gateway_payload.method,
+            "form_parameters": gateway_payload.form_parameters,
+            "order_id": gateway_payload.order_id,
+            "gateway_order_id": gateway_payload.gateway_order_id,
+        }
 
         return Response(
             {
-                "student": {
-                    "id": str(student.id),
-                    "full_name": f"{student.profile.first_name} {student.profile.last_name}",
-                    "enrollment_id": student.enrollment_id,
-                },
-                "academic_year": academic_year,
-                "examinations": ChildExamResultSerializer(results, many=True).data,
-            }
+                "order": OnlinePaymentOrderSerializer(order).data,
+                "gateway_payload": payload_dict,
+            },
+            status=201,
         )

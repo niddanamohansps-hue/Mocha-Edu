@@ -303,40 +303,52 @@ class StudentResultsView(APIView):
 
 class StudentReportCardView(APIView):
     """
-    Aggregation only - no PDF, no stored ReportCard model. Renders every
-    published ExamResult for the student within one academic year.
+    Renders every published ExamResult for the student within one academic year,
+    along with school branding, attendance summary, GPA, promotion status and remarks.
     """
 
     permission_classes = [IsAuthenticated]
 
     def get(self, request, student_id):
         from students.models import Student
+        from .services import build_student_report_card, user_can_access_student_report
 
         student = get_object_or_404(Student.objects.select_related("profile"), id=student_id)
 
-        own_student = get_student_for_user(request.user)
-        if own_student is None or own_student.id != student.id:
-            if not HasPermission("view_results").has_permission(request, None):
-                return Response({"error": "You do not have permission to view results."}, status=status.HTTP_403_FORBIDDEN)
-            if not user_can_access_student_result(request, student):
-                return Response({"error": "You are not authorized to view this student's results."}, status=status.HTTP_403_FORBIDDEN)
+        if not user_can_access_student_report(request, student):
+            return Response(
+                {"error": "You are not authorized to view this student's results."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         academic_year = request.query_params.get("academic_year")
-        results = ExamResult.objects.filter(student=student).select_related("examination")
-        if academic_year:
-            results = results.filter(academic_year=academic_year)
+        report_card = build_student_report_card(student, academic_year=academic_year)
+        return Response(report_card)
 
-        return Response(
-            {
-                "student": {
-                    "id": str(student.id),
-                    "full_name": f"{student.profile.first_name} {student.profile.last_name}",
-                    "enrollment_id": student.enrollment_id,
-                },
-                "academic_year": academic_year,
-                "examinations": ExamResultSerializer(results, many=True).data,
-            }
-        )
+
+class StudentTranscriptView(APIView):
+    """
+    Renders multi-year academic transcript for the student across all eligible
+    academic years in chronological order.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, student_id):
+        from students.models import Student
+        from .services import build_student_transcript, user_can_access_student_report
+
+        student = get_object_or_404(Student.objects.select_related("profile"), id=student_id)
+
+        if not user_can_access_student_report(request, student):
+            return Response(
+                {"error": "You are not authorized to view this student's transcript."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        transcript_data = build_student_transcript(student)
+        return Response(transcript_data)
+
 
 
 class BelowPassingReportView(APIView):

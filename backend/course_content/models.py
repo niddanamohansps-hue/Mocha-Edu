@@ -76,6 +76,13 @@ class SubjectEnrollment(models.Model):
         related_name="student_enrollments",
     )
     academic_year = models.CharField(max_length=20)
+    academic_year_ref = models.ForeignKey(
+        "academics.AcademicYear",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
     enrolled_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

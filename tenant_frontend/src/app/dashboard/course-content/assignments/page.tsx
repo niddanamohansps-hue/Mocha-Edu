@@ -75,10 +75,6 @@ export default function AssignmentsPage() {
         return { ...assignment, submission };
     }) || [];
 
-    console.log("Assignments with submissions:", assignmentsWithSubmissions);
-    console.log("Can submit:", isStudent);
-    console.log("My submissions:", mySubmissions);
-
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">

@@ -16,7 +16,8 @@ import {
     Receipt,
     CalendarCheck,
     CalendarRange,
-    Award
+    Award,
+    Megaphone
 } from "lucide-react";
 import { SidebarItemType } from "@/components/dashboard/Sidebar/SidebarItem";
 
@@ -35,7 +36,7 @@ export const getMenuItems = (user: any, can: (permission: string) => boolean): S
     if (can("view_student")) {
         studentChildren.push({ label: "Student Directory", href: "/dashboard/students" });
     }
-    if (can("add_student")) {
+    if (can("add_student") || can("view_admissions")) {
         studentChildren.push({ label: "Admissions", href: "/dashboard/students/admissions" });
     }
     if (can("manage_student_promotion")) {
@@ -57,6 +58,9 @@ export const getMenuItems = (user: any, can: (permission: string) => boolean): S
     }
     if (can("add_staff")) {
         staffChildren.push({ label: "Recruit Staff", href: "/dashboard/hr/recruit" });
+    }
+    if (can("view_own_leaves") || can("view_all_leaves") || can("manage_staff_leaves") || user?.active_role === "staff" || user?.active_role === "instructor" || user?.active_role === "owner") {
+        staffChildren.push({ label: "Leave Management", href: "/dashboard/staff/leaves" });
     }
 
     if (staffChildren.length > 0) {
@@ -86,6 +90,9 @@ export const getMenuItems = (user: any, can: (permission: string) => boolean): S
 
     if (can("view_program") || can("view_academic_level")) {
         academicChildren.push({ label: "Academic Structure", href: "/dashboard/academics" });
+    }
+    if (can("view_calendar_events") || user?.active_role) {
+        academicChildren.push({ label: "Academic Calendar", href: "/dashboard/academics/calendar" });
     }
 
     if (academicChildren.length > 0) {
@@ -221,7 +228,7 @@ export const getMenuItems = (user: any, can: (permission: string) => boolean): S
         if (can("view_child_results")) {
             parentPortalChildren.push({ label: "Results", href: "/dashboard/parent-portal/results" });
         }
-        if (can("view_child_fees")) {
+        if (can("view_child_fees") || can("pay_child_fees")) {
             parentPortalChildren.push({ label: "Fees", href: "/dashboard/parent-portal/fees" });
         }
 
@@ -243,7 +250,7 @@ export const getMenuItems = (user: any, can: (permission: string) => boolean): S
     if (can("view_financial_reports")) {
         feesChildren.push({ label: "Outstanding Report", href: "/dashboard/fees/reports" });
     }
-    if (can("view_own_fees")) {
+    if (can("view_own_fees") || can("pay_own_fees")) {
         feesChildren.push({ label: "My Fees", href: "/dashboard/fees/my-fees" });
     }
 
@@ -266,6 +273,10 @@ export const getMenuItems = (user: any, can: (permission: string) => boolean): S
         adminChildren.push({ label: "Roles & Permissions", href: "/dashboard/institution/roles" });
     }
 
+    if (can("view_audit_log")) {
+        adminChildren.push({ label: "Audit Logs", href: "/dashboard/audit-logs" });
+    }
+
     if (adminChildren.length > 0) {
         menuItems.push({
             label: "Administration",
@@ -273,6 +284,36 @@ export const getMenuItems = (user: any, can: (permission: string) => boolean): S
             children: adminChildren
         });
     }
+
+    // 10. Certificates & ID cards - each entry gated on its own permission.
+    const certificateChildren: SidebarItemType[] = [];
+    if (can("view_certificates")) {
+        certificateChildren.push({ label: "Certificates", href: "/dashboard/certificates" });
+    }
+    if (can("generate_id_cards")) {
+        certificateChildren.push({ label: "ID Cards", href: "/dashboard/id-cards" });
+    }
+    if (certificateChildren.length > 0) {
+        menuItems.push({
+            label: "Certificates",
+            icon: Award,
+            children: certificateChildren
+        });
+    }
+
+    // 9. Announcements - every signed-in user can read what was sent to them
+    // (served by the recipient-scoped mine/ endpoints); managing is permission-gated.
+    const announcementChildren: SidebarItemType[] = [
+        { label: "My Announcements", href: "/dashboard/announcements" }
+    ];
+    if (can("view_announcements")) {
+        announcementChildren.push({ label: "Manage Announcements", href: "/dashboard/announcements/manage" });
+    }
+    menuItems.push({
+        label: "Announcements",
+        icon: Megaphone,
+        children: announcementChildren
+    });
 
     return menuItems;
 };

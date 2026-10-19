@@ -38,7 +38,8 @@ axiosInstance.interceptors.response.use(
         if (
             originalRequest.url.includes('/auth/refresh/') ||
             originalRequest.url.includes('/auth/login/') ||
-            originalRequest.url.includes('/auth/register/')
+            originalRequest.url.includes('/auth/register/') ||
+            originalRequest.url.includes('/admissions/public/')
         ) {
             return Promise.reject(error);
         }
@@ -59,6 +60,16 @@ axiosInstance.interceptors.response.use(
                 return axiosInstance(originalRequest);
             } catch (err) {
                 processQueue(err, null);
+                if (
+                    typeof window !== 'undefined' &&
+                    !window.location.pathname.startsWith('/login') &&
+                    !window.location.pathname.startsWith('/apply') &&
+                    !window.location.pathname.startsWith('/admissions/status')
+                ) {
+                    localStorage.removeItem("active_role");
+                    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+                    window.location.href = '/login?session_expired=true';
+                }
                 return Promise.reject(err);
             } finally {
                 isRefreshing = false;

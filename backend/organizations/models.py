@@ -1,9 +1,11 @@
 from django.db import models
 from django_tenants.models import TenantMixin, DomainMixin
+
+from config.tenant_identity_guard import IdentityGuardedTenantMixin
 import uuid
 
 
-class Organization(TenantMixin):
+class Organization(IdentityGuardedTenantMixin, TenantMixin):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     name = models.CharField(max_length=255)

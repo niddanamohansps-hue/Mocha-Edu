@@ -1,8 +1,9 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { FileText } from "lucide-react";
+import { FileText, Download, Loader2 } from "lucide-react";
 import {
     Dialog,
     DialogContent,
@@ -11,6 +12,7 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { AssignmentSubmission } from "@/types/CourseContent";
+import { downloadSubmissionFile } from "@/hooks/useCourseContent";
 
 interface GradingDialogProps {
     open: boolean;
@@ -27,6 +29,8 @@ export function GradingDialog({
     onSubmit,
     isGrading = false
 }: GradingDialogProps) {
+    const [isDownloading, setIsDownloading] = useState(false);
+
     const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         const formData = new FormData(e.currentTarget);
@@ -59,16 +63,38 @@ export function GradingDialog({
                     </div>
 
                     {submission.submission_file && (
-                        <div className="flex items-center gap-2">
-                            <FileText className="h-4 w-4 text-slate-400" />
-                            <a
-                                href={submission.submission_file}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-sm text-blue-600 hover:underline"
+                        <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200/60 dark:border-slate-800">
+                            <div className="flex items-center gap-2 min-w-0">
+                                <FileText className="h-4 w-4 text-slate-400 shrink-0" />
+                                <span className="text-xs text-slate-600 dark:text-slate-400 truncate">Attached submission file</span>
+                            </div>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={isDownloading}
+                                onClick={async () => {
+                                    setIsDownloading(true);
+                                    try {
+                                        await downloadSubmissionFile(submission.id, `${submission.student_name}_submission`);
+                                    } finally {
+                                        setIsDownloading(false);
+                                    }
+                                }}
+                                className="h-8 gap-1.5 text-xs font-medium"
                             >
-                                Download Submission
-                            </a>
+                                {isDownloading ? (
+                                    <>
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                        Downloading...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Download className="h-3.5 w-3.5" />
+                                        Download Submission
+                                    </>
+                                )}
+                            </Button>
                         </div>
                     )}
 

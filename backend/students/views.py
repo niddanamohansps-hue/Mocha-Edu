@@ -78,6 +78,21 @@ class StudentListView(APIView):
         if unenrolled_only:
             students = students.filter(profile__user_id__isnull=True)
 
+        # Optional bounded server-side narrowing (used by pickers): every
+        # whitespace-separated term must match a name or the enrollment id.
+        for term in (request.query_params.get("search") or "").split()[:5]:
+            students = students.filter(
+                Q(profile__first_name__icontains=term)
+                | Q(profile__middle_name__icontains=term)
+                | Q(profile__last_name__icontains=term)
+                | Q(enrollment_id__icontains=term)
+            )
+        status_param = request.query_params.get("status")
+        if status_param:
+            allowed = {choice for choice, _ in Student._meta.get_field("status").choices}
+            wanted = [value for value in status_param.split(",") if value in allowed]
+            students = students.filter(status__in=wanted) if wanted else students.none()
+
         paginator = self.pagination_class()
         page = paginator.paginate_queryset(students, request, view=self)
         page_students = page if page is not None else students

@@ -59,6 +59,8 @@ def seed_roles(sender, **kwargs):
             },
         ]
 
+        perm_by_codename = {p.codename: p for p in created_permissions}
+
         for role_data in roles:
             role, created = Role.objects.update_or_create(
                 slug=role_data["slug"],
@@ -69,6 +71,53 @@ def seed_roles(sender, **kwargs):
                 },
             )
 
-            # 3. Assign All Permissions to Owner
+            # 3. Assign Permissions
             if role.slug == "owner":
                 role.permissions.set(created_permissions)
+            elif role.slug == "staff":
+                staff_codenames = [
+                    "view_calendar_events",
+                    "manage_calendar_events",
+                    "view_admissions",
+                    "manage_admission_enquiries",
+                    "manage_admission_applications",
+                    "review_admission_documents",
+                    "review_admission_applications",
+                    "make_admission_decisions",
+                    "enroll_admitted_students",
+                    "view_own_leaves",
+                    "apply_staff_leave",
+                    "cancel_own_leave",
+                    "view_all_leaves",
+                    "manage_staff_leaves",
+                    "manage_leave_types",
+                ]
+                staff_perms = [perm_by_codename[c] for c in staff_codenames if c in perm_by_codename]
+                role.permissions.add(*staff_perms)
+            elif role.slug == "instructor":
+                inst_codenames = [
+                    "view_calendar_events",
+                    "view_admissions",
+                    "review_admission_applications",
+                    "view_own_leaves",
+                    "apply_staff_leave",
+                    "cancel_own_leave",
+                ]
+                inst_perms = [perm_by_codename[c] for c in inst_codenames if c in perm_by_codename]
+                role.permissions.add(*inst_perms)
+            elif role.slug == "student":
+                student_codenames = ["view_own_fees", "pay_own_fees", "view_calendar_events"]
+                student_perms = [perm_by_codename[c] for c in student_codenames if c in perm_by_codename]
+                role.permissions.add(*student_perms)
+            elif role.slug == "parent":
+                parent_codenames = [
+                    "view_own_children",
+                    "view_child_attendance",
+                    "view_child_timetable",
+                    "view_child_results",
+                    "view_child_fees",
+                    "pay_child_fees",
+                    "view_calendar_events",
+                ]
+                parent_perms = [perm_by_codename[c] for c in parent_codenames if c in perm_by_codename]
+                role.permissions.add(*parent_perms)

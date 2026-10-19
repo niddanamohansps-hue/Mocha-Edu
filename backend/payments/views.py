@@ -1,23 +1,49 @@
 import base64
 import hmac
 import json
+import logging
 import uuid
 from django.conf import settings
+from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 
 # Payment Viewsttings
 from .models import Payment
-from .utils import generate_esewa_signature
+from .utils import (
+    PaymentConfigurationError,
+    generate_esewa_signature,
+    get_esewa_secret,
+    get_signup_payment_amount,
+)
 from accounts.serializers import OrganizationRegisterSerializer
 from accounts.utils.crypto import encrypt_secret, decrypt_secret
 
+logger = logging.getLogger(__name__)
+
+PAYMENT_UNAVAILABLE = {"error": "Payment service is not configured."}
+
 
 class InitPaymentView(APIView):
+    # Public signup flow: no account exists yet. Stated explicitly so the strict default
+    # permission policy in settings does not apply to it.
+    permission_classes = [AllowAny]
+
     def post(self, request):
+        try:
+            esewa_secret = get_esewa_secret()
+        except PaymentConfigurationError:
+            logger.warning("eSewa payment init rejected: payment secret is not configured.")
+            return Response(PAYMENT_UNAVAILABLE, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        try:
+            amount = get_signup_payment_amount()
+        except PaymentConfigurationError:
+            logger.warning("eSewa payment init rejected: signup payment amount is invalid.")
+            return Response(PAYMENT_UNAVAILABLE, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
         data = request.data
-        amount = "500"  # Fixed amount for now
 
         # Create pending payment record
         transaction_uuid = uuid.uuid4().hex
@@ -40,7 +66,7 @@ class InitPaymentView(APIView):
 
         # Message format strictly: total_amount,transaction_uuid,product_code
         message = f"total_amount={amount},transaction_uuid={transaction_uuid},product_code={product_code}"
-        signature = generate_esewa_signature(settings.ESEWA_CLIENT_SECRET, message)
+        signature = generate_esewa_signature(esewa_secret, message)
 
         return Response(
             {
@@ -54,7 +80,16 @@ class InitPaymentView(APIView):
 
 
 class VerifyPaymentView(APIView):
+    # Public gateway return URL for the signup payment; authenticity is checked via the HMAC signature.
+    permission_classes = [AllowAny]
+
     def get(self, request):
+        try:
+            esewa_secret = get_esewa_secret()
+        except PaymentConfigurationError:
+            logger.warning("eSewa callback rejected: payment secret is not configured.")
+            return Response(PAYMENT_UNAVAILABLE, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
         encoded_data = request.query_params.get("data")
         if not encoded_data:
             return Response(
@@ -114,7 +149,7 @@ class VerifyPaymentView(APIView):
                 {"error": "Invalid signed_field_names"}, status=status.HTTP_400_BAD_REQUEST
             )
 
-        expected_signature = generate_esewa_signature(settings.ESEWA_CLIENT_SECRET, message)
+        expected_signature = generate_esewa_signature(esewa_secret, message)
         if not hmac.compare_digest(expected_signature, provided_signature):
             return Response(
                 {"error": "Signature verification failed"}, status=status.HTTP_400_BAD_REQUEST

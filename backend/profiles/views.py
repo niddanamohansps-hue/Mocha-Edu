@@ -18,28 +18,30 @@ class MyProfileView(APIView):
 
     def get(self, request):
         tenant = getattr(connection, "tenant", None)
-        if not tenant:
-            return Response({"error": "No tenant context"}, status=400)
+        if not tenant or tenant.schema_name == "public":
+            return Response({"error": "No tenant context"}, status=status.HTTP_400_BAD_REQUEST)
 
-        profile, created = Profile.objects.get_or_create(
-            user_id=request.user.id,
-            defaults={
-                "first_name": getattr(request.user, "first_name", "New"),
-                "last_name": getattr(request.user, "last_name", "User"),
-            },
-        )
+        profile = Profile.objects.filter(user_id=request.user.id).first()
+        if not profile:
+            return Response(
+                {"error": "Profile not found for this user in this organization."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
 
         serializer = ProfileSerializer(profile)
         return Response(serializer.data)
 
     def patch(self, request):
         tenant = getattr(connection, "tenant", None)
-        if not tenant:
-            return Response({"error": "No tenant context"}, status=400)
+        if not tenant or tenant.schema_name == "public":
+            return Response({"error": "No tenant context"}, status=status.HTTP_400_BAD_REQUEST)
 
-        profile, _ = Profile.objects.get_or_create(
-            user_id=request.user.id, defaults={"first_name": "New", "last_name": "User"}
-        )
+        profile = Profile.objects.filter(user_id=request.user.id).first()
+        if not profile:
+            return Response(
+                {"error": "Profile not found for this user in this organization."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
 
         serializer = ProfileSerializer(profile, data=request.data, partial=True)
         if serializer.is_valid():

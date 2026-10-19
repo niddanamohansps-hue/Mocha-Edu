@@ -3,9 +3,11 @@ from django.urls import path
 from .views import (
     ChildAttendanceView,
     ChildFeesView,
+    ChildPayFeeView,
     ChildReportCardView,
     ChildResultsView,
     ChildTimetableView,
+    ChildTranscriptView,
     ChildUpcomingExamsView,
     LinkedChildrenView,
     ParentMeView,
@@ -40,8 +42,18 @@ urlpatterns = [
         name="parent-portal-child-report-card",
     ),
     path(
+        "children/<uuid:student_id>/transcript/",
+        ChildTranscriptView.as_view(),
+        name="parent-portal-child-transcript",
+    ),
+    path(
         "children/<uuid:student_id>/fees/",
         ChildFeesView.as_view(),
         name="parent-portal-child-fees",
+    ),
+    path(
+        "children/<uuid:student_id>/pay-fees/",
+        ChildPayFeeView.as_view(),
+        name="parent-portal-child-pay-fees",
     ),
 ]

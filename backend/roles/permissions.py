@@ -14,22 +14,15 @@ class HasPermission(permissions.BasePermission):
         return self
 
     def has_permission(self, request, view):
-        # 1. Allow owners to bypass everything
-        # Note: 'is_superuser' is Django's admin flag.
-        # Here we check the "organization owner" or a superuser.
-        if request.user.is_superuser:
-            return True
-
-        # 2. Identify the Active Role
-        # Check active_role from query params (if passed to view logic) or fallback logic
-        # Ideally, middleware should set request.active_role.
-        # But for now, let's fetch it similar to our MeView logic.
-
         user = request.user
         tenant = getattr(request, "tenant", None)
 
         if not tenant or tenant.schema_name == "public":
             return False
+
+        # 1. Allow superusers to bypass role checks inside a valid tenant context
+        if request.user.is_superuser:
+            return True
 
         # Get Active Role Slug
         # In a real request flow, 'request.GET' may not be the robust place if used in mutations

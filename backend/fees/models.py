@@ -29,6 +29,20 @@ STUDENT_FEE_STATUS_CHOICES = [
     ("cancelled", "Cancelled"),
 ]
 
+GATEWAY_CHOICES = [
+    ("esewa", "eSewa"),
+    ("khalti", "Khalti"),
+]
+
+ONLINE_ORDER_STATUS_CHOICES = [
+    ("initiated", "Initiated"),
+    ("pending", "Pending Gateway Confirmation"),
+    ("success", "Payment Completed"),
+    ("failed", "Payment Failed"),
+    ("expired", "Order Expired"),
+    ("reconciliation_required", "Reconciliation Required"),
+]
+
 
 class FeeHead(models.Model):
     """
@@ -67,6 +81,13 @@ class FeeStructure(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     fee_head = models.ForeignKey(FeeHead, on_delete=models.PROTECT, related_name="structures")
     academic_year = models.CharField(max_length=20)
+    academic_year_ref = models.ForeignKey(
+        "academics.AcademicYear",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
     level = models.ForeignKey(
         "academics.AcademicLevel",
         on_delete=models.PROTECT,
@@ -126,6 +147,13 @@ class StudentFee(models.Model):
     )
     fee_head = models.ForeignKey(FeeHead, on_delete=models.PROTECT, related_name="student_fees")
     academic_year = models.CharField(max_length=20)
+    academic_year_ref = models.ForeignKey(
+        "academics.AcademicYear",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
     level_name = models.CharField(max_length=50, blank=True)
     section_name = models.CharField(max_length=50, blank=True)
 
@@ -236,3 +264,129 @@ class PaymentAllocation(models.Model):
 
     def __str__(self):
         return f"{self.payment_id} -> {self.student_fee_id} : {self.amount}"
+
+
+class TenantPaymentGatewayConfig(models.Model):
+    """
+    Tenant-scoped payment gateway credentials. Allows an individual school
+    to collect online fees directly into their own merchant account (e.g. eSewa)
+    with secrets encrypted at rest using accounts.utils.crypto.
+    If no active record exists for a gateway, system-level fallback (settings.ESEWA_*)
+    is controlled by settings.FEES_ALLOW_GLOBAL_GATEWAY_FALLBACK.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    gateway = models.CharField(max_length=20, choices=GATEWAY_CHOICES, unique=True)
+    merchant_code = models.CharField(max_length=100)
+    encrypted_secret = models.CharField(max_length=512)
+    is_active = models.BooleanField(default=True)
+    allow_global_fallback = models.BooleanField(
+        default=False,
+        help_text="If False, a misconfigured or inactive tenant gateway fails closed instead of falling back to global keys.",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["gateway"]
+
+    def __str__(self):
+        return f"{self.gateway} ({self.merchant_code}) - {'Active' if self.is_active else 'Inactive'}"
+
+    def set_secret(self, raw_secret: str) -> None:
+        from accounts.utils.crypto import encrypt_secret
+        self.encrypted_secret = encrypt_secret(raw_secret)
+
+    def get_secret(self) -> str:
+        from accounts.utils.crypto import decrypt_secret
+        return decrypt_secret(self.encrypted_secret)
+
+
+class OnlinePaymentOrder(models.Model):
+    """
+    State machine for student online fee payments.
+
+    Tracks the full lifecycle of an online payment intent:
+    INITIATED -> PENDING -> SUCCESS | FAILED | EXPIRED | RECONCILIATION_REQUIRED.
+
+    CRITICAL FINANCIAL INVARIANT:
+    `fees.Payment` rows are strictly insert-only and immutable, representing
+    finalized money received with positive PaymentAllocations.
+    Therefore, pending online payments MUST NOT create a `Payment` prematurely.
+    Only upon verified gateway confirmation and successful balance validation does
+    an atomic `record_payment()` execute, linking the resulting `Payment` here.
+
+    If the gateway confirms the charge, but interim settlement (e.g. cash at counter)
+    reduced the fee's outstanding balance, the order transitions to
+    `reconciliation_required` without violating invariants or discarding verified funds.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    student = models.ForeignKey(
+        "students.Student", on_delete=models.PROTECT, related_name="online_payment_orders"
+    )
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    gateway = models.CharField(max_length=20, choices=GATEWAY_CHOICES, default="esewa")
+    status = models.CharField(
+        max_length=30, choices=ONLINE_ORDER_STATUS_CHOICES, default="initiated", db_index=True
+    )
+
+    allocations_snapshot = models.JSONField(
+        help_text="Intended allocation per StudentFee captured at order initiation time."
+    )
+
+    gateway_order_id = models.CharField(
+        max_length=255, unique=True, db_index=True,
+        help_text="Merchant transaction UUID passed to the gateway (e.g. transaction_uuid in eSewa)."
+    )
+    gateway_reference = models.CharField(
+        max_length=255, blank=True,
+        help_text="Gateway's transaction reference code upon confirmation (e.g. ref_id in eSewa)."
+    )
+    gateway_response = models.JSONField(
+        default=dict, blank=True,
+        help_text="Raw verified payload returned by the gateway callback or status inquiry."
+    )
+
+    reconciliation_reason = models.TextField(
+        blank=True,
+        help_text="Populated if order requires reconciliation due to interim balance reduction or gateway mismatch."
+    )
+
+    created_by_user_id = models.UUIDField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Soft-link to the public User UUID who initiated this order (preserves cross-schema boundary).",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    expires_at = models.DateTimeField(db_index=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    payment = models.OneToOneField(
+        Payment,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="online_order",
+        help_text="Immutable Payment created upon successful gateway verification and allocation.",
+    )
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["student", "status"], name="online_order_student_st_idx"),
+            models.Index(fields=["status", "expires_at"], name="online_order_status_exp_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.gateway_order_id} - {self.student} - {self.amount} ({self.status})"
+
+    @property
+    def created_by(self):
+        if not self.created_by_user_id:
+            return None
+        from accounts.models import User
+        return User.objects.filter(id=self.created_by_user_id).first()

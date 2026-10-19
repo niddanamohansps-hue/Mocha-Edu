@@ -57,18 +57,10 @@ def is_owner(request):
 
 def user_can_view_student_finances(request, student):
     """
-    Combined self/staff authorization for the mixed-audience fee/payment
-    endpoints. A student needs an explicit view_own_fees grant to see their
-    OWN records - unlike Attendance/Examinations' unconditional self-access,
-    this is a deliberate product decision: self-access still requires a
-    permission grant, never an automatic bypass. Anyone else needs view_fees
-    and then gets tenant-wide access - there is no instructor/section-scoping
-    concept for finance (a homeroom instructor has no legitimate reason to
-    see fee amounts, unlike attendance/results).
-
-    NEVER used for parent access - parents are authorized entirely
-    separately via get_child_for_parent()'s relationship check below, which
-    has no permission-only fallback of any kind.
+    Combined authorization for student finance and payment receipt endpoints:
+    - Student: caller is the student AND has 'view_own_fees'.
+    - Parent: caller is a linked parent to this student AND has 'view_child_fees'.
+    - Staff / Admin: caller has 'view_fees' or 'collect_payments'.
     """
     from roles.permissions import HasPermission
 
@@ -76,7 +68,16 @@ def user_can_view_student_finances(request, student):
     if own_student is not None and own_student.id == student.id:
         return HasPermission("view_own_fees").has_permission(request, None)
 
-    return HasPermission("view_fees").has_permission(request, None)
+    parent = get_parent_for_user(request.user)
+    if parent is not None:
+        child = get_child_for_parent(parent, student.id)
+        if child is not None:
+            return HasPermission("view_child_fees").has_permission(request, None)
+
+    return (
+        HasPermission("view_fees").has_permission(request, None)
+        or HasPermission("collect_payments").has_permission(request, None)
+    )
 
 
 # --- Parent authorization (relationship-based, no permission fallback) ----
@@ -103,6 +104,75 @@ def get_child_for_parent(parent, student_id):
         .first()
     )
     return relation.student if relation else None
+
+
+def get_linked_children(parent):
+    from families.models import StudentParentRelation
+
+    return (
+        StudentParentRelation.objects.filter(parent=parent)
+        .select_related("student__profile")
+    )
+
+
+def user_can_initiate_student_online_payment(request, student):
+    """
+    Authorization rule for initiating an online payment order for a student:
+    - Staff / Admin: must have 'collect_payments' permission (tenant-wide).
+    - Student (self): caller must be this student AND have 'pay_own_fees' permission.
+    - Parent: caller must be a registered parent linked to this student AND have 'pay_child_fees' permission.
+    """
+    from roles.permissions import HasPermission
+
+    # 1. Staff with collect_payments
+    if HasPermission("collect_payments").has_permission(request, None):
+        return True
+
+    # 2. Student self-payment
+    own_student = get_student_for_user(request.user)
+    if own_student is not None and own_student.id == student.id:
+        return HasPermission("pay_own_fees").has_permission(request, None)
+
+    # 3. Parent linked to this student
+    parent = get_parent_for_user(request.user)
+    if parent is not None:
+        child = get_child_for_parent(parent, student.id)
+        if child is not None:
+            return HasPermission("pay_child_fees").has_permission(request, None)
+
+    return False
+
+
+def user_can_view_online_order(request, order):
+    """
+    Authorization rule for viewing an OnlinePaymentOrder:
+    - Staff / Admin: has 'view_fees' or 'collect_payments'.
+    - Order creator: if order was created by this user (order.created_by_user_id == request.user.id).
+    - Student: caller is the student AND has 'view_own_fees'.
+    - Parent: caller is a registered parent linked to order.student AND has 'view_child_fees'.
+    """
+    from roles.permissions import HasPermission
+
+    if (
+        HasPermission("view_fees").has_permission(request, None)
+        or HasPermission("collect_payments").has_permission(request, None)
+    ):
+        return True
+
+    if order.created_by_user_id and str(order.created_by_user_id) == str(request.user.id):
+        return True
+
+    own_student = get_student_for_user(request.user)
+    if own_student is not None and own_student.id == order.student_id:
+        return HasPermission("view_own_fees").has_permission(request, None)
+
+    parent = get_parent_for_user(request.user)
+    if parent is not None:
+        child = get_child_for_parent(parent, order.student_id)
+        if child is not None:
+            return HasPermission("view_child_fees").has_permission(request, None)
+
+    return False
 
 
 # --- Financial calculation (derived, never stored as authoritative) -------
@@ -312,7 +382,7 @@ def generate_receipt_number():
 
 
 @transaction.atomic
-def record_payment(*, student, amount, method, allocations, recorded_by, reference_note=""):
+def record_payment(*, student, amount, method, allocations, recorded_by, reference_note="", gateway_reference=""):
     """
     allocations: list of {"student_fee_id": <uuid>, "amount": Decimal}.
 
@@ -381,6 +451,7 @@ def record_payment(*, student, amount, method, allocations, recorded_by, referen
         status="completed",
         receipt_number=generate_receipt_number(),
         reference_note=reference_note,
+        gateway_reference=gateway_reference or "",
         recorded_by=recorded_by,
     )
     PaymentAllocation.objects.bulk_create(
@@ -435,3 +506,324 @@ def reverse_payment(*, payment, recorded_by, reason=""):
         ]
     )
     return reversal
+
+
+# --- Online Payment Workflow -----------------------------------------------
+
+def initiate_online_payment_order(
+    *,
+    student,
+    amount,
+    allocations,
+    gateway="esewa",
+    created_by=None,
+    return_url=None,
+    failure_url=None,
+    ttl_minutes=30,
+):
+    """
+    Initiates an online payment order for a student.
+
+    - Validates amount and fee allocations against current outstanding balances.
+    - Creates an OnlinePaymentOrder in status 'initiated'.
+    - Calls the gateway adapter to generate signed parameters (e.g. eSewa v2 HMAC).
+    - Sets order status to 'pending' and returns (order, gateway_payload).
+    """
+    import datetime
+    from .gateways import get_gateway_adapter
+    from .models import OnlinePaymentOrder, StudentFee
+
+    amount = Decimal(str(amount))
+    if amount <= Decimal("0"):
+        raise serializers.ValidationError({"amount": "Payment amount must be positive."})
+
+    if not allocations:
+        raise serializers.ValidationError({"allocations": "At least one allocation is required."})
+
+    normalized_allocations = []
+    for a in allocations:
+        sf_id = a["student_fee_id"] if isinstance(a["student_fee_id"], uuid.UUID) else uuid.UUID(str(a["student_fee_id"]))
+        alloc_amt = Decimal(str(a["amount"]))
+        normalized_allocations.append({"student_fee_id": sf_id, "amount": alloc_amt})
+
+    total_allocated = sum((a["amount"] for a in normalized_allocations), Decimal("0"))
+    if total_allocated != amount:
+        raise serializers.ValidationError(
+            {"allocations": "The sum of allocations must equal the payment amount."}
+        )
+
+    fee_ids = [a["student_fee_id"] for a in normalized_allocations]
+    if len(set(fee_ids)) != len(fee_ids):
+        raise serializers.ValidationError({"allocations": "Duplicate fee record in the same payment order."})
+
+    fees = {sf.id: sf for sf in StudentFee.objects.filter(id__in=fee_ids)}
+    if len(fees) != len(fee_ids):
+        raise serializers.ValidationError({"allocations": "One or more fee records were not found."})
+
+    for a in normalized_allocations:
+        fee = fees[a["student_fee_id"]]
+        alloc_amt = a["amount"]
+        if alloc_amt <= Decimal("0"):
+            raise serializers.ValidationError({"allocations": "Allocation amounts must be positive."})
+        if fee.student_id != student.id:
+            raise serializers.ValidationError({"allocations": "A fee record does not belong to this student."})
+        if fee.status != "active":
+            raise serializers.ValidationError(
+                {"allocations": f"'{fee.fee_head.name}' is cancelled and cannot receive payments."}
+            )
+        outstanding = get_outstanding_balance(fee)
+        if alloc_amt > outstanding:
+            raise serializers.ValidationError(
+                {
+                    "allocations": (
+                        f"Allocation of {alloc_amt} exceeds the outstanding balance of "
+                        f"{outstanding} for '{fee.fee_head.name}'."
+                    )
+                }
+            )
+
+    adapter = get_gateway_adapter(gateway)
+    gateway_order_id = uuid.uuid4().hex
+    expires_at = timezone.now() + datetime.timedelta(minutes=ttl_minutes)
+
+    allocations_snapshot = [
+        {"student_fee_id": str(a["student_fee_id"]), "amount": str(a["amount"])}
+        for a in normalized_allocations
+    ]
+
+    created_by_user_id = None
+    if created_by:
+        created_by_user_id = getattr(created_by, "id", created_by)
+
+    order = OnlinePaymentOrder.objects.create(
+        student=student,
+        amount=amount,
+        gateway=gateway,
+        status="initiated",
+        allocations_snapshot=allocations_snapshot,
+        gateway_order_id=gateway_order_id,
+        created_by_user_id=created_by_user_id,
+        expires_at=expires_at,
+    )
+
+    payload = adapter.initiate_payment(order, return_url=return_url, failure_url=failure_url)
+    order.status = "pending"
+    order.save(update_fields=["status", "updated_at"])
+
+    return order, payload
+
+
+def settle_online_payment_order(
+    *,
+    order_id_or_gateway_order_id,
+    raw_callback_payload,
+    recorded_by=None,
+):
+    """
+    Verifies gateway signature/payload and settles an OnlinePaymentOrder.
+
+    Idempotency:
+    - If order is already 'success', returns existing payment immediately.
+    - If order is already 'reconciliation_required', returns status with audit reason.
+
+    Financial Invariant & Interim Settlement Handling (Option B):
+    - If gateway verification fails, saves order.status = 'failed' with audit reason.
+    - If verification succeeds, enters atomic transaction: locks the OnlinePaymentOrder
+      and referenced StudentFee rows with select_for_update.
+    - If interim cash or other settlement reduced the fee's outstanding balance:
+      - Sets order.status = 'reconciliation_required'
+      - Preserves verified transaction data, ref_id, and audit explanation.
+      - NEVER creates a partial Payment violating allocation-sum invariants or an advance-credit ledger.
+    - If balances are intact:
+      - Calls record_payment() with method='online' and gateway_reference.
+      - Sets order.status = 'success', links order.payment.
+    """
+    from .gateways import get_gateway_adapter
+    from .models import OnlinePaymentOrder, StudentFee
+
+    order = None
+
+    if isinstance(order_id_or_gateway_order_id, uuid.UUID):
+        order = OnlinePaymentOrder.objects.filter(id=order_id_or_gateway_order_id).first()
+    elif isinstance(order_id_or_gateway_order_id, str):
+        try:
+            u = uuid.UUID(order_id_or_gateway_order_id)
+            order = OnlinePaymentOrder.objects.filter(id=u).first()
+        except ValueError:
+            order = None
+        if not order:
+            order = OnlinePaymentOrder.objects.filter(gateway_order_id=order_id_or_gateway_order_id).first()
+
+    if not order:
+        raise serializers.ValidationError({"order": "Payment order not found."})
+
+    # Idempotency checks
+    if order.status == "success":
+        return {
+            "status": "already_completed",
+            "order": order,
+            "payment": order.payment,
+            "receipt_number": order.payment.receipt_number if order.payment else "",
+        }
+
+    if order.status == "reconciliation_required":
+        return {
+            "status": "reconciliation_required",
+            "order": order,
+            "reason": order.reconciliation_reason,
+        }
+
+    if order.status in ("failed", "expired"):
+        raise serializers.ValidationError({
+            "order": f"Cannot settle an order in '{order.status}' status."
+        })
+
+    # Gateway verification
+    adapter = get_gateway_adapter(order.gateway)
+    verify_result = adapter.verify_callback(order, raw_callback_payload)
+
+    if not verify_result.is_valid:
+        order.status = "failed"
+        order.gateway_response = (
+            raw_callback_payload
+            if isinstance(raw_callback_payload, dict)
+            else {"raw": str(raw_callback_payload)}
+        )
+        order.reconciliation_reason = verify_result.error_message
+        order.save(update_fields=["status", "gateway_response", "reconciliation_reason", "updated_at"])
+        raise serializers.ValidationError({"gateway": verify_result.error_message})
+
+    with transaction.atomic():
+        order = OnlinePaymentOrder.objects.select_for_update().get(id=order.id)
+        if order.status == "success":
+            return {
+                "status": "already_completed",
+                "order": order,
+                "payment": order.payment,
+                "receipt_number": order.payment.receipt_number if order.payment else "",
+            }
+
+        # Gateway confirmed funds
+        order.gateway_reference = verify_result.gateway_reference
+        order.gateway_response = verify_result.raw_data
+
+        # Check expiration: if expired after gateway confirmed payment, require reconciliation
+        if timezone.now() > order.expires_at:
+            order.status = "reconciliation_required"
+            order.reconciliation_reason = f"Gateway payment verified after order expiration at {order.expires_at}."
+            order.save(update_fields=["status", "gateway_reference", "gateway_response", "reconciliation_reason", "updated_at"])
+            return {
+                "status": "reconciliation_required",
+                "order": order,
+                "reason": order.reconciliation_reason,
+            }
+
+        # Lock StudentFee rows in stable ID order to evaluate balances
+        fee_ids = [uuid.UUID(a["student_fee_id"]) for a in order.allocations_snapshot]
+        locked_fees = {
+            sf.id: sf
+            for sf in StudentFee.objects.select_for_update().filter(id__in=fee_ids).order_by("id")
+        }
+
+        if len(locked_fees) != len(fee_ids):
+            order.status = "reconciliation_required"
+            order.reconciliation_reason = "One or more allocated fee records are missing from the database."
+            order.save(update_fields=["status", "gateway_reference", "gateway_response", "reconciliation_reason", "updated_at"])
+            return {
+                "status": "reconciliation_required",
+                "order": order,
+                "reason": order.reconciliation_reason,
+            }
+
+        can_allocate = True
+        conflict_reasons = []
+        allocations_for_payment = []
+
+        for a in order.allocations_snapshot:
+            fee_id = uuid.UUID(a["student_fee_id"])
+            fee = locked_fees[fee_id]
+            alloc_amt = Decimal(str(a["amount"]))
+
+            if fee.status != "active":
+                can_allocate = False
+                conflict_reasons.append(f"Fee '{fee.fee_head.name}' is {fee.status}")
+
+            outstanding = get_outstanding_balance(fee)
+            if alloc_amt > outstanding:
+                can_allocate = False
+                conflict_reasons.append(
+                    f"Allocation of {alloc_amt} exceeds current outstanding {outstanding} for '{fee.fee_head.name}'"
+                )
+
+            allocations_for_payment.append({"student_fee_id": fee_id, "amount": alloc_amt})
+
+        if not can_allocate:
+            # Interim cash conflict: Option B — require reconciliation
+            order.status = "reconciliation_required"
+            order.reconciliation_reason = "; ".join(conflict_reasons)
+            order.save(update_fields=["status", "gateway_reference", "gateway_response", "reconciliation_reason", "updated_at"])
+            return {
+                "status": "reconciliation_required",
+                "order": order,
+                "reason": order.reconciliation_reason,
+            }
+
+        # Balances are intact: execute atomic record_payment
+        payment = record_payment(
+            student=order.student,
+            amount=order.amount,
+            method="online",
+            allocations=allocations_for_payment,
+            recorded_by=recorded_by,
+            reference_note=f"Online payment via {order.gateway.upper()} (Ref: {order.gateway_reference})",
+            gateway_reference=order.gateway_reference,
+        )
+
+        order.payment = payment
+        order.status = "success"
+        order.completed_at = timezone.now()
+        order.save(update_fields=["payment", "status", "completed_at", "gateway_reference", "gateway_response", "updated_at"])
+
+        return {
+            "status": "success",
+            "order": order,
+            "payment": payment,
+            "receipt_number": payment.receipt_number,
+        }
+
+
+def reconcile_online_payment_order(order, *, recorded_by=None):
+    """
+    Reconciles a pending or orphaned OnlinePaymentOrder by querying the gateway's status API.
+    If the gateway reports COMPLETE, calls settle_online_payment_order.
+    If the order has expired without payment, marks status as 'expired'.
+    """
+    from .gateways import get_gateway_adapter
+
+    if order.status in ("success", "reconciliation_required", "failed"):
+        return {"status": order.status, "order": order}
+
+    adapter = get_gateway_adapter(order.gateway)
+    status_result = adapter.query_status(order)
+
+    if status_result.status == "COMPLETE":
+        # Formulate payload for settlement
+        callback_payload = {
+            "status": "COMPLETE",
+            "transaction_uuid": order.gateway_order_id,
+            "ref_id": status_result.gateway_reference,
+            "total_amount": str(order.amount),
+        }
+        return settle_online_payment_order(
+            order_id_or_gateway_order_id=order.id,
+            raw_callback_payload=status_result.raw_data or callback_payload,
+            recorded_by=recorded_by,
+        )
+
+    if order.status == "pending" and timezone.now() > order.expires_at:
+        order.status = "expired"
+        order.reconciliation_reason = f"Order expired without gateway confirmation (Gateway status: {status_result.status})."
+        order.save(update_fields=["status", "reconciliation_reason", "updated_at"])
+        return {"status": "expired", "order": order}
+
+    return {"status": order.status, "gateway_status": status_result.status, "order": order}

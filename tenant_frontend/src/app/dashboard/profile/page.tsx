@@ -1,7 +1,8 @@
 "use client";
 
 import { useProfile, useUpdateProfile } from "@/hooks/useProfile";
-import { useMe } from "@/hooks/useAuth";
+import { useMe, useLogout } from "@/hooks/useAuth";
+import { isAxiosError } from "axios";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { FloatingLabelInput } from "@/components/ui/floating-label-input";
@@ -18,7 +19,9 @@ import {
     BookOpen,
     ShieldCheck,
     BadgeCheck,
-    ImageIcon
+    ImageIcon,
+    AlertCircle,
+    LogOut
 } from "lucide-react";
 import { toast } from "sonner";
 import { AnyProfile, StaffProfile, StudentProfile } from "@/types/Profile";
@@ -26,8 +29,9 @@ import { getMediaUrl } from "@/lib/utils";
 
 export default function ProfilePage() {
     const { data: user } = useMe();
-    const { data: profile, isLoading } = useProfile();
+    const { data: profile, isLoading, isError, error } = useProfile();
     const { mutate: updateProfile, isPending: isUpdating } = useUpdateProfile();
+    const { mutate: logout, isPending: isLoggingOut } = useLogout();
 
     const [formData, setFormData] = useState<Partial<AnyProfile>>({});
     const [selectedImage, setSelectedImage] = useState<File | null>(null);
@@ -47,6 +51,58 @@ export default function ProfilePage() {
                     <Loader2 className="h-12 w-12 animate-spin text-sky-600" />
                     <p className="text-slate-500 font-medium animate-pulse">Loading your profile...</p>
                 </div>
+            </div>
+        );
+    }
+
+    if (isError || !profile) {
+        const isNotFound = isAxiosError(error) ? error.response?.status === 404 : !profile;
+        const errorData = isAxiosError(error) ? (error.response?.data as Record<string, unknown> | undefined) : undefined;
+        const errorMessage = typeof errorData?.error === "string" ? errorData.error : typeof errorData?.detail === "string" ? errorData.detail : undefined;
+
+        return (
+            <div className="max-w-2xl mx-auto mt-12 space-y-6">
+                <Card className="border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden">
+                    <div className="h-3 bg-amber-500" />
+                    <CardHeader className="text-center pt-8 pb-4">
+                        <div className="mx-auto w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-amber-600 mb-4">
+                            <AlertCircle className="h-8 w-8" />
+                        </div>
+                        <CardTitle className="text-2xl font-bold text-slate-900 dark:text-white">
+                            {isNotFound ? "No Profile Found" : "Unable to Load Profile"}
+                        </CardTitle>
+                        <CardDescription className="text-base mt-2 text-slate-600 dark:text-slate-400 max-w-md mx-auto">
+                            {isNotFound
+                                ? "Your account is authenticated, but no institutional profile has been established for you in this organization."
+                                : errorMessage || "An unexpected error occurred while retrieving your institutional profile."}
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6 text-center pb-8">
+                        <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-4 text-sm text-slate-600 dark:text-slate-400 text-left border border-slate-200/60 dark:border-slate-800">
+                            <h4 className="font-semibold text-slate-900 dark:text-slate-200 mb-1">Provisioning Guidance</h4>
+                            <p className="mb-2">
+                                Institutional profiles are created and managed by school administration:
+                            </p>
+                            <ul className="list-disc list-inside space-y-1 text-slate-500 text-xs">
+                                <li>Contact your institution administrator or admissions office to complete profile provisioning.</li>
+                                <li>Verify that you are accessing the correct institution subdomain.</li>
+                                <li>Profiles cannot be self-created directly from this client.</li>
+                            </ul>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
+                            <Button
+                                variant="outline"
+                                onClick={() => logout()}
+                                disabled={isLoggingOut}
+                                className="gap-2"
+                            >
+                                <LogOut className="h-4 w-4" />
+                                {isLoggingOut ? "Signing Out..." : "Sign Out / Switch Account"}
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
             </div>
         );
     }

@@ -39,6 +39,13 @@ class AttendanceSession(models.Model):
         "academics.Section", on_delete=models.CASCADE, related_name="attendance_sessions"
     )
     academic_year = models.CharField(max_length=20)
+    academic_year_ref = models.ForeignKey(
+        "academics.AcademicYear",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
     date = models.DateField()
 
     recorded_by = models.ForeignKey(

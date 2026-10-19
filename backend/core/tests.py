@@ -346,6 +346,93 @@ class AuditLogAPITests(TransactionTestCase):
         for forbidden in ("password", "token", "secret", "credential"):
             self.assertNotIn(forbidden, result)
 
+    # 18. actor_username filter
+    def test_actor_username_filter(self):
+        self._create_audit_log(self.school, actor_username="alice_admin", action="action_1")
+        self._create_audit_log(self.school, actor_username="bob_teacher", action="action_2")
+        user = self._build_user(self.school, "audituser17", ["view_audit_log"])
+        client = self._client_as(user, self.DOMAIN)
+        resp = client.get("/api/audit-logs/?actor_username=alice", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data["count"], 1)
+        self.assertEqual(resp.data["results"][0]["actor_username"], "alice_admin")
+
+    # 19. search filter across username, action, model_name, object_id
+    def test_search_filter(self):
+        self._create_audit_log(self.school, actor_username="john", action="role_created", model_name="Role", object_id="ROL-1")
+        self._create_audit_log(self.school, actor_username="mary", action="student_enrolled", model_name="Student", object_id="STU-99")
+        user = self._build_user(self.school, "audituser18", ["view_audit_log"])
+        client = self._client_as(user, self.DOMAIN)
+
+        # Search by keyword matching object_id
+        resp = client.get("/api/audit-logs/?search=STU-99", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data["count"], 1)
+        self.assertEqual(resp.data["results"][0]["object_id"], "STU-99")
+
+        # Search by keyword matching action
+        resp2 = client.get("/api/audit-logs/?search=role_created", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp2.status_code, 200)
+        self.assertEqual(resp2.data["count"], 1)
+        self.assertEqual(resp2.data["results"][0]["action"], "role_created")
+
+    # 20. ordering filter
+    def test_ordering_filter(self):
+        self._create_audit_log(self.school, action="alpha")
+        self._create_audit_log(self.school, action="beta")
+        user = self._build_user(self.school, "audituser19", ["view_audit_log"])
+        client = self._client_as(user, self.DOMAIN)
+
+        resp = client.get("/api/audit-logs/?ordering=created_at", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data["results"][0]["action"], "alpha")
+        self.assertEqual(resp.data["results"][1]["action"], "beta")
+
+    # 21. date_from > date_to validation
+    def test_date_from_greater_than_date_to_returns_400(self):
+        self._create_audit_log(self.school)
+        user = self._build_user(self.school, "audituser20", ["view_audit_log"])
+        client = self._client_as(user, self.DOMAIN)
+        resp = client.get("/api/audit-logs/?date_from=2026-10-15&date_to=2026-10-10", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("date_from", resp.data)
+
+    # 22. metadata endpoint returns distinct actions and models
+    def test_metadata_endpoint_returns_distinct_actions_and_models(self):
+        self._create_audit_log(self.school, action="action_a", model_name="ModelA")
+        self._create_audit_log(self.school, action="action_a", model_name="ModelB")
+        self._create_audit_log(self.school, action="action_b", model_name="ModelA")
+
+        user = self._build_user(self.school, "audituser21", ["view_audit_log"])
+        client = self._client_as(user, self.DOMAIN)
+        resp = client.get("/api/audit-logs/metadata/", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("actions", resp.data)
+        self.assertIn("model_names", resp.data)
+        self.assertEqual(set(resp.data["actions"]), {"action_a", "action_b"})
+        self.assertEqual(set(resp.data["model_names"]), {"ModelA", "ModelB"})
+
+    # 23. metadata endpoint requires permission
+    def test_metadata_endpoint_requires_permission(self):
+        user = self._build_user(self.school, "audituser22", [])
+        client = self._client_as(user, self.DOMAIN)
+        resp = client.get("/api/audit-logs/metadata/", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.status_code, 403)
+
+    # 24. metadata endpoint tenant isolation
+    def test_metadata_endpoint_tenant_isolation(self):
+        self._create_audit_log(self.school, action="school_a_action", model_name="SchoolAModel")
+        self._create_audit_log(self.other_school, action="school_b_action", model_name="SchoolBModel")
+
+        user = self._build_user(self.school, "audituser23", ["view_audit_log"])
+        client = self._client_as(user, self.DOMAIN)
+        resp = client.get("/api/audit-logs/metadata/", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("school_a_action", resp.data["actions"])
+        self.assertNotIn("school_b_action", resp.data["actions"])
+        self.assertIn("SchoolAModel", resp.data["model_names"])
+        self.assertNotIn("SchoolBModel", resp.data["model_names"])
+
 
 class SeedDemoSchoolCommandTest(TransactionTestCase):
     """

@@ -378,7 +378,7 @@ function GetStartedContent() {
                                     <div className="flex items-center justify-between mb-4">
                                         <div>
                                             <p className="text-sm font-medium text-green-700 mb-1">One-Time Payment</p>
-                                            <p className="text-4xl font-bold text-green-900">Rs. 500</p>
+                                            <p className="text-4xl font-bold text-green-900">Rs. {paymentData?.amount}</p>
                                         </div>
                                         <div className="text-right">
                                             <div className="inline-block bg-green-600 text-white px-4 py-2 rounded-full text-sm font-bold">

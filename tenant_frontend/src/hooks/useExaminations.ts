@@ -11,6 +11,7 @@ import {
     ExamScheduleInput,
     ExamType,
     GradeBoundary,
+    OfficialTranscript,
     ReportCard,
 } from "@/types/Examinations";
 
@@ -218,6 +219,17 @@ export const useStudentReportCard = (studentId: string | undefined, academicYear
             const params = academicYear ? `?academic_year=${academicYear}` : "";
             const response = await axiosInstance.get(`/examinations/students/${studentId}/report-card/${params}`);
             return response.data as ReportCard;
+        },
+        enabled: !!studentId,
+    });
+};
+
+export const useStudentTranscript = (studentId: string | undefined) => {
+    return useQuery({
+        queryKey: ["examinations", "transcript", studentId],
+        queryFn: async () => {
+            const response = await axiosInstance.get(`/examinations/students/${studentId}/transcript/`);
+            return response.data as OfficialTranscript;
         },
         enabled: !!studentId,
     });

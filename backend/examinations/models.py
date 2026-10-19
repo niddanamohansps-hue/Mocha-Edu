@@ -40,6 +40,13 @@ class Examination(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     academic_year = models.CharField(max_length=20)
+    academic_year_ref = models.ForeignKey(
+        "academics.AcademicYear",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
     name = models.CharField(max_length=200)
     exam_type = models.ForeignKey(ExamType, on_delete=models.PROTECT, related_name="examinations")
     start_date = models.DateField()
@@ -73,6 +80,13 @@ class ExamSchedule(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     examination = models.ForeignKey(Examination, on_delete=models.CASCADE, related_name="schedules")
     academic_year = models.CharField(max_length=20)
+    academic_year_ref = models.ForeignKey(
+        "academics.AcademicYear",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
     subject = models.ForeignKey(
         "academics.Subject", on_delete=models.CASCADE, related_name="exam_schedules"
     )
@@ -159,6 +173,13 @@ class ExamResult(models.Model):
         "students.Student", on_delete=models.CASCADE, related_name="exam_results"
     )
     academic_year = models.CharField(max_length=20)
+    academic_year_ref = models.ForeignKey(
+        "academics.AcademicYear",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
 
     total_marks_obtained = models.DecimalField(max_digits=8, decimal_places=2)
     total_max_marks = models.DecimalField(max_digits=8, decimal_places=2)
@@ -189,6 +210,13 @@ class GradeBoundary(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     academic_year = models.CharField(max_length=20)
+    academic_year_ref = models.ForeignKey(
+        "academics.AcademicYear",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
     min_percentage = models.DecimalField(max_digits=5, decimal_places=2)
     max_percentage = models.DecimalField(max_digits=5, decimal_places=2)
     grade_label = models.CharField(max_length=20)

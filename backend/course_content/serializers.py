@@ -211,20 +211,10 @@ class AssignmentSubmissionSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
-        read_only_fields = [
-            "student",
-            "created_at",
-            "updated_at",
-            "graded_by",
-            "graded_at",
-            "is_late",
-        ]
-
-    def validate_submission_file(self, value):
-        """Validate file size (max 10MB)"""
-        if value and value.size > 10 * 1024 * 1024:  # 10MB
-            raise serializers.ValidationError("File size must not exceed 10MB")
-        return value
+        # Presentation only. Students submit through SubmitAssignmentSerializer and graders grade
+        # through GradeSubmissionSerializer, so no field here is writable (a submission route must
+        # never be able to change a score, feedback, status or grading metadata).
+        read_only_fields = fields
 
 
 class CreateAssignmentSerializer(serializers.Serializer):
@@ -272,4 +262,48 @@ class CreateAssignmentSerializer(serializers.Serializer):
         """Validate file size (max 10MB)"""
         if value and value.size > 10 * 1024 * 1024:  # 10MB
             raise serializers.ValidationError("File size must not exceed 10MB")
+        return value
+
+
+MAX_SUBMISSION_FILE_BYTES = 10 * 1024 * 1024  # 10MB
+
+
+class SubmitAssignmentSerializer(serializers.Serializer):
+    """The only fields a student may set when submitting work. Anything else in the request
+    (score, feedback, status, grader fields, ...) is ignored, never written."""
+
+    submission_file = serializers.FileField(required=False, allow_null=True)
+    submission_text = serializers.CharField(required=False, allow_blank=True)
+    submission_url = serializers.URLField(required=False, allow_blank=True)
+
+    def validate_submission_file(self, value):
+        """Validate file size (max 10MB)"""
+        if value and value.size > MAX_SUBMISSION_FILE_BYTES:
+            raise serializers.ValidationError("File size must not exceed 10MB")
+        return value
+
+    def validate(self, attrs):
+        has_file = bool(attrs.get("submission_file"))
+        has_text = bool((attrs.get("submission_text") or "").strip())
+        has_url = bool((attrs.get("submission_url") or "").strip())
+        if not (has_file or has_text or has_url):
+            raise serializers.ValidationError(
+                "Provide a file, some text, or a link to submit."
+            )
+        return attrs
+
+
+class GradeSubmissionSerializer(serializers.Serializer):
+    """Score and feedback for grading. The score must lie between 0 and the assignment's
+    total points; pass the submission as ``context["submission"]``."""
+
+    score = serializers.DecimalField(max_digits=5, decimal_places=2, min_value=0)
+    feedback = serializers.CharField(required=False, allow_blank=True)
+
+    def validate_score(self, value):
+        submission = self.context.get("submission")
+        if submission is not None and value > submission.assignment.total_points:
+            raise serializers.ValidationError(
+                f"Score cannot exceed the assignment total of {submission.assignment.total_points}."
+            )
         return value

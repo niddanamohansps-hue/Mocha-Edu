@@ -17,6 +17,7 @@ import {
     PromotionEntryInput,
 } from "@/types/Promotion";
 import { usePermissions } from "@/providers/PermissionProvider";
+import { useAcademicYear } from "@/providers/AcademicYearProvider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -31,19 +32,13 @@ import { ErrorState } from "@/components/feedback/ErrorState";
 
 const HISTORY_PAGE_SIZE = 20;
 
-function currentYear() {
-    return String(new Date().getFullYear());
-}
 
-function nextYear(year: string) {
-    const n = parseInt(year, 10);
-    return Number.isFinite(n) ? String(n + 1) : year;
-}
 
 const ACTIONS: PromotionAction[] = ["promoted", "retained", "withdrawn", "transferred", "graduated"];
 
 export default function PromotionPage() {
     const { can, isOwner } = usePermissions();
+    const { selectedYear, academicYears } = useAcademicYear();
     const canManage = isOwner || can("manage_student_promotion");
 
     const router = useRouter();
@@ -66,8 +61,8 @@ export default function PromotionPage() {
         router.replace(query ? `${pathname}?${query}` : pathname);
     };
 
-    // Step 1-3: source selection - URL is the source of truth
-    const sourceYear = searchParams.get("sourceYear") || currentYear();
+    // Step 1-3: source selection - URL or default to selected global year
+    const sourceYear = searchParams.get("sourceYear") || selectedYear?.name || "";
     const levelId = searchParams.get("levelId") || "";
     const sectionId = searchParams.get("sectionId") || "";
     const historyPageParam = Number(searchParams.get("historyPage"));
@@ -91,7 +86,7 @@ export default function PromotionPage() {
     const [actionByStudent, setActionByStudent] = useState<Record<string, PromotionAction>>({});
 
     // Step 6-8: target
-    const [targetYear, setTargetYear] = useState(nextYear(currentYear()));
+    const [targetYear, setTargetYear] = useState("");
     const [targetLevelId, setTargetLevelId] = useState("");
     const [targetSectionId, setTargetSectionId] = useState("");
     const targetSectionsForLevel = useMemo(
@@ -164,13 +159,28 @@ export default function PromotionPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl">
                 <div>
                     <label className="text-xs font-medium text-slate-500 mb-1 block">Academic Year</label>
-                    <Input
-                        value={sourceYear}
-                        onChange={(e) => {
-                            // changing the filter must reset pagination, not reuse a stale page number
-                            updateParams({ sourceYear: e.target.value === currentYear() ? null : e.target.value, historyPage: null });
-                        }}
-                    />
+                    {academicYears.length > 0 ? (
+                        <Select
+                            value={sourceYear}
+                            onValueChange={(v) => updateParams({ sourceYear: v || null, historyPage: null })}
+                        >
+                            <SelectTrigger><SelectValue placeholder="Select year" /></SelectTrigger>
+                            <SelectContent>
+                                {academicYears.map((y) => (
+                                    <SelectItem key={y.id} value={y.name}>
+                                        {y.name} {y.is_current ? "(Current)" : ""}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    ) : (
+                        <Input
+                            value={sourceYear}
+                            onChange={(e) => {
+                                updateParams({ sourceYear: e.target.value || null, historyPage: null });
+                            }}
+                        />
+                    )}
                 </div>
                 <div>
                     <label className="text-xs font-medium text-slate-500 mb-1 block">Level</label>
@@ -276,7 +286,20 @@ export default function PromotionPage() {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl">
                         <div>
                             <label className="text-xs font-medium text-slate-500 mb-1 block">Target Academic Year</label>
-                            <Input value={targetYear} onChange={(e) => setTargetYear(e.target.value)} />
+                            {academicYears.length > 0 ? (
+                                <Select value={targetYear} onValueChange={setTargetYear}>
+                                    <SelectTrigger><SelectValue placeholder="Select target year" /></SelectTrigger>
+                                    <SelectContent>
+                                        {academicYears.map((y) => (
+                                            <SelectItem key={y.id} value={y.name}>
+                                                {y.name} {y.is_current ? "(Current)" : ""}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            ) : (
+                                <Input value={targetYear} onChange={(e) => setTargetYear(e.target.value)} />
+                            )}
                         </div>
                         <div>
                             <label className="text-xs font-medium text-slate-500 mb-1 block">
@@ -305,7 +328,7 @@ export default function PromotionPage() {
                     </div>
 
                     <div className="flex gap-3">
-                        <Button onClick={handlePreview} disabled={previewing || selectedCount === 0} className="gap-2">
+                        <Button onClick={handlePreview} disabled={previewing || selectedCount === 0 || !sourceYear || !targetYear} className="gap-2">
                             {previewing && <LoaderCircle className="h-4 w-4 animate-spin" />}
                             Preview ({selectedCount} selected)
                         </Button>

@@ -114,13 +114,19 @@ export const useInstructor = (id: string) => {
     });
 };
 
-export const useStaffMembers = (options: { page?: number; pageSize?: number } = {}) => {
-    const { page = 1, pageSize = 20 } = options;
+export const useStaffMembers = (
+    options: { page?: number; pageSize?: number; search?: string; isActive?: boolean } = {}
+) => {
+    const { page = 1, pageSize = 20, search = "", isActive } = options;
     return useQuery({
-        queryKey: ["staff", { page, pageSize }],
+        queryKey: ["staff", { page, pageSize, search, isActive }],
         queryFn: async () => {
             const response = await axiosInstance.get("/staff/members/", {
-                params: { page, page_size: pageSize }
+                params: {
+                    page, page_size: pageSize,
+                    ...(search ? { search } : {}),
+                    ...(isActive === undefined ? {} : { is_active: String(isActive) }),
+                }
             });
             return response.data as PaginatedResponse<StaffMember>;
         }

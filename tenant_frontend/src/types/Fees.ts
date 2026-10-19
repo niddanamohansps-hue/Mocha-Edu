@@ -110,3 +110,80 @@ export interface OutstandingReportResponse {
     total_outstanding_amount: string;
     results: OutstandingReportRow[];
 }
+
+export type OnlinePaymentOrderStatus =
+    | "initiated"
+    | "pending"
+    | "success"
+    | "failed"
+    | "expired"
+    | "reconciliation_required";
+
+export interface OnlinePaymentOrder {
+    id: string;
+    student: string;
+    student_name: string;
+    amount: string;
+    gateway: string;
+    status: OnlinePaymentOrderStatus;
+    allocations_snapshot?: { student_fee_id: string; amount: string }[];
+    gateway_order_id: string;
+    gateway_reference?: string;
+    gateway_response?: Record<string, unknown> | null;
+    reconciliation_reason?: string;
+    created_by_user_id?: string | null;
+    created_at: string;
+    updated_at: string;
+    expires_at: string;
+    completed_at?: string | null;
+    payment: string | null;
+    receipt_number?: string | null;
+}
+
+export interface GatewayPayload {
+    gateway: string;
+    gateway_url: string;
+    method: string;
+    form_parameters: Record<string, string>;
+    order_id: string;
+    gateway_order_id: string;
+}
+
+export interface InitiateOnlinePaymentInput {
+    student: string;
+    amount: string;
+    allocations: { student_fee: string; amount: string }[];
+    gateway?: string;
+    return_url?: string;
+    failure_url?: string;
+    ttl_minutes?: number;
+}
+
+export interface InitiateParentChildPaymentInput {
+    student_id: string;
+    amount: string;
+    allocations: { student_fee: string; amount: string }[];
+    gateway?: string;
+    return_url?: string;
+    failure_url?: string;
+    ttl_minutes?: number;
+}
+
+export interface InitiateOnlinePaymentResponse {
+    order: OnlinePaymentOrder;
+    gateway_payload: GatewayPayload;
+}
+
+export interface VerifyOnlinePaymentResponse {
+    status: OnlinePaymentOrderStatus | "already_completed";
+    order: OnlinePaymentOrder | null;
+    receipt_number: string;
+    reason: string;
+}
+
+export interface OnlinePaymentOrdersResponse {
+    count: number;
+    next: string | null;
+    previous: string | null;
+    results: OnlinePaymentOrder[];
+}

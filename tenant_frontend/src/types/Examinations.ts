@@ -95,11 +95,151 @@ export interface ExamResult {
     published_at: string;
 }
 
-export interface ReportCard {
-    student: { id: string; full_name: string; enrollment_id: string };
-    academic_year: string | null;
-    examinations: ExamResult[];
+export interface InstitutionSummary {
+    name: string;
+    address: string;
+    phone: string;
+    email: string;
+    website: string;
+    tagline: string;
+    logo_url: string | null;
 }
+
+export interface AttendanceSummary {
+    percentage: number | null;
+    total_days: number;
+    present_days: number;
+    absent_days: number;
+    late_days: number;
+    half_days: number;
+    leave_days: number;
+    status_counts: Record<string, number>;
+}
+
+export interface PromotionSummary {
+    action: string;
+    action_display: string;
+    source_level?: string | null;
+    target_level?: string | null;
+    target_section?: string | null;
+    target_academic_year?: string | null;
+    reason?: string | null;
+    date?: string | null;
+}
+
+export interface TeacherRemark {
+    subject: string;
+    examination: string;
+    remarks: string;
+}
+
+export interface ReportCardSubjectBreakdown {
+    subject: string;
+    subject_name: string;
+    marks_obtained: number | null;
+    max_marks: number;
+    percentage: number | null;
+    grade: string | null;
+    grade_point: number | null;
+    credits: number;
+    is_absent: boolean;
+    is_pass: boolean;
+}
+
+export interface ReportCardExamination {
+    id: string;
+    examination: string;
+    examination_name: string;
+    exam_type: string;
+    academic_year: string;
+    total_marks_obtained: number;
+    total_max_marks: number;
+    percentage: number;
+    overall_grade: string;
+    is_pass: boolean;
+    gpa: number | null;
+    subject_breakdown: ReportCardSubjectBreakdown[];
+    published_at: string | null;
+}
+
+export interface ReportCard {
+    institution?: InstitutionSummary;
+    student: {
+        id: string;
+        full_name: string;
+        enrollment_id: string;
+        date_of_birth?: string | null;
+        gender?: string | null;
+        level?: string | null;
+        section?: string | null;
+        status?: string;
+    };
+    academic_year: string | null;
+    examinations: ReportCardExamination[];
+    summary?: {
+        total_marks_obtained: number;
+        total_max_marks: number;
+        percentage: number | null;
+        overall_grade: string | null;
+        gpa: number | null;
+        is_pass: boolean;
+        total_exams: number;
+    };
+    attendance?: AttendanceSummary;
+    promotion?: PromotionSummary | null;
+    remarks?: TeacherRemark[];
+    generated_at?: string;
+}
+
+export interface TranscriptYearBlock {
+    academic_year: string;
+    level: string | null;
+    section: string | null;
+    examinations: ReportCardExamination[];
+    summary: {
+        total_marks_obtained: number;
+        total_max_marks: number;
+        percentage: number | null;
+        overall_grade: string | null;
+        gpa: number | null;
+        is_pass: boolean;
+        total_exams: number;
+    };
+    attendance: AttendanceSummary;
+    promotion: PromotionSummary | null;
+}
+
+export interface CumulativeTranscriptSummary {
+    total_marks_obtained: number;
+    total_max_marks: number;
+    cumulative_percentage: number | null;
+    cgpa: number | null;
+    total_credits_attempted: number;
+    total_credits_earned: number;
+    total_years: number;
+    status: string;
+}
+
+export interface OfficialTranscript {
+    institution: InstitutionSummary;
+    student: {
+        id: string;
+        full_name: string;
+        enrollment_id: string;
+        date_of_birth?: string | null;
+        gender?: string | null;
+        admission_date?: string | null;
+        status: string;
+    };
+    years: TranscriptYearBlock[];
+    cumulative_summary: CumulativeTranscriptSummary;
+    issuance: {
+        issued_date: string;
+        signatories: { title: string }[];
+    };
+    generated_at: string;
+}
+
 
 export interface GradeBoundary {
     id: string;
