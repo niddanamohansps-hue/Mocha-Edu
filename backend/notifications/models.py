@@ -1,6 +1,7 @@
 import uuid
 
-from django.db import models
+from django.core.validators import MaxValueValidator, MinValueValidator
+from django.db import models, transaction
 
 
 class Notification(models.Model):
@@ -117,3 +118,164 @@ class EmailOutboxEvent(models.Model):
 
     def __str__(self):
         return f"{self.to_email} [{self.status}]"
+
+
+class NotificationSettings(models.Model):
+    """
+    Per-school alert settings: exactly one row per tenant schema, enforced by the
+    database (see ``singleton``), not by convention.
+
+    Every alert type defaults to OFF, and the row does not exist until an
+    administrator first saves it: ``load()`` returns an unsaved default instance
+    when there is no row, so reading settings never writes anything and an
+    upgrade never switches alerts on for an existing school.
+
+    Time zone: all scheduling and "today" logic in the alert stages uses the
+    project's ``TIME_ZONE`` (UTC). There is deliberately no school time zone yet;
+    it must exist before schedule-sensitive triggers are relied on.
+    """
+
+    EDITABLE_FIELDS = (
+        "fee_reminders_enabled",
+        "absence_alerts_enabled",
+        "payment_receipts_enabled",
+        "fee_reminder_days_before",
+        "overdue_reminder_interval_days",
+        "max_overdue_reminders",
+    )
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    # Always True and unique: a second row cannot exist.
+    singleton = models.BooleanField(default=True, unique=True, editable=False)
+
+    fee_reminders_enabled = models.BooleanField(default=False)
+    absence_alerts_enabled = models.BooleanField(default=False)
+    payment_receipts_enabled = models.BooleanField(default=False)
+
+    fee_reminder_days_before = models.PositiveSmallIntegerField(
+        default=3, validators=[MinValueValidator(0), MaxValueValidator(30)]
+    )
+    overdue_reminder_interval_days = models.PositiveSmallIntegerField(
+        default=7, validators=[MinValueValidator(1), MaxValueValidator(30)]
+    )
+    max_overdue_reminders = models.PositiveSmallIntegerField(
+        default=3, validators=[MinValueValidator(1), MaxValueValidator(10)]
+    )
+
+    # Soft link to the (public-schema) user who last saved the settings.
+    updated_by_user_id = models.UUIDField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name_plural = "Notification settings"
+        constraints = [
+            models.CheckConstraint(condition=models.Q(singleton=True), name="notifsettings_singleton_true"),
+            models.CheckConstraint(
+                condition=models.Q(fee_reminder_days_before__gte=0, fee_reminder_days_before__lte=30),
+                name="notifsettings_days_before_range",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(overdue_reminder_interval_days__gte=1, overdue_reminder_interval_days__lte=30),
+                name="notifsettings_interval_range",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(max_overdue_reminders__gte=1, max_overdue_reminders__lte=10),
+                name="notifsettings_max_reminders_range",
+            ),
+        ]
+
+    def __str__(self):
+        return "Notification settings"
+
+    @classmethod
+    def load(cls):
+        """The saved settings, or an UNSAVED default instance. Never writes."""
+        return cls.objects.filter(singleton=True).first() or cls()
+
+    def editable_values(self):
+        return {name: getattr(self, name) for name in self.EDITABLE_FIELDS}
+
+    @classmethod
+    def update_singleton(cls, *, user_id=None, **values):
+        """
+        Applies ``values`` to the one settings row, creating it on first use.
+        Returns ``(settings, previous_values)``.
+
+        Concurrency: creation goes through ``get_or_create`` on the unique
+        ``singleton`` column, so simultaneous first requests end up with one row
+        (the loser's insert fails and it re-reads). The row is then re-read with
+        ``SELECT ... FOR UPDATE`` before the new values are applied, so two
+        concurrent partial updates are serialized and neither is lost.
+        """
+        unknown = set(values) - set(cls.EDITABLE_FIELDS)
+        if unknown:
+            raise ValueError(f"Not editable: {sorted(unknown)}")
+
+        with transaction.atomic():
+            cls.objects.get_or_create(singleton=True)
+            instance = cls.objects.select_for_update().get(singleton=True)
+            previous = instance.editable_values()
+            for name, value in values.items():
+                setattr(instance, name, value)
+            instance.updated_by_user_id = user_id
+            instance.full_clean()
+            instance.save()
+        return instance, previous
+
+
+class AlertLog(models.Model):
+    """
+    One automated alert to one recipient. The (kind, dedupe_key, recipient) unique
+    constraint is what makes sending idempotent: it is claimed by inserting this
+    row, in the same transaction as the inbox notification and the outbox email
+    (see ``notifications.alerts.dispatch_alert``).
+
+    Deliberately stores no names, amounts or email addresses: only ids, the
+    student's enrollment id and a masked recipient hint, snapshotted when the
+    alert was sent. Delivery status is not duplicated here: it is read from the
+    linked outbox event.
+    """
+
+    class Kind(models.TextChoices):
+        FEE_DUE_SOON = "fee_due_soon", "Fee due soon"
+        FEE_OVERDUE = "fee_overdue", "Fee overdue"
+        ABSENCE = "absence", "Absence"
+        PAYMENT_RECEIPT = "payment_receipt", "Payment receipt"
+
+    IN_APP_ONLY = "in_app_only"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    kind = models.CharField(max_length=30, choices=Kind.choices)
+    # Stable identity of the logical alert, e.g. "absence:<student_id>:<date>".
+    dedupe_key = models.CharField(max_length=120)
+    recipient_user_id = models.UUIDField()
+    recipient_hint = models.CharField(max_length=80, blank=True)
+    # No foreign key: deleting a student must never cascade into the log.
+    student_id = models.UUIDField()
+    enrollment_id = models.CharField(max_length=50, blank=True)
+
+    notification_id = models.UUIDField(null=True, blank=True)
+    outbox_event = models.ForeignKey(
+        EmailOutboxEvent, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["kind", "dedupe_key", "recipient_user_id"], name="alertlog_unique_alert"
+            ),
+        ]
+        indexes = [models.Index(fields=["kind", "created_at"], name="alertlog_kind_created_idx")]
+
+    def __str__(self):
+        return f"{self.kind} [{self.dedupe_key}]"
+
+    @property
+    def delivery_status(self):
+        """The outbox event's own status (pending / retrying / sent / failed), or
+        ``in_app_only`` when no email was queued."""
+        if self.outbox_event_id is None:
+            return self.IN_APP_ONLY
+        return self.outbox_event.status

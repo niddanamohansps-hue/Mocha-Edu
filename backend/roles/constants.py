@@ -670,4 +670,16 @@ SYSTEM_PERMISSIONS = [
         "module": "Certificates",
         "description": "Generate and print student and staff ID cards",
     },
+    {
+        "codename": "manage_notification_settings",
+        "name": "Manage Alert Settings",
+        "module": "Alerts",
+        "description": "Turn automated fee, absence and payment alerts on or off and set their reminder timing",
+    },
+    {
+        "codename": "view_notification_log",
+        "name": "View Alert Log",
+        "module": "Alerts",
+        "description": "View which automated alerts were sent and whether they were delivered",
+    },
 ]
