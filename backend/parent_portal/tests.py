@@ -226,17 +226,26 @@ class ParentPortalActivationTests(ParentPortalFixtureMixin, TransactionTestCase)
         with tenant_context(self.school):
             self.assertTrue(Role.objects.filter(slug="parent", is_system_role=True).exists())
 
-    def test_parent_role_has_zero_permissions_by_default(self):
+    def test_parent_role_default_permissions(self):
+        """New parent roles get only the limited, approved defaults (see roles.signals); results,
+        fee data and payment initiation require explicit owner configuration."""
         with tenant_context(self.school):
             role = Role.objects.get(slug="parent")
-            self.assertEqual(role.permissions.count(), 0)
+            self.assertEqual(
+                set(role.permissions.values_list("codename", flat=True)),
+                {
+                    "view_own_children", "view_child_attendance", "view_child_timetable",
+                    "view_calendar_events",
+                },
+            )
 
     def test_parent_portal_permissions_seeded(self):
         """
         Originally asserted exactly the 4 Parent Portal-milestone codenames;
         the Fees milestone deliberately added a 5th ('view_child_fees') to
         this same "Parent Portal" module (see fees design report S12/S17),
-        so this expectation is updated to match - not a regression.
+        so this expectation is updated to match - not a regression. The online-payment
+        milestone likewise added 'pay_child_fees' to the same module.
         """
         with tenant_context(self.school):
             codenames = set(
@@ -246,7 +255,7 @@ class ParentPortalActivationTests(ParentPortalFixtureMixin, TransactionTestCase)
                 codenames,
                 {
                     "view_own_children", "view_child_attendance", "view_child_timetable",
-                    "view_child_results", "view_child_fees",
+                    "view_child_results", "view_child_fees", "pay_child_fees",
                 },
             )
 
@@ -398,7 +407,8 @@ class LinkedChildrenViewTests(ParentPortalFixtureMixin, TransactionTestCase):
         self.assertNotIn("user_id", row)
 
     def test_requires_view_own_children_permission(self):
-        client = self._client_as(self.parent1_user)  # zero perms - default parent role
+        self._give_role_only(self.parent1_user, [])  # explicitly no permissions
+        client = self._client_as(self.parent1_user)
         resp = client.get("/api/parent-portal/children/", HTTP_HOST=self.DOMAIN)
         self.assertEqual(resp.status_code, 403)
 
@@ -520,6 +530,7 @@ class ChildAttendanceViewTests(ParentPortalFixtureMixin, TransactionTestCase):
         self.assertEqual(resp.data["counts"], {"absent": 1})
 
     def test_requires_view_child_attendance_permission(self):
+        self._give_role_only(self.parent1_user, [])  # explicitly no permissions
         client = self._client_as(self.parent1_user)
         resp = client.get(f"/api/parent-portal/children/{self.student1.id}/attendance/", HTTP_HOST=self.DOMAIN)
         self.assertEqual(resp.status_code, 403)
@@ -535,6 +546,7 @@ class ChildTimetableViewTests(ParentPortalFixtureMixin, TransactionTestCase):
         self.assertEqual(resp.data["results"][0]["subject_name"], "Math")
 
     def test_requires_view_child_timetable_permission(self):
+        self._give_role_only(self.parent1_user, [])  # explicitly no permissions
         client = self._client_as(self.parent1_user)
         resp = client.get(f"/api/parent-portal/children/{self.student1.id}/timetable/", HTTP_HOST=self.DOMAIN)
         self.assertEqual(resp.status_code, 403)
