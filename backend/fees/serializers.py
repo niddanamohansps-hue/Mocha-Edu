@@ -208,11 +208,26 @@ class OnlinePaymentOrderSerializer(serializers.ModelSerializer):
         return obj.payment.receipt_number if obj.payment else None
 
 
+class PublicOnlinePaymentOrderSerializer(serializers.ModelSerializer):
+    """
+    What the UNAUTHENTICATED payment-return endpoints may reveal about an order: only what the
+    return page needs to continue (poll the order, link the receipt). No student identity,
+    creator, allocation snapshot, gateway payload or reconciliation diagnostics.
+    """
+
+    class Meta:
+        model = OnlinePaymentOrder
+        fields = ["id", "gateway_order_id", "status", "amount", "payment"]
+        read_only_fields = fields
+
+
 class OnlinePaymentOrderInitiateSerializer(serializers.Serializer):
     student = serializers.UUIDField(required=True)
     amount = serializers.DecimalField(max_digits=10, decimal_places=2, required=True)
     gateway = serializers.ChoiceField(choices=GATEWAY_CHOICES, default="esewa")
     allocations = PaymentAllocationInputSerializer(many=True, required=True)
+    # Accepted for backwards compatibility and IGNORED: the gateway callback URLs are built
+    # server-side from the tenant's primary domain (see fees.callbacks.build_callback_urls).
     return_url = serializers.CharField(required=False, allow_blank=True, default="")
     failure_url = serializers.CharField(required=False, allow_blank=True, default="")
     ttl_minutes = serializers.IntegerField(required=False, default=60, min_value=5, max_value=1440)
@@ -245,6 +260,8 @@ class ParentPortalChildPayFeeSerializer(serializers.Serializer):
     amount = serializers.DecimalField(max_digits=10, decimal_places=2, required=True)
     gateway = serializers.ChoiceField(choices=GATEWAY_CHOICES, default="esewa")
     allocations = PaymentAllocationInputSerializer(many=True, required=True)
+    # Accepted for backwards compatibility and IGNORED: the gateway callback URLs are built
+    # server-side from the tenant's primary domain (see fees.callbacks.build_callback_urls).
     return_url = serializers.CharField(required=False, allow_blank=True, default="")
     failure_url = serializers.CharField(required=False, allow_blank=True, default="")
     ttl_minutes = serializers.IntegerField(required=False, default=60, min_value=5, max_value=1440)

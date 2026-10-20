@@ -5,14 +5,21 @@ race-safe payment path are never re-implemented per view, mirroring the
 exact pattern established in attendance/timetable/examinations/services.py.
 """
 
+import logging
 import uuid
+from datetime import timedelta
 from decimal import Decimal
 
+from django.conf import settings
 from django.db import transaction
 from django.db.models import DecimalField, Sum, Value
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 from rest_framework import serializers
+
+from .callbacks import build_callback_urls
+
+logger = logging.getLogger(__name__)
 
 
 # --- Identity resolution -----------------------------------------------
@@ -519,10 +526,15 @@ def initiate_online_payment_order(
     created_by=None,
     return_url=None,
     failure_url=None,
+    callback_kind="fees",
     ttl_minutes=30,
 ):
     """
     Initiates an online payment order for a student.
+
+    ``return_url`` / ``failure_url`` are accepted for backwards compatibility and IGNORED: the
+    URLs sent to the gateway are built server-side from the tenant's primary domain and a fixed
+    path chosen by ``callback_kind`` ("fees" or "parent_portal"); see ``fees.callbacks``.
 
     - Validates amount and fee allocations against current outstanding balances.
     - Creates an OnlinePaymentOrder in status 'initiated'.
@@ -582,6 +594,8 @@ def initiate_online_payment_order(
                 }
             )
 
+    # Build the callback URLs first: if no safe URL exists, fail before any order is created.
+    callback_urls = build_callback_urls(callback_kind)
     adapter = get_gateway_adapter(gateway)
     gateway_order_id = uuid.uuid4().hex
     expires_at = timezone.now() + datetime.timedelta(minutes=ttl_minutes)
@@ -595,22 +609,73 @@ def initiate_online_payment_order(
     if created_by:
         created_by_user_id = getattr(created_by, "id", created_by)
 
-    order = OnlinePaymentOrder.objects.create(
-        student=student,
-        amount=amount,
-        gateway=gateway,
-        status="initiated",
-        allocations_snapshot=allocations_snapshot,
-        gateway_order_id=gateway_order_id,
-        created_by_user_id=created_by_user_id,
-        expires_at=expires_at,
-    )
+    # One transaction: a gateway/configuration failure leaves no orphan "initiated" order behind.
+    with transaction.atomic():
+        order = OnlinePaymentOrder.objects.create(
+            student=student,
+            amount=amount,
+            gateway=gateway,
+            status="initiated",
+            allocations_snapshot=allocations_snapshot,
+            gateway_order_id=gateway_order_id,
+            created_by_user_id=created_by_user_id,
+            expires_at=expires_at,
+        )
 
-    payload = adapter.initiate_payment(order, return_url=return_url, failure_url=failure_url)
-    order.status = "pending"
-    order.save(update_fields=["status", "updated_at"])
+        payload = adapter.initiate_payment(
+            order, return_url=callback_urls.success_url, failure_url=callback_urls.failure_url
+        )
+        order.status = "pending"
+        order.save(update_fields=["status", "updated_at"])
 
     return order, payload
+
+
+class PaymentEvidenceRejected(serializers.ValidationError):
+    """The evidence offered for a payment could not be verified.
+
+    Raising this never changes an order. The detail is deliberately generic: it is returned to
+    unauthenticated callers, so it must not say which check failed (the reason goes to the log).
+    """
+
+    GENERIC_MESSAGE = "The payment confirmation could not be verified."
+
+    def __init__(self, message=None):
+        super().__init__({"error": message or self.GENERIC_MESSAGE})
+
+
+# Fields of a gateway response that may be stored. Anything else a caller sent is dropped.
+_STORED_GATEWAY_FIELDS = (
+    "status", "transaction_code", "ref_id", "total_amount", "transaction_uuid", "product_code",
+)
+
+
+def _stored_gateway_response(data, evidence):
+    """The whitelisted, verified part of a gateway response, plus how it was obtained."""
+    kept = {
+        key: str(data[key])[:100]
+        for key in _STORED_GATEWAY_FIELDS
+        if isinstance(data, dict) and data.get(key) is not None
+    }
+    kept["evidence"] = evidence
+    kept["verified_at"] = timezone.now().isoformat()
+    return kept
+
+
+def _find_online_payment_order(order_id_or_gateway_order_id):
+    from .models import OnlinePaymentOrder
+
+    order = None
+    if isinstance(order_id_or_gateway_order_id, uuid.UUID):
+        order = OnlinePaymentOrder.objects.filter(id=order_id_or_gateway_order_id).first()
+    elif isinstance(order_id_or_gateway_order_id, str):
+        try:
+            order = OnlinePaymentOrder.objects.filter(id=uuid.UUID(order_id_or_gateway_order_id)).first()
+        except ValueError:
+            order = None
+        if not order:
+            order = OnlinePaymentOrder.objects.filter(gateway_order_id=order_id_or_gateway_order_id).first()
+    return order
 
 
 def settle_online_payment_order(
@@ -620,44 +685,25 @@ def settle_online_payment_order(
     recorded_by=None,
 ):
     """
-    Verifies gateway signature/payload and settles an OnlinePaymentOrder.
+    Settles an OnlinePaymentOrder from a signed browser callback (evidence tier T1).
 
-    Idempotency:
-    - If order is already 'success', returns existing payment immediately.
-    - If order is already 'reconciliation_required', returns status with audit reason.
+    The only thing that can move an order here is a callback that ``adapter.verify_callback``
+    accepts as authentic for THIS order (signature over the required fields, merchant,
+    transaction id, amount). Anything else - malformed, unsigned, mismatched, oversized, or an
+    order-id-only call - raises ``PaymentEvidenceRejected`` and changes nothing: the order is not
+    marked failed and the caller's payload is not stored. (Previously any such request failed the
+    order permanently, which let an unauthenticated caller kill a pending payment.)
 
-    Financial Invariant & Interim Settlement Handling (Option B):
-    - If gateway verification fails, saves order.status = 'failed' with audit reason.
-    - If verification succeeds, enters atomic transaction: locks the OnlinePaymentOrder
-      and referenced StudentFee rows with select_for_update.
-    - If interim cash or other settlement reduced the fee's outstanding balance:
-      - Sets order.status = 'reconciliation_required'
-      - Preserves verified transaction data, ref_id, and audit explanation.
-      - NEVER creates a partial Payment violating allocation-sum invariants or an advance-credit ledger.
-    - If balances are intact:
-      - Calls record_payment() with method='online' and gateway_reference.
-      - Sets order.status = 'success', links order.payment.
+    - An authentic callback whose status is not COMPLETE is not a payment: the order is left alone.
+    - An authentic COMPLETE settles through ``_settle_confirmed_payment`` (row locks, balance
+      re-check, ``record_payment``), exactly once; a repeat returns the stored result.
+    - An authentic COMPLETE for an order already closed as failed/expired never creates a payment
+      automatically: it moves to reconciliation_required for staff.
     """
-    from .gateways import get_gateway_adapter
-    from .models import OnlinePaymentOrder, StudentFee
-
-    order = None
-
-    if isinstance(order_id_or_gateway_order_id, uuid.UUID):
-        order = OnlinePaymentOrder.objects.filter(id=order_id_or_gateway_order_id).first()
-    elif isinstance(order_id_or_gateway_order_id, str):
-        try:
-            u = uuid.UUID(order_id_or_gateway_order_id)
-            order = OnlinePaymentOrder.objects.filter(id=u).first()
-        except ValueError:
-            order = None
-        if not order:
-            order = OnlinePaymentOrder.objects.filter(gateway_order_id=order_id_or_gateway_order_id).first()
-
+    order = _find_online_payment_order(order_id_or_gateway_order_id)
     if not order:
-        raise serializers.ValidationError({"order": "Payment order not found."})
+        raise PaymentEvidenceRejected()
 
-    # Idempotency checks
     if order.status == "success":
         return {
             "status": "already_completed",
@@ -665,7 +711,6 @@ def settle_online_payment_order(
             "payment": order.payment,
             "receipt_number": order.payment.receipt_number if order.payment else "",
         }
-
     if order.status == "reconciliation_required":
         return {
             "status": "reconciliation_required",
@@ -673,28 +718,71 @@ def settle_online_payment_order(
             "reason": order.reconciliation_reason,
         }
 
-    if order.status in ("failed", "expired"):
-        raise serializers.ValidationError({
-            "order": f"Cannot settle an order in '{order.status}' status."
-        })
+    from .gateways import get_gateway_adapter
 
-    # Gateway verification
     adapter = get_gateway_adapter(order.gateway)
     verify_result = adapter.verify_callback(order, raw_callback_payload)
-
     if not verify_result.is_valid:
-        order.status = "failed"
-        order.gateway_response = (
-            raw_callback_payload
-            if isinstance(raw_callback_payload, dict)
-            else {"raw": str(raw_callback_payload)}
+        logger.warning(
+            "Rejected payment callback for order %s (%s).",
+            order.gateway_order_id, verify_result.reason_code or "invalid",
         )
-        order.reconciliation_reason = verify_result.error_message
-        order.save(update_fields=["status", "gateway_response", "reconciliation_reason", "updated_at"])
-        raise serializers.ValidationError({"gateway": verify_result.error_message})
+        raise PaymentEvidenceRejected()
+
+    if verify_result.gateway_status != "COMPLETE":
+        # Authentic, but not a completed payment: keep the order recoverable.
+        return {"status": order.status, "order": order, "gateway_status": verify_result.gateway_status}
+
+    return _settle_confirmed_payment(
+        order_id=order.id,
+        gateway_reference=verify_result.gateway_reference,
+        evidence_data=verify_result.raw_data,
+        evidence="callback",
+        recorded_by=recorded_by,
+    )
+
+
+def settle_verified_gateway_payment(*, order, status_result, recorded_by=None):
+    """
+    Settles an order from a verified server-to-server status result (evidence tier T2).
+
+    INTERNAL ONLY: called by ``reconcile_online_payment_order`` with a ``GatewayStatusResult`` that
+    an adapter produced after matching the response to this order. No view passes request data
+    here, and the identity is re-checked below as a second line of defence. The status API
+    response carries no browser-callback HMAC, so it is deliberately not run through
+    ``verify_callback``.
+    """
+    from .gateways import GatewayStatusResult
+
+    if (
+        not isinstance(status_result, GatewayStatusResult)
+        or status_result.status != "COMPLETE"
+        or status_result.evidence != "status_api"
+        or status_result.transaction_uuid != order.gateway_order_id
+        or status_result.total_amount != order.amount
+    ):
+        raise PaymentEvidenceRejected()
+
+    return _settle_confirmed_payment(
+        order_id=order.id,
+        gateway_reference=status_result.gateway_reference,
+        evidence_data=status_result.raw_data,
+        evidence="status_api",
+        recorded_by=recorded_by,
+    )
+
+
+def _settle_confirmed_payment(*, order_id, gateway_reference, evidence_data, evidence, recorded_by):
+    """
+    Shared, idempotent settlement of a payment the gateway has confirmed. Callers have already
+    authenticated the evidence. Locks the order and its fees, re-checks balances and records the
+    payment with ``record_payment`` inside one transaction, or routes the order to
+    reconciliation_required when it cannot be applied safely. Never creates a second Payment.
+    """
+    from .models import OnlinePaymentOrder, StudentFee
 
     with transaction.atomic():
-        order = OnlinePaymentOrder.objects.select_for_update().get(id=order.id)
+        order = OnlinePaymentOrder.objects.select_for_update().get(id=order_id)
         if order.status == "success":
             return {
                 "status": "already_completed",
@@ -702,16 +790,38 @@ def settle_online_payment_order(
                 "payment": order.payment,
                 "receipt_number": order.payment.receipt_number if order.payment else "",
             }
+        if order.status == "reconciliation_required":
+            return {
+                "status": "reconciliation_required",
+                "order": order,
+                "reason": order.reconciliation_reason,
+            }
 
         # Gateway confirmed funds
-        order.gateway_reference = verify_result.gateway_reference
-        order.gateway_response = verify_result.raw_data
+        order.gateway_reference = gateway_reference
+        order.gateway_response = _stored_gateway_response(evidence_data, evidence)
+        update_fields = ["status", "gateway_reference", "gateway_response", "reconciliation_reason", "updated_at"]
+
+        # Confirmed after the order was already closed: never create a payment automatically
+        # and never discard the confirmation. Staff reconcile it.
+        if order.status in ("failed", "expired"):
+            closed_as = order.status
+            order.status = "reconciliation_required"
+            order.reconciliation_reason = (
+                f"Gateway payment was confirmed after this order had been closed as {closed_as}."
+            )
+            order.save(update_fields=update_fields)
+            return {
+                "status": "reconciliation_required",
+                "order": order,
+                "reason": order.reconciliation_reason,
+            }
 
         # Check expiration: if expired after gateway confirmed payment, require reconciliation
         if timezone.now() > order.expires_at:
             order.status = "reconciliation_required"
             order.reconciliation_reason = f"Gateway payment verified after order expiration at {order.expires_at}."
-            order.save(update_fields=["status", "gateway_reference", "gateway_response", "reconciliation_reason", "updated_at"])
+            order.save(update_fields=update_fields)
             return {
                 "status": "reconciliation_required",
                 "order": order,
@@ -728,7 +838,7 @@ def settle_online_payment_order(
         if len(locked_fees) != len(fee_ids):
             order.status = "reconciliation_required"
             order.reconciliation_reason = "One or more allocated fee records are missing from the database."
-            order.save(update_fields=["status", "gateway_reference", "gateway_response", "reconciliation_reason", "updated_at"])
+            order.save(update_fields=update_fields)
             return {
                 "status": "reconciliation_required",
                 "order": order,
@@ -758,10 +868,10 @@ def settle_online_payment_order(
             allocations_for_payment.append({"student_fee_id": fee_id, "amount": alloc_amt})
 
         if not can_allocate:
-            # Interim cash conflict: Option B — require reconciliation
+            # Interim cash conflict: Option B - require reconciliation
             order.status = "reconciliation_required"
             order.reconciliation_reason = "; ".join(conflict_reasons)
-            order.save(update_fields=["status", "gateway_reference", "gateway_response", "reconciliation_reason", "updated_at"])
+            order.save(update_fields=update_fields)
             return {
                 "status": "reconciliation_required",
                 "order": order,
@@ -792,38 +902,86 @@ def settle_online_payment_order(
         }
 
 
+# Gateway statuses that must reach staff rather than change an order automatically. What eSewa
+# means by each could not be confirmed against its official contract; the conservative reading is
+# "something happened to this payment that a person should look at", never "payment failed".
+_STAFF_REVIEW_GATEWAY_STATUSES = {
+    "CANCELED": "The gateway reports this transaction as canceled.",
+    "FULL_REFUND": "The gateway reports this transaction as fully refunded.",
+    "PARTIAL_REFUND": "The gateway reports this transaction as partially refunded.",
+}
+
+
+def _flag_for_reconciliation(order_id, reason):
+    """Moves a still-open (or closed-without-payment) order to reconciliation_required. Idempotent."""
+    from .models import OnlinePaymentOrder
+
+    with transaction.atomic():
+        order = OnlinePaymentOrder.objects.select_for_update().get(id=order_id)
+        if order.status in ("success", "reconciliation_required"):
+            return order
+        order.status = "reconciliation_required"
+        order.reconciliation_reason = reason
+        order.save(update_fields=["status", "reconciliation_reason", "updated_at"])
+        return order
+
+
 def reconcile_online_payment_order(order, *, recorded_by=None):
     """
-    Reconciles a pending or orphaned OnlinePaymentOrder by querying the gateway's status API.
-    If the gateway reports COMPLETE, calls settle_online_payment_order.
-    If the order has expired without payment, marks status as 'expired'.
-    """
-    from .gateways import get_gateway_adapter
+    Reconciles an order against the gateway's own status API (evidence tier T2).
 
-    if order.status in ("success", "reconciliation_required", "failed"):
+    Rules (see the Stage F1 design; timings are provisional engineering defaults in settings):
+    - COMPLETE with matching identity settles via ``settle_verified_gateway_payment``; for an
+      order already closed as failed/expired that becomes reconciliation_required, not a payment.
+    - NOT_FOUND expires an open order only once ``expires_at`` + the grace period has passed.
+    - CANCELED / FULL_REFUND / PARTIAL_REFUND send an unsettled order to staff review. A settled
+      payment is never reversed or changed here.
+    - PENDING, AMBIGUOUS, ERROR (the query itself failed), INVALID, UNKNOWN leave the order as it
+      is; once ``expires_at`` + the reconciliation horizon has passed without an answer the order
+      goes to staff review. An order is never marked failed because of any of these.
+    """
+    from .gateways import GatewayStatusResult, PaymentConfigurationError, get_gateway_adapter
+
+    if order.status in ("success", "reconciliation_required"):
         return {"status": order.status, "order": order}
 
     adapter = get_gateway_adapter(order.gateway)
-    status_result = adapter.query_status(order)
+    try:
+        status_result = adapter.query_status(order)
+    except PaymentConfigurationError:
+        status_result = GatewayStatusResult(status="ERROR", reason_code="configuration")
 
-    if status_result.status == "COMPLETE":
-        # Formulate payload for settlement
-        callback_payload = {
-            "status": "COMPLETE",
-            "transaction_uuid": order.gateway_order_id,
-            "ref_id": status_result.gateway_reference,
-            "total_amount": str(order.amount),
-        }
-        return settle_online_payment_order(
-            order_id_or_gateway_order_id=order.id,
-            raw_callback_payload=status_result.raw_data or callback_payload,
-            recorded_by=recorded_by,
-        )
+    gateway_status = status_result.status
+    now = timezone.now()
+    open_states = ("initiated", "pending")
 
-    if order.status == "pending" and timezone.now() > order.expires_at:
+    if gateway_status == "COMPLETE":
+        try:
+            return settle_verified_gateway_payment(
+                order=order, status_result=status_result, recorded_by=recorded_by
+            )
+        except PaymentEvidenceRejected:
+            logger.warning("Rejected status evidence for order %s.", order.gateway_order_id)
+            gateway_status = "INVALID"
+
+    if gateway_status in _STAFF_REVIEW_GATEWAY_STATUSES:
+        order = _flag_for_reconciliation(order.id, _STAFF_REVIEW_GATEWAY_STATUSES[gateway_status])
+        return {"status": order.status, "gateway_status": gateway_status, "order": order}
+
+    grace = timedelta(minutes=getattr(settings, "FEES_GATEWAY_GRACE_MINUTES", 15))
+    horizon = timedelta(hours=getattr(settings, "FEES_RECONCILE_HORIZON_HOURS", 24))
+
+    if gateway_status == "NOT_FOUND" and order.status in open_states and now > order.expires_at + grace:
         order.status = "expired"
-        order.reconciliation_reason = f"Order expired without gateway confirmation (Gateway status: {status_result.status})."
+        order.reconciliation_reason = "Order expired: the gateway has no record of this transaction."
         order.save(update_fields=["status", "reconciliation_reason", "updated_at"])
         return {"status": "expired", "order": order}
 
-    return {"status": order.status, "gateway_status": status_result.status, "order": order}
+    if order.status in open_states and now > order.expires_at + horizon:
+        order = _flag_for_reconciliation(
+            order.id,
+            f"No authoritative gateway answer was obtained before the reconciliation horizon (last status: {gateway_status}).",
+        )
+        return {"status": order.status, "gateway_status": gateway_status, "order": order}
+
+    return {"status": order.status, "gateway_status": gateway_status, "order": order}

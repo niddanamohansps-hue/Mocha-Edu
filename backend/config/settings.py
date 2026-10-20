@@ -243,6 +243,10 @@ REST_FRAMEWORK = {
         "public_admissions_info": "60/min",
         "public_admissions_rotate": "10/hour",
         "public_certificate_verify": "60/min",
+        # Public eSewa return/verify endpoints (fees.views.OnlinePaymentVerifyView and its
+        # callback subclass). Provisional engineering value. NUM_PROXIES must be set in
+        # production, otherwise DRF keys throttles on a client-suppliable X-Forwarded-For.
+        "online_payment_verify": "30/min",
     },
 }
 
@@ -267,6 +271,7 @@ if len(sys.argv) > 1 and sys.argv[1] == "test":
     REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["public_admissions_info"] = "1000/min"
     REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["public_admissions_rotate"] = "1000/min"
     REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["public_certificate_verify"] = "1000/min"
+    REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["online_payment_verify"] = "1000/min"
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "EduSekai API",
@@ -515,6 +520,14 @@ ESEWA_STATUS_URL = config(
 FEES_ALLOW_GLOBAL_GATEWAY_FALLBACK = config(
     "FEES_ALLOW_GLOBAL_GATEWAY_FALLBACK", default=True, cast=bool
 )
+
+# Online-payment reconciliation timing. PROVISIONAL ENGINEERING DEFAULTS, NOT eSewa REQUIREMENTS
+# (the official contract could not be verified when these were chosen):
+# - grace: how long after an order's expires_at an authoritative NOT_FOUND may expire it;
+# - horizon: how long after expires_at an order with no authoritative answer (pending,
+#   ambiguous, errors) is escalated to staff reconciliation. It is never auto-failed.
+FEES_GATEWAY_GRACE_MINUTES = config("FEES_GATEWAY_GRACE_MINUTES", default=15, cast=int)
+FEES_RECONCILE_HORIZON_HOURS = config("FEES_RECONCILE_HORIZON_HOURS", default=24, cast=int)
 
 # Jazzmin Settings
 JAZZMIN_SETTINGS = {

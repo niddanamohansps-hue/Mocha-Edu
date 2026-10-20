@@ -2203,7 +2203,9 @@ class OnlinePaymentAPITests(FeesFixtureMixin, TransactionTestCase):
         self.assertEqual(resp.status_code, 400)
         with tenant_context(self.school):
             order.refresh_from_db()
-            self.assertEqual(order.status, "failed")
+            # An unverifiable callback must neither fail the order nor leave its payload behind.
+            self.assertEqual(order.status, "pending")
+            self.assertEqual(order.gateway_response, {})
             self.assertIsNone(order.payment)
 
     def test_online_payment_verify_api_interim_cash_settlement_conflict_option_b(self):
@@ -2236,13 +2238,16 @@ class OnlinePaymentAPITests(FeesFixtureMixin, TransactionTestCase):
         )
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.data["status"], "reconciliation_required")
-        self.assertIn("exceeds current outstanding", resp.data["reason"])
+        # Unauthenticated callers only get a fixed, generic reason; the allocation details stay with staff.
+        self.assertEqual(resp.data["reason"], "Payment requires additional verification.")
+        self.assertNotIn("outstanding", str(resp.data))
 
         with tenant_context(self.school):
             order.refresh_from_db()
             self.assertEqual(order.status, "reconciliation_required")
             self.assertIsNone(order.payment)
             self.assertTrue(order.gateway_reference)
+            self.assertIn("exceeds current outstanding", order.reconciliation_reason)
 
     def test_online_payment_callback_get_endpoint(self):
         with tenant_context(self.school):

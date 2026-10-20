@@ -1,6 +1,7 @@
 import base64
 from decimal import Decimal
 import json
+import logging
 import uuid
 
 from django.db.models import Sum
@@ -9,13 +10,14 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import serializers, status, viewsets
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from core.audit import log_action
 from core.pagination import StandardResultsPagination
 from roles.permissions import HasPermission
 
-from .gateways import PaymentConfigurationError, PaymentGatewayError
+from .gateways import MAX_CALLBACK_CHARS, PaymentConfigurationError, PaymentGatewayError
 from .models import FeeHead, FeeStructure, OnlinePaymentOrder, Payment, StudentFee
 from .serializers import (
     AssignStudentFeeSerializer,
@@ -26,12 +28,14 @@ from .serializers import (
     OnlinePaymentOrderSerializer,
     OnlinePaymentVerifySerializer,
     PaymentSerializer,
+    PublicOnlinePaymentOrderSerializer,
     RecordPaymentSerializer,
     ReversePaymentSerializer,
     StudentFeeSerializer,
     UpdateStudentFeeSerializer,
 )
 from .services import (
+    PaymentEvidenceRejected,
     annotate_with_allocation_total,
     annotate_with_outstanding_balance,
     assign_student_fee,
@@ -52,6 +56,15 @@ from .services import (
     user_can_view_online_order,
     user_can_view_student_finances,
 )
+
+logger = logging.getLogger(__name__)
+
+# The only reason an unauthenticated caller is ever given for a reconciliation_required result.
+# The real reason (fee names, allocation details, balances) stays on the order for staff.
+PUBLIC_RECONCILIATION_MESSAGE = "Payment requires additional verification."
+
+# Shown when online payments cannot be started (details go to the log, never to the caller).
+PAYMENT_UNAVAILABLE_MESSAGE = "Online payment is currently unavailable. Please try again later or contact the school."
 
 NO_METHOD_NAMES_WITH_DELETE = ["get", "post", "patch", "head", "options"]
 
@@ -476,11 +489,11 @@ class OnlinePaymentInitiateView(APIView):
                 gateway=data.get("gateway", "esewa"),
                 created_by=request.user,
                 ttl_minutes=data.get("ttl_minutes", 60),
-                return_url=data.get("return_url", ""),
-                failure_url=data.get("failure_url", ""),
+                callback_kind="fees",  # return/failure URLs from the client are ignored
             )
         except (PaymentConfigurationError, PaymentGatewayError) as exc:
-            return Response({"error": str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+            logger.error("Online payment could not be initiated: %s", exc)
+            return Response({"error": PAYMENT_UNAVAILABLE_MESSAGE}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
         log_action(
             request,
@@ -519,11 +532,25 @@ class OnlinePaymentVerifyView(APIView):
     Verifies the gateway callback or redirect payload and settles the payment order.
     Idempotent: repeated calls for already settled or reconciled orders return existing status safely.
     Security: HMAC signature check against secret key verifies payload integrity before settlement.
+    Anything that cannot be verified changes nothing and gets one generic 400.
     """
     permission_classes = [AllowAny]
+    # Public entry point (the callback subclass inherits this): rate-limited per client address.
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "online_payment_verify"
+
+    @staticmethod
+    def _rejected():
+        # One generic answer for every kind of unverifiable request: it must not reveal which
+        # check failed, and it says nothing about whether the payment itself succeeded.
+        return Response({"error": PaymentEvidenceRejected.GENERIC_MESSAGE}, status=status.HTTP_400_BAD_REQUEST)
 
     def _process_verify(self, request, payload_data):
+        if not isinstance(payload_data, dict):
+            return self._rejected()
         encoded_data = payload_data.get("data") or payload_data.get("encoded_data")
+        if isinstance(encoded_data, str) and len(encoded_data) > MAX_CALLBACK_CHARS:
+            return self._rejected()
         order_id = payload_data.get("order_id")
 
         # If order_id not explicitly supplied, extract from payload if base64 encoded
@@ -539,10 +566,7 @@ class OnlinePaymentVerifyView(APIView):
             order_id = payload_data.get("transaction_uuid")
 
         if not order_id:
-            return Response(
-                {"error": "Could not identify transaction order ID from request."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            return self._rejected()
 
         recorded_by = None
         if request.user and request.user.is_authenticated:
@@ -554,10 +578,11 @@ class OnlinePaymentVerifyView(APIView):
                 raw_callback_payload=payload_data,
                 recorded_by=recorded_by,
             )
-        except serializers.ValidationError as exc:
-            return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as exc:
-            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except serializers.ValidationError:
+            return self._rejected()
+        except Exception:
+            logger.exception("Unexpected error while verifying an online payment callback.")
+            return self._rejected()
 
         order = result.get("order")
         if request.user and request.user.is_authenticated and order:
@@ -569,11 +594,12 @@ class OnlinePaymentVerifyView(APIView):
                 changes={"status": result.get("status")},
             )
 
+        # Unauthenticated callers get only what the payment-return page needs.
         response_data = {
             "status": result.get("status"),
-            "order": OnlinePaymentOrderSerializer(order).data if order else None,
+            "order": PublicOnlinePaymentOrderSerializer(order).data if order else None,
             "receipt_number": result.get("receipt_number", ""),
-            "reason": result.get("reason", ""),
+            "reason": PUBLIC_RECONCILIATION_MESSAGE if result.get("status") == "reconciliation_required" else "",
         }
         return Response(response_data, status=status.HTTP_200_OK)
 
@@ -683,10 +709,11 @@ class OnlinePaymentOrderReconcileView(APIView):
 
         try:
             result = reconcile_online_payment_order(order, recorded_by=staff_member)
-        except serializers.ValidationError as exc:
-            return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as exc:
-            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except serializers.ValidationError:
+            return Response({"error": PaymentEvidenceRejected.GENERIC_MESSAGE}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception:
+            logger.exception("Unexpected error during manual online payment reconciliation.")
+            return Response({"error": "Reconciliation could not be completed."}, status=status.HTTP_400_BAD_REQUEST)
 
         order.refresh_from_db()
 

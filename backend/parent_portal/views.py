@@ -1,3 +1,5 @@
+import logging
+
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -6,6 +8,8 @@ from roles.permissions import HasPermission
 
 from .serializers import ChildExamResultSerializer, ChildTimetableEntrySerializer
 from .services import get_child_for_parent, get_linked_children, get_parent_for_user
+
+logger = logging.getLogger(__name__)
 
 NOT_A_PARENT = {"error": "Parent portal access is not available for this account."}
 NO_CHILD_ACCESS = {"error": "You do not have access to this child."}
@@ -379,11 +383,14 @@ class ChildPayFeeView(APIView):
                 gateway=data.get("gateway", "esewa"),
                 created_by=request.user,
                 ttl_minutes=data.get("ttl_minutes", 60),
-                return_url=data.get("return_url", ""),
-                failure_url=data.get("failure_url", ""),
+                callback_kind="parent_portal",  # return/failure URLs from the client are ignored
             )
         except (PaymentConfigurationError, PaymentGatewayError) as exc:
-            return Response({"error": str(exc)}, status=503)
+            logger.error("Parent online payment could not be initiated: %s", exc)
+            return Response(
+                {"error": "Online payment is currently unavailable. Please try again later or contact the school."},
+                status=503,
+            )
 
         log_action(
             request,
