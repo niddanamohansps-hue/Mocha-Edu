@@ -413,63 +413,77 @@ class EsewaGatewayAdapter(BasePaymentGatewayAdapter):
         """
         try:
             creds = get_gateway_credentials("esewa")
-            merchant_code = creds["merchant_code"]
-            ensure_gateway_config_is_production_safe(merchant_code=merchant_code, urls=[])
-            status_base_url = _validated_status_url()
         except PaymentConfigurationError as exc:
             logger.error("eSewa status check not possible for order %s: %s", order.gateway_order_id, exc)
             return GatewayStatusResult(status="ERROR", reason_code="configuration")
-
-        query_params = urllib.parse.urlencode({
-            "product_code": merchant_code,
-            "total_amount": f"{order.amount:.2f}",
-            "transaction_uuid": order.gateway_order_id,
-        })
-        try:
-            data = _fetch_status_json(f"{status_base_url}?{query_params}")
-        except Exception as exc:  # noqa: BLE001 - any transport/parse failure is "could not ask", not "not paid"
-            logger.warning(
-                "eSewa status check failed for order %s: %s", order.gateway_order_id, type(exc).__name__
-            )
-            return GatewayStatusResult(status="ERROR", reason_code="transport")
-
-        if not isinstance(data, dict):
-            return GatewayStatusResult(status="ERROR", reason_code="malformed")
-
-        # Identity fields, when present, must belong to this order.
-        response_uuid = data.get("transaction_uuid")
-        response_code = data.get("product_code")
-        response_amount = _parse_amount(data.get("total_amount")) if data.get("total_amount") is not None else None
-        mismatch = (
-            (response_uuid is not None and response_uuid != order.gateway_order_id)
-            or (response_code is not None and response_code != merchant_code)
-            or (data.get("total_amount") is not None and response_amount != order.amount)
+        return query_esewa_status(
+            transaction_uuid=order.gateway_order_id,
+            amount=order.amount,
+            merchant_code=creds["merchant_code"],
         )
-        if mismatch:
-            logger.warning("eSewa status response does not match order %s.", order.gateway_order_id)
-            return GatewayStatusResult(status="INVALID", reason_code="identity_mismatch")
 
-        raw_status = data.get("status")
-        kept = {
-            key: str(data[key])[:100]
-            for key in ("status", "ref_id", "transaction_code", "total_amount", "transaction_uuid", "product_code")
-            if data.get(key) is not None
-        }
-        if raw_status == "COMPLETE":
-            if response_uuid is None or response_code is None or response_amount is None:
-                return GatewayStatusResult(status="INVALID", reason_code="incomplete_identity")
-            return GatewayStatusResult(
-                status="COMPLETE",
-                gateway_reference=str(data.get("ref_id") or data.get("transaction_code") or "")[:100],
-                verified_amount=response_amount,
-                raw_data=kept,
-                transaction_uuid=response_uuid,
-                product_code=response_code,
-                total_amount=response_amount,
-            )
-        if raw_status in NON_COMPLETE_GATEWAY_STATUSES:
-            return GatewayStatusResult(status=raw_status, raw_data=kept)
-        return GatewayStatusResult(status="UNKNOWN", reason_code="unknown_status")
+
+def query_esewa_status(*, transaction_uuid, amount, merchant_code) -> GatewayStatusResult:
+    """
+    Asks eSewa for the status of one transaction (evidence tier T2) with the merchant code the
+    caller resolved. Shared by the fee orders (tenant credentials) and the signup payments (the
+    platform's own merchant code). See ``ESewaAdapter.query_status`` for the safety rules.
+    """
+    try:
+        ensure_gateway_config_is_production_safe(merchant_code=merchant_code, urls=[])
+        status_base_url = _validated_status_url()
+    except PaymentConfigurationError as exc:
+        logger.error("eSewa status check not possible for order %s: %s", transaction_uuid, exc)
+        return GatewayStatusResult(status="ERROR", reason_code="configuration")
+
+    query_params = urllib.parse.urlencode({
+        "product_code": merchant_code,
+        "total_amount": f"{amount:.2f}",
+        "transaction_uuid": transaction_uuid,
+    })
+    try:
+        data = _fetch_status_json(f"{status_base_url}?{query_params}")
+    except Exception as exc:  # noqa: BLE001 - any transport/parse failure is "could not ask", not "not paid"
+        logger.warning("eSewa status check failed for order %s: %s", transaction_uuid, type(exc).__name__)
+        return GatewayStatusResult(status="ERROR", reason_code="transport")
+
+    if not isinstance(data, dict):
+        return GatewayStatusResult(status="ERROR", reason_code="malformed")
+
+    # Identity fields, when present, must belong to this order.
+    response_uuid = data.get("transaction_uuid")
+    response_code = data.get("product_code")
+    response_amount = _parse_amount(data.get("total_amount")) if data.get("total_amount") is not None else None
+    mismatch = (
+        (response_uuid is not None and response_uuid != transaction_uuid)
+        or (response_code is not None and response_code != merchant_code)
+        or (data.get("total_amount") is not None and response_amount != amount)
+    )
+    if mismatch:
+        logger.warning("eSewa status response does not match order %s.", transaction_uuid)
+        return GatewayStatusResult(status="INVALID", reason_code="identity_mismatch")
+
+    raw_status = data.get("status")
+    kept = {
+        key: str(data[key])[:100]
+        for key in ("status", "ref_id", "transaction_code", "total_amount", "transaction_uuid", "product_code")
+        if data.get(key) is not None
+    }
+    if raw_status == "COMPLETE":
+        if response_uuid is None or response_code is None or response_amount is None:
+            return GatewayStatusResult(status="INVALID", reason_code="incomplete_identity")
+        return GatewayStatusResult(
+            status="COMPLETE",
+            gateway_reference=str(data.get("ref_id") or data.get("transaction_code") or "")[:100],
+            verified_amount=response_amount,
+            raw_data=kept,
+            transaction_uuid=response_uuid,
+            product_code=response_code,
+            total_amount=response_amount,
+        )
+    if raw_status in NON_COMPLETE_GATEWAY_STATUSES:
+        return GatewayStatusResult(status=raw_status, raw_data=kept)
+    return GatewayStatusResult(status="UNKNOWN", reason_code="unknown_status")
 
 
 class MockGatewayAdapter(BasePaymentGatewayAdapter):

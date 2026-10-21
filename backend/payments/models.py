@@ -57,6 +57,8 @@ class Payment(models.Model):
     gateway_reference = models.CharField(max_length=100, blank=True)
     provisioned_at = models.DateTimeField(null=True, blank=True)
     provisioning_attempts = models.PositiveSmallIntegerField(default=0)
+    gateway_checked_at = models.DateTimeField(null=True, blank=True)
+    attention_notified_at = models.DateTimeField(null=True, blank=True)
     failure_code = models.CharField(max_length=50, blank=True)
     organization = models.OneToOneField(
         "organizations.Organization",

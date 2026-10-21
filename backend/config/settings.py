@@ -421,6 +421,12 @@ CELERY_BEAT_SCHEDULE = {
         "task": "fees.tasks.reconcile_pending_online_payments",
         "schedule": timedelta(minutes=5),
     },
+    # Paid-signup flow (public schema): asks eSewa about unpaid-looking signups, queues institution
+    # setup for paid ones, expires stale reservations and announces signups that need a person.
+    "reconcile-signup-payments": {
+        "task": "payments.tasks.reconcile_signup_payments",
+        "schedule": timedelta(minutes=5),
+    },
 }
 
 # CORS
@@ -518,6 +524,15 @@ ESEWA_PRODUCT_CODE = config("ESEWA_PRODUCT_CODE", default="EPAYTEST")
 ESEWA_SIGNUP_PAYMENT_AMOUNT = config("ESEWA_SIGNUP_PAYMENT_AMOUNT", default="500")
 # How long an unpaid signup keeps its subdomain reserved (minutes). Provisional engineering value.
 SIGNUP_PAYMENT_TTL_MINUTES = config("SIGNUP_PAYMENT_TTL_MINUTES", default=60, cast=int)
+# Reconciliation of paid signups. Provisional engineering values, not eSewa requirements.
+# How long an unpaid signup's stored password is kept so a late payment can still be honoured.
+SIGNUP_PAYMENT_DATA_RETENTION_DAYS = config("SIGNUP_PAYMENT_DATA_RETENTION_DAYS", default=7, cast=int)
+# A PENDING signup is first checked with eSewa after this many minutes.
+SIGNUP_RECONCILE_GRACE_MINUTES = config("SIGNUP_RECONCILE_GRACE_MINUTES", default=10, cast=int)
+# Automatic attempts to create the institution of a paid signup before a person is alerted.
+SIGNUP_PROVISIONING_MAX_ATTEMPTS = config("SIGNUP_PROVISIONING_MAX_ATTEMPTS", default=3, cast=int)
+# Comma-separated addresses told about paid signups that need a person. Empty: logged only.
+SIGNUP_PAYMENT_ALERT_EMAILS = config("SIGNUP_PAYMENT_ALERT_EMAILS", default="")
 ESEWA_URL = config(
     "ESEWA_URL", default="https://rc-epay.esewa.com.np/api/epay/main/v2/form"
 )
