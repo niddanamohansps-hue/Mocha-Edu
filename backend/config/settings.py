@@ -516,6 +516,8 @@ ESEWA_PRODUCT_CODE = config("ESEWA_PRODUCT_CODE", default="EPAYTEST")
 # Signup payment amount in NPR (plain decimal, max 2 places). Validated by
 # payments.utils.get_signup_payment_amount(); an invalid value fails closed.
 ESEWA_SIGNUP_PAYMENT_AMOUNT = config("ESEWA_SIGNUP_PAYMENT_AMOUNT", default="500")
+# How long an unpaid signup keeps its subdomain reserved (minutes). Provisional engineering value.
+SIGNUP_PAYMENT_TTL_MINUTES = config("SIGNUP_PAYMENT_TTL_MINUTES", default=60, cast=int)
 ESEWA_URL = config(
     "ESEWA_URL", default="https://rc-epay.esewa.com.np/api/epay/main/v2/form"
 )

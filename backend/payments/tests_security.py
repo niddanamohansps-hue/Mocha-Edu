@@ -16,7 +16,6 @@ from django.test import TransactionTestCase, override_settings
 from rest_framework.test import APIClient
 from rest_framework.throttling import ScopedRateThrottle
 
-from accounts.serializers import OrganizationRegisterSerializer
 from organizations.models import Domain, Organization
 from .models import Payment
 from .utils import generate_esewa_signature
@@ -25,6 +24,7 @@ SECRET = "test-esewa-secret-not-production"
 GENERIC = {"error": "Payment could not be verified."}
 PRODUCTION = dict(DEBUG=False, EDUSEKAI_ALLOW_DERIVED_TEST_DB=False)
 REAL_URL = "https://epay.esewa.com.np/api/epay/main/v2/form"
+PROVISION = "payments.services.provision_organization"
 
 
 class SignupPaymentTestBase(TransactionTestCase):
@@ -204,27 +204,28 @@ class SignupCallbackTests(SignupPaymentTestBase):
         resp = self.verify(self.callback(self.payment, status="PENDING", secret="wrong"))
         self.assertEqual(resp.data, GENERIC)
 
-    def test_already_completed_payment_is_not_processed_twice(self):
-        Payment.objects.filter(pk=self.payment.pk).update(status="COMPLETED")
-        with mock.patch.object(OrganizationRegisterSerializer, "save") as save:
+    def test_already_provisioned_payment_is_not_processed_twice(self):
+        Payment.objects.filter(pk=self.payment.pk).update(status="PROVISIONED")
+        with mock.patch(PROVISION) as provision:
             resp = self.verify(self.callback(self.payment))
         self.assertEqual(resp.status_code, 200)
         self.assertIn("already processed", resp.data["message"])
-        save.assert_not_called()
+        provision.assert_not_called()
 
-    def test_replay_of_a_completed_payment_to_someone_elses_callback_still_needs_a_valid_signature(self):
-        Payment.objects.filter(pk=self.payment.pk).update(status="COMPLETED")
+    def test_replay_of_a_provisioned_payment_still_needs_a_valid_signature(self):
+        Payment.objects.filter(pk=self.payment.pk).update(status="PROVISIONED")
         resp = self.verify(self.callback(self.payment, secret="wrong"))
         self.assertEqual(resp.data, GENERIC)
 
     def test_a_valid_callback_provisions_the_institution(self):
-        with mock.patch.object(OrganizationRegisterSerializer, "save", return_value={"domain_url": "http://x"}) as save:
+        public_org = Organization.objects.get(schema_name="public")
+        with mock.patch(PROVISION, return_value={"domain_url": "http://x", "organization": public_org}) as provision:
             resp = self.verify(self.callback(self.payment))
         self.assertEqual(resp.status_code, 200, getattr(resp, "data", None))
         self.assertEqual(resp.data["domain_url"], "http://x")
-        save.assert_called_once()
+        provision.assert_called_once()
         self.payment.refresh_from_db()
-        self.assertEqual(self.payment.status, "COMPLETED")
+        self.assertEqual(self.payment.status, "PROVISIONED")
 
 
 @override_settings(ESEWA_CLIENT_SECRET=SECRET)
@@ -237,19 +238,19 @@ class SignupProvisioningFailureTests(SignupPaymentTestBase):
     def test_unexpected_failure_leaks_no_detail_and_is_logged(self):
         payment = self.make_payment()
         boom = RuntimeError("secret internal detail: relation \"x\" does not exist")
-        with mock.patch.object(OrganizationRegisterSerializer, "save", side_effect=boom):
-            with self.assertLogs("payments.views", level="ERROR") as captured:
+        with mock.patch(PROVISION, side_effect=boom):
+            with self.assertLogs("payments.services", level="ERROR") as captured:
                 resp = self.verify(self.callback(payment))
         self.assertEqual(resp.status_code, 500)
         self.assertEqual(resp.data, {"error": self.SETUP_FAILED})
         self.assertNotIn("secret internal detail", json.dumps(resp.data))
-        self.assertIn("could not be created", "\n".join(captured.output))
+        self.assertIn("could not be provisioned", "\n".join(captured.output))
 
     def test_no_print_output_on_failure(self):
         payment = self.make_payment()
         stdout = io.StringIO()
-        with mock.patch.object(OrganizationRegisterSerializer, "save", side_effect=RuntimeError("boom")):
-            with contextlib.redirect_stdout(stdout), self.assertLogs("payments.views", level="ERROR"):
+        with mock.patch(PROVISION, side_effect=RuntimeError("boom")):
+            with contextlib.redirect_stdout(stdout), self.assertLogs("payments.services", level="ERROR"):
                 self.verify(self.callback(payment))
         self.assertEqual(stdout.getvalue(), "")
 

@@ -27,8 +27,25 @@ class PaymentAdmin(GlobalOnlyAdmin):
         "organization_name",
         "amount",
         "status",
+        "failure_code",
         "created_at",
     ]
     list_filter = ["status", "created_at"]
     search_fields = ["transaction_uuid", "organization_name", "email", "subdomain"]
-    readonly_fields = ["transaction_uuid", "created_at", "updated_at"]
+    # The stored signup password is never shown, and money/state fields are written only by the
+    # signup flow, not by hand.
+    exclude = ["password"]
+    readonly_fields = [
+        "transaction_uuid",
+        "amount",
+        "status",
+        "expires_at",
+        "paid_at",
+        "gateway_reference",
+        "provisioned_at",
+        "provisioning_attempts",
+        "failure_code",
+        "organization",
+        "created_at",
+        "updated_at",
+    ]

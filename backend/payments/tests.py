@@ -119,7 +119,7 @@ class PaymentSecurityTest(TransactionTestCase):
         )
 
         payment = Payment.objects.get(transaction_uuid=transaction_uuid)
-        self.assertEqual(payment.status, "COMPLETED")
+        self.assertEqual(payment.status, "PROVISIONED")
 
 
 class PaymentFailClosedTest(TransactionTestCase):

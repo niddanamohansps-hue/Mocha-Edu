@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
+from . import services
 from .models import Payment
 from .utils import (
     PaymentConfigurationError,
@@ -19,7 +20,6 @@ from .utils import (
     parse_callback_amount,
 )
 from accounts.serializers import OrganizationRegisterSerializer
-from accounts.utils.crypto import encrypt_secret, decrypt_secret
 
 logger = logging.getLogger(__name__)
 
@@ -68,19 +68,13 @@ class InitPaymentView(APIView):
             return Response(registration.errors, status=status.HTTP_400_BAD_REQUEST)
         data = registration.validated_data
 
-        # Create pending payment record
-        transaction_uuid = uuid.uuid4().hex
-
-        Payment.objects.create(
-            transaction_uuid=transaction_uuid,
-            amount=amount,
-            organization_name=data["organization_name"],
-            subdomain=data["subdomain"],
-            username=data["username"],
-            email=data["email"],
-            phone=data.get("phone", ""),
-            password=encrypt_secret(data["password"]),
-        )
+        # Create the pending payment; this also reserves the subdomain until the signup expires.
+        payment = services.create_pending_payment(amount=amount, data=data)
+        if payment is None:
+            return Response(
+                {"subdomain": ["This subdomain is already taken."]}, status=status.HTTP_400_BAD_REQUEST
+            )
+        transaction_uuid = payment.transaction_uuid.hex
 
         # Message format strictly: total_amount,transaction_uuid,product_code
         message = f"total_amount={amount},transaction_uuid={transaction_uuid},product_code={product_code}"
@@ -147,46 +141,31 @@ class VerifyPaymentView(APIView):
                 {"error": "Payment not complete"}, status=status.HTTP_400_BAD_REQUEST
             )
 
-        if payment.status == "COMPLETED":
+        # The money is confirmed: record it (never undone), then create the institution. Both are
+        # safe to repeat, so a customer who reloads this page after a failure resumes the setup.
+        outcome, result = services.process_confirmed_payment(
+            payment.pk, gateway_reference=str(decoded.get("transaction_code") or "")[:100]
+        )
+        if outcome == services.PROVISIONED:
+            return Response(
+                {
+                    "message": "Payment verified and Tenant created successfully",
+                    "domain_url": result.get("domain_url"),
+                }
+            )
+        if outcome == services.ALREADY_PROVISIONED:
             return Response(
                 {"message": "Payment already processed and organization created"}
             )
-
-        # Proceed to register organization
-        # We need to use the data stored in Payment
-        payment.status = "COMPLETED"
-        payment.save()
-
-        try:
-            register_data = {
-                "organization_name": payment.organization_name,
-                "subdomain": payment.subdomain,
-                "username": payment.username,
-                "email": payment.email,
-                "password": decrypt_secret(payment.password),
-                "phone": payment.phone,
-            }
-            serializer = OrganizationRegisterSerializer(data=register_data)
-            if not serializer.is_valid():
-                # Validated at init, so this means the data changed since (e.g. the subdomain was
-                # taken in the meantime). The payment is already recorded as paid.
-                logger.error(
-                    "Signup payment %s verified but registration data is no longer valid (fields: %s).",
-                    payment.transaction_uuid,
-                    sorted(serializer.errors),
-                )
-                return Response(SETUP_FAILED, status=status.HTTP_400_BAD_REQUEST)
-            result = serializer.save()
-        except Exception:
-            logger.exception(
-                "Signup payment %s verified but the institution could not be created.",
-                payment.transaction_uuid,
+        if outcome == services.IN_PROGRESS:
+            return Response(
+                {"message": "Your institution is being set up. Please check again in a moment."},
+                status=status.HTTP_202_ACCEPTED,
             )
-            return Response(SETUP_FAILED, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+        # Failed or needs a person: the detail is in the log and on the payment record.
+        payment.refresh_from_db()
+        retryable = payment.failure_code not in services.PERMANENT_FAILURE_CODES
         return Response(
-            {
-                "message": "Payment verified and Tenant created successfully",
-                "domain_url": result.get("domain_url"),
-            }
+            SETUP_FAILED,
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR if retryable else status.HTTP_400_BAD_REQUEST,
         )

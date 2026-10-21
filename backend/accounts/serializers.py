@@ -5,8 +5,8 @@ from django.db import transaction
 from django.conf import settings
 
 from accounts.models import User
-from organizations.models import Organization, Domain
-from roles.models import Role, UserRole
+from accounts.provisioning import ProvisioningError, provision_organization
+from organizations.models import Organization
 
 
 class ForgotPasswordSerializer(serializers.Serializer):
@@ -101,69 +101,16 @@ class OrganizationRegisterSerializer(serializers.Serializer):
         return attrs
 
     def create(self, validated_data):
-        org_name = validated_data["organization_name"]
-        subdomain = validated_data["subdomain"]
-        username = validated_data["username"]
-        email = validated_data["email"]
-        password = validated_data["password"]
-        phone = validated_data.get("phone", "")
-
-        base_domain = "localhost"
-        full_domain_name = f"{subdomain}.{base_domain}"
-
-        # We remove transaction.atomic() because tenant creation (DDL)
-        # and subsequent data insertion (DML) can conflict in transactions
-        # with django-tenants.
-
-        # 1. Create Organization
-        organization = Organization.objects.create(
-            name=org_name,
-            schema_name=subdomain,
-        )
-
-        # 2. Create Domain
-        domain = Domain.objects.create(
-            domain=full_domain_name, tenant=organization, is_primary=True
-        )
-
-        # 3. Handle User (Shared in Public Schema)
-        # Check by email first as fallback, but primary identification is now username
-        user = User.objects.filter(email=email).first()
-        if user:
-            # Security: Verify password if user exists
-            if not user.check_password(password):
-                raise serializers.ValidationError(
-                    {
-                        "password": "Password does not match existing account for this email."
-                    }
-                )
-        else:
-            user = User.objects.create_user(
-                username=username, email=email, password=password
+        # Creating a tenant runs schema DDL, so it is deliberately not one transaction. The steps
+        # live in accounts.provisioning so a paid signup can resume them after a partial failure.
+        try:
+            return provision_organization(
+                organization_name=validated_data["organization_name"],
+                subdomain=validated_data["subdomain"],
+                username=validated_data["username"],
+                email=validated_data["email"],
+                password=validated_data["password"],
+                phone=validated_data.get("phone", ""),
             )
-
-        # 4. Create "Owner" Role and Link User within Tenant Context
-        from profiles.models import Profile
-        from django_tenants.utils import tenant_context
-
-        with tenant_context(organization):
-            # Create "Owner" Role in tenant schema
-            owner_role, _ = Role.objects.get_or_create(
-                slug="owner", defaults={"name": "Owner", "is_system_role": True}
-            )
-
-            # Link User to Role in tenant schema
-            # This triggers profiles/signals.py to auto-create Identity Profile, StaffProfile and InstitutionProfile
-            UserRole.objects.create(user=user, role=owner_role)
-
-            # We set the local_username for the owner in their isolated schema
-            Profile.objects.filter(user_id=user.id).update(
-                phone=phone, local_username=username
-            )
-
-        return {
-            "organization": organization,
-            "domain": domain,
-            "user": user,
-            "domain_url": f"http://{full_domain_name}:3555/login",
-        }
+        except ProvisioningError as exc:
+            raise serializers.ValidationError({"non_field_errors": [exc.message]})
