@@ -233,7 +233,6 @@ REST_FRAMEWORK = {
         "login": "5/min",
         "verify_account": "5/min",
         "token_refresh": "10/min",
-        "register_organization": "3/hour",
         "forgot_password": "5/hour",
         "reset_password": "10/min",
         "public_admissions_apply": "15/hour",
@@ -247,6 +246,10 @@ REST_FRAMEWORK = {
         # callback subclass). Provisional engineering value. NUM_PROXIES must be set in
         # production, otherwise DRF keys throttles on a client-suppliable X-Forwarded-For.
         "online_payment_verify": "30/min",
+        # Public signup payment (payments app). Provisional engineering values; the same
+        # NUM_PROXIES requirement applies.
+        "signup_payment_init": "20/hour",
+        "signup_payment_verify": "30/min",
     },
 }
 
@@ -272,6 +275,8 @@ if len(sys.argv) > 1 and sys.argv[1] == "test":
     REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["public_admissions_rotate"] = "1000/min"
     REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["public_certificate_verify"] = "1000/min"
     REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["online_payment_verify"] = "1000/min"
+    REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["signup_payment_init"] = "1000/min"
+    REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["signup_payment_verify"] = "1000/min"
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "EduSekai API",

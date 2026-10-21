@@ -90,6 +90,16 @@ class OrganizationRegisterSerializer(serializers.Serializer):
         # We allow existing users to register new organizations
         return value
 
+    def validate(self, attrs):
+        # An existing account may open another organization, but only with its own password.
+        # Checked here (not only in create) so a paid signup cannot fail on it after payment.
+        existing = User.objects.filter(email=attrs["email"]).first()
+        if existing and not existing.check_password(attrs["password"]):
+            raise serializers.ValidationError(
+                {"password": "Password does not match existing account for this email."}
+            )
+        return attrs
+
     def create(self, validated_data):
         org_name = validated_data["organization_name"]
         subdomain = validated_data["subdomain"]

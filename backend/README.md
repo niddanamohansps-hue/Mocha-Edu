@@ -295,7 +295,7 @@ DB_NAME=my_disposable_db EDUSEKAI_EXPECTED_DATABASE=my_disposable_db@127.0.0.1:5
 
 **Commands outside the gate.** The gate looks only at `migrate` / `migrate_schemas` (and refuses them when routed through `tenant_command` / `all_tenants_command`). It is not a universal database-change guard. These are **not** guarded:
 - `django-tenants` schema management: `create_tenant`, `clone_tenant`, `delete_tenant`, `rename_schema`, `create_missing_schemas`, `create_domain`, `delete_domain`, `create_tenant_superuser`, `collectstatic_schemas`, and `tenant_command` / `all_tenants_command` running any command other than a migration.
-- Tenant creation through other routes: the `register_organization` API signup and the `seed_demo_school` / `seed_realistic_school` commands create an `Organization`, which creates and migrates that tenant's schema through `call_command`, which the gate cannot see.
+- Tenant creation through other routes: the paid signup flow (`/api/payments/verify/`) and the `seed_demo_school` / `seed_realistic_school` commands create an `Organization`, which creates and migrates that tenant's schema through `call_command`, which the gate cannot see.
 - Project commands and scripts that write data or schema objects: `populate_test_data`, `backfill_academic_years`, `seed_public.py`, and `cleanup_public_db.py` (which can drop tables when run as a script).
 - Django commands that change the database by other routes, for example `flush`, `loaddata`, `dbshell`, `shell` and `createsuperuser`; `makemigrations` writes migration files only.
 Guards for the tenant-administration commands are a separate, later decision.

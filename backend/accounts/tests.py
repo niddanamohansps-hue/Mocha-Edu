@@ -391,25 +391,6 @@ class SecurityHardeningTest(TransactionTestCase):
             "Refresh endpoint did not throttle after exceeding the configured rate",
         )
 
-    def test_register_organization_endpoint_is_throttled(self):
-        from rest_framework.test import APIClient
-
-        client = APIClient()
-        last_status = None
-        for _ in range(4):  # configured rate is 3/hour
-            resp = client.post(
-                "/api/auth/register-organization/",
-                {},
-                HTTP_HOST="hardening.localhost",
-            )
-            last_status = resp.status_code
-        self.assertEqual(
-            last_status,
-            429,
-            "Register-organization endpoint did not throttle after exceeding the configured rate",
-        )
-
-
 class PasswordResetFlowTest(TransactionTestCase):
     """
     Focused tests for POST /api/auth/forgot-password/ and

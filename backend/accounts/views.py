@@ -15,7 +15,6 @@ from notifications.services import queue_email
 
 from .serializers import (
     LoginSerializer,
-    OrganizationRegisterSerializer,
     UserSerializer,
     ForgotPasswordSerializer,
     ResetPasswordConfirmSerializer,
@@ -45,26 +44,6 @@ def _blacklist_all_refresh_tokens_for_user(user):
     """
     for outstanding in OutstandingToken.objects.filter(user=user):
         BlacklistedToken.objects.get_or_create(token=outstanding)
-
-
-class RegisterOrganizationView(APIView):
-    permission_classes = [AllowAny]
-    throttle_classes = [ScopedRateThrottle]
-    throttle_scope = "register_organization"
-
-    def post(self, request):
-        serializer = OrganizationRegisterSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        result = serializer.save()
-
-        return Response(
-            {
-                "message": "Organization created successfully.",
-                "domain_url": result["domain_url"],
-                "organization_name": result["organization"].name,
-            },
-            status=status.HTTP_201_CREATED,
-        )
 
 
 class LoginView(APIView):

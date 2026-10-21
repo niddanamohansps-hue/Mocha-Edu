@@ -96,7 +96,8 @@ class PaymentSecurityTest(TransactionTestCase):
         resp = client.get(f"/api/payments/verify/?data={forged_data}")
 
         self.assertEqual(resp.status_code, 400)
-        self.assertIn("Signature", resp.data.get("error", ""))
+        # F2a: every unverifiable callback gets one generic answer (no hint about which check failed).
+        self.assertEqual(resp.data, {"error": "Payment could not be verified."})
 
         payment = Payment.objects.get(transaction_uuid=transaction_uuid)
         self.assertEqual(
