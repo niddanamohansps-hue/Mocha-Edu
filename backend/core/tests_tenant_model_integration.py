@@ -6,7 +6,7 @@ environment variables, and opens no database connection: every django-tenants me
 PostgreSQL (``TenantMixin.save``, ``create_schema``, ``_drop_schema`` and ``Model.delete``) is replaced
 by a recording fake before anything is called. The real, unmodified ``organizations`` app is loaded so
 the probe models can be compared with the real ``Organization`` field set. ``Organization`` itself is
-never changed. Run from the backend folder:
+only inspected, never changed. Run from the backend folder:
 
     python -B -m unittest -v core.tests_tenant_model_integration
 
@@ -110,12 +110,13 @@ def build(name, bases):
 Plain = build("PlainProbe", (TenantMixin,))
 Guarded = build("GuardedProbe", (IdentityGuardedTenantMixin, TenantMixin))   # 1. Django accepts this order
 
-# 2. MRO: the mixin comes before TenantMixin, and Organization is untouched
+# 2. MRO: the mixin comes before TenantMixin, and the real Organization now uses it in that order
 mro = Guarded.__mro__
 assert mro.index(IdentityGuardedTenantMixin) < mro.index(TenantMixin) < mro.index(models.Model), mro
-assert IdentityGuardedTenantMixin not in Organization.__mro__, "Organization must stay unattached"
-assert Organization.__mro__[1] is TenantMixin, Organization.__mro__
-assert Organization.save is TenantMixin.save and Organization.create_schema is TenantMixin.create_schema
+assert Organization.__mro__[1] is IdentityGuardedTenantMixin, Organization.__mro__
+assert Organization.__mro__[2] is TenantMixin, Organization.__mro__
+assert Organization.save is IdentityGuardedTenantMixin.save
+assert Organization.create_schema is IdentityGuardedTenantMixin.create_schema
 
 # 3. fields equivalent: guarded vs plain vs the real Organization
 def field_shape(model):
@@ -309,7 +310,8 @@ class TenantModelCompatibilityTests(unittest.TestCase):
         self.assertEqual(evidence["django_tenants_version"], "3.9.0")
         self.assertLess(evidence["guarded_mro"].index("IdentityGuardedTenantMixin"),
                         evidence["guarded_mro"].index("TenantMixin"))
-        self.assertNotIn("IdentityGuardedTenantMixin", evidence["organization_mro"])
+        self.assertLess(evidence["organization_mro"].index("IdentityGuardedTenantMixin"),
+                        evidence["organization_mro"].index("TenantMixin"))
         self.assertIn("IdentityGuardedTenantMixin", evidence["guarded_state_bases"])
         self.assertNotIn("IdentityGuardedTenantMixin", evidence["plain_state_bases"])
         self.assertEqual(evidence["autodetector_changes"], {})
