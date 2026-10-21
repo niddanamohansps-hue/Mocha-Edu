@@ -791,7 +791,8 @@ class StudentFeeAuthorizationTests(FeesFixtureMixin, TransactionTestCase):
 
     def test_student_denied_without_view_own_fees_permission(self):
         self._assign_fee(self.student1)
-        client = self._client_as(self.student1_user)  # default student role, zero perms
+        self._give_role_only(self.student1_user, [])  # explicitly no permissions (seeded student role grants view_own_fees)
+        client = self._client_as(self.student1_user)
         resp = client.get(f"/api/fees/students/{self.student1.id}/", HTTP_HOST=self.DOMAIN)
         self.assertEqual(resp.status_code, 403)
 
@@ -2417,12 +2418,15 @@ class OnlinePaymentCeleryReconciliationTests(FeesFixtureMixin, TransactionTestCa
     def test_reconcile_task_handles_expired_orders(self):
         with tenant_context(self.school):
             from django.utils import timezone
-            order, _ = initiate_online_payment_order(
-                student=self.student1,
-                amount=Decimal("200.00"),
-                allocations=[{"student_fee_id": self.fee1.id, "amount": Decimal("200.00")}],
-                gateway="esewa",
-            )
+            # Supply the eSewa credentials through settings so the test does not depend on the
+            # developer's environment (a CI/.env-free run has no secret).
+            with self.settings(ESEWA_CLIENT_SECRET="test_global_esewa_secret", ESEWA_PRODUCT_CODE="EPAYTEST"):
+                order, _ = initiate_online_payment_order(
+                    student=self.student1,
+                    amount=Decimal("200.00"),
+                    allocations=[{"student_fee_id": self.fee1.id, "amount": Decimal("200.00")}],
+                    gateway="esewa",
+                )
             order.expires_at = timezone.now() - datetime.timedelta(minutes=30)
             order.save(update_fields=["expires_at"])
 
@@ -2439,4 +2443,4 @@ class OnlinePaymentCeleryReconciliationTests(FeesFixtureMixin, TransactionTestCa
         with tenant_context(self.school):
             order.refresh_from_db()
             self.assertEqual(order.status, "expired")
-            self.assertIn("expired without gateway confirmation", order.reconciliation_reason)
+            self.assertIn("gateway has no record of this transaction", order.reconciliation_reason)
