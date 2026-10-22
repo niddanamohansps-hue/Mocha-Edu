@@ -107,6 +107,7 @@ TENANT_APPS = (
     "announcements",
     "certificates",
     "inventory",
+    "payroll",
     "dashboard",
 )
 

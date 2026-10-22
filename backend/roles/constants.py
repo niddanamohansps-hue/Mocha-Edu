@@ -731,4 +731,17 @@ SYSTEM_PERMISSIONS = [
         "module": "Inventory",
         "description": "Give assets to staff or places, take them back and move them between locations",
     },
+    # Payroll
+    {
+        "codename": "view_payroll",
+        "name": "View Payroll",
+        "module": "Payroll",
+        "description": "View staff salaries, pay components and payroll settings",
+    },
+    {
+        "codename": "manage_salary_structures",
+        "name": "Manage Salary Structures",
+        "module": "Payroll",
+        "description": "Set staff salaries, define pay components and change payroll settings",
+    },
 ]
