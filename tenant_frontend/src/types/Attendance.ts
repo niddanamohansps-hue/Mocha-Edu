@@ -98,4 +98,6 @@ export interface AttendanceSettings {
     status_weights: Partial<Record<AttendanceStatus, number | null>>;
     minimum_attendance_percentage: string;
     lock_after_days: number;
+    /** Weekdays the school is closed every week: 0 = Monday ... 6 = Sunday. */
+    weekly_off_days: number[];
 }

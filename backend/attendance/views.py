@@ -459,6 +459,7 @@ class AttendanceSettingsView(APIView):
     def patch(self, request):
         instance = AttendanceSettings.get_solo()
         old_weights = dict(instance.status_weights)
+        old_off_days = list(instance.weekly_off_days)
         serializer = AttendanceSettingsSerializer(instance, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         updated = serializer.save()
@@ -468,6 +469,11 @@ class AttendanceSettingsView(APIView):
             action="attendance_settings_changed",
             model_name="AttendanceSettings",
             object_id=updated.id,
-            changes={"old_status_weights": old_weights, "new_status_weights": updated.status_weights},
+            changes={
+                "old_status_weights": old_weights,
+                "new_status_weights": updated.status_weights,
+                "old_weekly_off_days": old_off_days,
+                "new_weekly_off_days": updated.weekly_off_days,
+            },
         )
         return Response(AttendanceSettingsSerializer(updated).data)

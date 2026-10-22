@@ -370,10 +370,20 @@ class AttendanceSettingsSerializer(serializers.ModelSerializer):
             "status_weights",
             "minimum_attendance_percentage",
             "lock_after_days",
+            "weekly_off_days",
             "created_at",
             "updated_at",
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
+
+    def validate_weekly_off_days(self, value):
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        from .models import validate_weekly_off_days
+
+        try:
+            return validate_weekly_off_days(value)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.messages)
 
     def validate_status_weights(self, value):
         instance = AttendanceSettings(status_weights=value)

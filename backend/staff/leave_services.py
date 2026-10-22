@@ -53,7 +53,7 @@ def calculate_working_days(start_date: date, end_date: date, is_half_day: bool =
     """
     Computes the net working days for a leave request:
     - Enforces start_date <= end_date.
-    - Excludes weekly off days (Sundays by default; weekday() == 6).
+    - Excludes the school's weekly off days (Sunday unless the school chose others in its attendance settings).
     - Excludes published school holidays from academics.CalendarEvent.
     - If is_half_day is True, start_date must equal end_date and returns 0.5 if not a holiday.
     - Fails if the range contains 0 working days.
@@ -62,6 +62,9 @@ def calculate_working_days(start_date: date, end_date: date, is_half_day: bool =
         raise ValidationError({"end_date": "End date cannot precede start date."})
 
     from academics.models import CalendarEvent
+    from attendance.models import AttendanceSettings
+
+    weekly_off = AttendanceSettings.weekly_off()
 
     # Query published school holidays overlapping the requested window
     holiday_events = CalendarEvent.objects.filter(
@@ -81,8 +84,8 @@ def calculate_working_days(start_date: date, end_date: date, is_half_day: bool =
     if is_half_day:
         if start_date != end_date:
             raise ValidationError({"end_date": "Half-day leave must start and end on the same date."})
-        if start_date.weekday() == 6:
-            raise ValidationError({"start_date": "Cannot take leave on a Sunday (weekly school off)."})
+        if start_date.weekday() in weekly_off:
+            raise ValidationError({"start_date": "Cannot take leave on a weekly off day of the school."})
         if start_date in holiday_dates:
             raise ValidationError({"start_date": "Cannot take leave on a published school holiday."})
         return Decimal("0.5")
@@ -90,7 +93,7 @@ def calculate_working_days(start_date: date, end_date: date, is_half_day: bool =
     current = start_date
     working_days = Decimal("0.0")
     while current <= end_date:
-        if current.weekday() != 6 and current not in holiday_dates:
+        if current.weekday() not in weekly_off and current not in holiday_dates:
             working_days += Decimal("1.0")
         current += timedelta(days=1)
 
@@ -582,7 +585,7 @@ def sync_leave_to_attendance(application: LeaveApplication, approver_staff: Staf
     Creates or updates StaffAttendance records for all working dates in the leave window.
     Tags attendance with [LEAVE_APP:<uuid>] so only leave-created records are modified.
     """
-    from attendance.models import StaffAttendance
+    from attendance.models import AttendanceSettings, StaffAttendance
     from academics.models import CalendarEvent
 
     holiday_events = CalendarEvent.objects.filter(
@@ -599,10 +602,11 @@ def sync_leave_to_attendance(application: LeaveApplication, approver_staff: Staf
         for i in range(delta + 1):
             holiday_dates.add(cur + timedelta(days=i))
 
+    weekly_off = AttendanceSettings.weekly_off()
     tag = f"[LEAVE_APP:{application.id}]"
     current = application.start_date
     while current <= application.end_date:
-        if current.weekday() != 6 and current not in holiday_dates:
+        if current.weekday() not in weekly_off and current not in holiday_dates:
             existing = StaffAttendance.objects.filter(staff=application.staff, date=current).first()
             if existing:
                 if tag not in existing.remarks:
@@ -675,10 +679,13 @@ def get_affected_periods_and_substitutes(application: LeaveApplication):
         for i in range(delta + 1):
             holiday_dates.add(cur + timedelta(days=i))
 
+    from attendance.models import AttendanceSettings
+
+    weekly_off = AttendanceSettings.weekly_off()
     affected_slots = []
     current = application.start_date
     while current <= application.end_date:
-        if current.weekday() != 6 and current not in holiday_dates:
+        if current.weekday() not in weekly_off and current not in holiday_dates:
             day_of_week = current.weekday()
             entries = TimetableEntry.objects.filter(
                 instructor=instructor,

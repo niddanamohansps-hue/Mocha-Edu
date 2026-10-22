@@ -14,6 +14,29 @@ ATTENDANCE_STATUS_CHOICES = [
 
 ALLOWED_STATUS_KEYS = {choice[0] for choice in ATTENDANCE_STATUS_CHOICES}
 
+# Weekdays the school is closed every week, as Python weekday numbers (0 = Monday ... 6 = Sunday).
+# The default is Sunday, which is what the leave code always assumed, so no school changes behaviour
+# until its owner picks different days.
+WEEKDAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+
+def default_weekly_off_days():
+    return [6]
+
+
+def validate_weekly_off_days(value):
+    """A list of distinct weekday numbers 0-6, at most six of them (the school must open some day)."""
+    if not isinstance(value, list):
+        raise ValidationError("Must be a list of weekday numbers (0 = Monday ... 6 = Sunday).")
+    if any(isinstance(day, bool) or not isinstance(day, int) or not 0 <= day <= 6 for day in value):
+        raise ValidationError("Each weekly off day must be a whole number from 0 (Monday) to 6 (Sunday).")
+    if len(set(value)) != len(value):
+        raise ValidationError("A weekday is listed more than once.")
+    if len(value) > 6:
+        raise ValidationError("At least one day of the week must be a working day.")
+    return sorted(value)
+
+
 DEFAULT_STATUS_WEIGHTS = {
     "present": 1.0,
     "absent": 0.0,
@@ -157,11 +180,28 @@ class AttendanceSettings(models.Model):
         max_digits=5, decimal_places=2, default=75.00
     )
     lock_after_days = models.IntegerField(default=0)
+    weekly_off_days = models.JSONField(
+        default=default_weekly_off_days,
+        blank=True,  # an empty list is valid: no weekly off day
+        help_text="Weekdays the school is closed every week: 0 = Monday ... 6 = Sunday.",
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    @classmethod
+    def weekly_off(cls):
+        """The school's weekly off days as a frozenset of weekday numbers. Never writes: with no saved
+        settings it returns the default (Sunday)."""
+        row = cls.objects.only("weekly_off_days").first()
+        days = row.weekly_off_days if row is not None else default_weekly_off_days()
+        return frozenset(days)
+
     def clean(self):
+        try:
+            self.weekly_off_days = validate_weekly_off_days(self.weekly_off_days)
+        except ValidationError as exc:
+            raise ValidationError({"weekly_off_days": exc.messages})
         if not isinstance(self.status_weights, dict):
             raise ValidationError({"status_weights": "Must be a JSON object."})
 
