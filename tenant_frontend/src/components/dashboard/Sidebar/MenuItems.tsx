@@ -302,14 +302,19 @@ export const getMenuItems = (user: any, can: (permission: string) => boolean): S
         });
     }
 
-    // 11. Inventory - stock, purchases and the asset register; each tab is gated on its own permission.
+    // 11. Inventory - the same five sections, in the same order and with the same permission
+    // rules, as the tabs at the top of the inventory pages (InventoryNav).
     const inventoryChildren: SidebarItemType[] = [];
     if (can("view_inventory")) {
         inventoryChildren.push({ label: "Stock", href: "/dashboard/inventory" });
+        inventoryChildren.push({ label: "Movements", href: "/dashboard/inventory/movements" });
         inventoryChildren.push({ label: "Purchases", href: "/dashboard/inventory/purchases" });
     }
     if (can("view_assets")) {
         inventoryChildren.push({ label: "Assets", href: "/dashboard/inventory/assets" });
+    }
+    if (can("view_inventory")) {
+        inventoryChildren.push({ label: "Setup", href: "/dashboard/inventory/setup" });
     }
     if (inventoryChildren.length > 0) {
         menuItems.push({
