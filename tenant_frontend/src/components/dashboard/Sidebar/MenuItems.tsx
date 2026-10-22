@@ -17,7 +17,8 @@ import {
     CalendarCheck,
     CalendarRange,
     Award,
-    Megaphone
+    Megaphone,
+    Boxes
 } from "lucide-react";
 import { SidebarItemType } from "@/components/dashboard/Sidebar/SidebarItem";
 
@@ -298,6 +299,23 @@ export const getMenuItems = (user: any, can: (permission: string) => boolean): S
             label: "Certificates",
             icon: Award,
             children: certificateChildren
+        });
+    }
+
+    // 11. Inventory - stock, purchases and the asset register; each tab is gated on its own permission.
+    const inventoryChildren: SidebarItemType[] = [];
+    if (can("view_inventory")) {
+        inventoryChildren.push({ label: "Stock", href: "/dashboard/inventory" });
+        inventoryChildren.push({ label: "Purchases", href: "/dashboard/inventory/purchases" });
+    }
+    if (can("view_assets")) {
+        inventoryChildren.push({ label: "Assets", href: "/dashboard/inventory/assets" });
+    }
+    if (inventoryChildren.length > 0) {
+        menuItems.push({
+            label: "Inventory",
+            icon: Boxes,
+            children: inventoryChildren
         });
     }
 
