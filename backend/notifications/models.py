@@ -139,6 +139,7 @@ class NotificationSettings(models.Model):
         "fee_reminders_enabled",
         "absence_alerts_enabled",
         "payment_receipts_enabled",
+        "low_stock_alerts_enabled",
         "fee_reminder_days_before",
         "overdue_reminder_interval_days",
         "max_overdue_reminders",
@@ -151,6 +152,7 @@ class NotificationSettings(models.Model):
     fee_reminders_enabled = models.BooleanField(default=False)
     absence_alerts_enabled = models.BooleanField(default=False)
     payment_receipts_enabled = models.BooleanField(default=False)
+    low_stock_alerts_enabled = models.BooleanField(default=False)
 
     fee_reminder_days_before = models.PositiveSmallIntegerField(
         default=3, validators=[MinValueValidator(0), MaxValueValidator(30)]

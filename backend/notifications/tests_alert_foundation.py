@@ -39,6 +39,7 @@ DEFAULTS = {
     "fee_reminders_enabled": False,
     "absence_alerts_enabled": False,
     "payment_receipts_enabled": False,
+    "low_stock_alerts_enabled": False,
     "fee_reminder_days_before": 3,
     "overdue_reminder_interval_days": 7,
     "max_overdue_reminders": 3,

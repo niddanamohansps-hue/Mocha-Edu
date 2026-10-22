@@ -1,11 +1,11 @@
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 
 from django.db.models import Sum
 from rest_framework import serializers
 
 from staff.models import StaffMember
 
-from .models import Item, ItemCategory, StockLevel, StockLocation, StockMovement
+from .models import Item, ItemCategory, Purchase, PurchaseLine, StockLevel, StockLocation, StockMovement, Supplier
 
 QUANTITY_INPUT = {"max_digits": 12, "decimal_places": 3, "min_value": Decimal("0.001")}
 
@@ -132,3 +132,53 @@ class TransferSerializer(serializers.Serializer):
 
 class ReverseSerializer(serializers.Serializer):
     reason = serializers.CharField(max_length=255)
+
+
+class SupplierSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Supplier
+        fields = ("id", "name", "contact_name", "phone", "email", "address", "notes", "is_active",
+                  "created_at", "updated_at")
+        read_only_fields = ("id", "created_at", "updated_at")
+
+
+class PurchaseLineSerializer(serializers.ModelSerializer):
+    item_name = serializers.CharField(source="item.name", read_only=True)
+    item_sku = serializers.CharField(source="item.sku", read_only=True)
+    line_total = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PurchaseLine
+        fields = ("id", "item", "item_name", "item_sku", "quantity", "unit_cost", "line_total", "movement")
+        read_only_fields = fields
+
+    def get_line_total(self, line):
+        return f"{(line.quantity * line.unit_cost).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)}"
+
+
+class PurchaseSerializer(serializers.ModelSerializer):
+    supplier_name = serializers.CharField(source="supplier.name", read_only=True)
+    location_name = serializers.CharField(source="location.name", read_only=True)
+    lines = PurchaseLineSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Purchase
+        fields = ("id", "supplier", "supplier_name", "location", "location_name", "reference", "purchase_date",
+                  "notes", "status", "total_cost", "cancelled_at", "cancellation_reason", "lines",
+                  "created_by_user_id", "created_at")
+        read_only_fields = fields
+
+
+class PurchaseLineInputSerializer(serializers.Serializer):
+    item = serializers.PrimaryKeyRelatedField(queryset=Item.objects.all())
+    quantity = serializers.DecimalField(**QUANTITY_INPUT)
+    unit_cost = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal("0"))
+
+
+class PurchaseCreateSerializer(serializers.Serializer):
+    supplier = serializers.PrimaryKeyRelatedField(queryset=Supplier.objects.all())
+    location = serializers.PrimaryKeyRelatedField(queryset=StockLocation.objects.all())
+    purchase_date = serializers.DateField()
+    reference = serializers.CharField(max_length=100, required=False, allow_blank=True, default="")
+    notes = serializers.CharField(max_length=255, required=False, allow_blank=True, default="")
+    lines = PurchaseLineInputSerializer(many=True, allow_empty=False, max_length=200)

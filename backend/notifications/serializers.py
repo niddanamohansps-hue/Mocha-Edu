@@ -38,7 +38,7 @@ class StrictBooleanField(serializers.BooleanField):
 
 class NotificationSettingsSerializer(serializers.Serializer):
     """
-    Input: the six editable fields (all optional on PATCH). Unknown or read-only keys and an
+    Input: the seven editable fields (all optional on PATCH). Unknown or read-only keys and an
     empty body are rejected, so nothing is silently ignored. Output (``instance=``): the
     editable values plus read-only ``time_zone``, ``is_default`` (no row saved yet) and
     ``updated_at``.
@@ -47,6 +47,7 @@ class NotificationSettingsSerializer(serializers.Serializer):
     fee_reminders_enabled = StrictBooleanField(required=False)
     absence_alerts_enabled = StrictBooleanField(required=False)
     payment_receipts_enabled = StrictBooleanField(required=False)
+    low_stock_alerts_enabled = StrictBooleanField(required=False)
     fee_reminder_days_before = serializers.IntegerField(required=False, min_value=0, max_value=30)
     overdue_reminder_interval_days = serializers.IntegerField(required=False, min_value=1, max_value=30)
     max_overdue_reminders = serializers.IntegerField(required=False, min_value=1, max_value=10)

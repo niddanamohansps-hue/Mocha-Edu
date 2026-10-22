@@ -17,18 +17,21 @@ from core.pagination import StandardResultsPagination
 from roles.permissions import HasPermission
 
 from . import services
-from .models import Item, ItemCategory, StockLevel, StockLocation, StockMovement
+from .models import Item, ItemCategory, Purchase, StockLevel, StockLocation, StockMovement, Supplier
 from .serializers import (
     AdjustSerializer,
     IssueSerializer,
     ItemCategorySerializer,
     ItemSerializer,
+    PurchaseCreateSerializer,
+    PurchaseSerializer,
     ReceiveSerializer,
     ReturnSerializer,
     ReverseSerializer,
     StockLevelSerializer,
     StockLocationSerializer,
     StockMovementSerializer,
+    SupplierSerializer,
     TransferSerializer,
     WriteOffSerializer,
 )
@@ -207,3 +210,54 @@ class StockMovementViewSet(InventoryBaseViewSet, mixins.ListModelMixin, mixins.R
         serializer.is_valid(raise_exception=True)
         movement = services.reverse(self.get_object(), reason=serializer.validated_data["reason"], user_id=request.user.id)
         return self._respond(request, movement, "stock_movement_reversed")
+
+
+class SupplierViewSet(ConfigViewSet):
+    serializer_class = SupplierSerializer
+    queryset = Supplier.objects.all()
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ["is_active"]
+    search_fields = ["name", "contact_name", "phone", "email"]
+
+
+class PurchaseViewSet(InventoryBaseViewSet, mixins.ListModelMixin, mixins.RetrieveModelMixin):
+    """Purchases are created (which receives the stock) and cancelled, never edited."""
+
+    serializer_class = PurchaseSerializer
+    queryset = Purchase.objects.select_related("supplier", "location").prefetch_related("lines__item")
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = {"supplier": ["exact"], "location": ["exact"], "status": ["exact"],
+                        "purchase_date": ["gte", "lte"]}
+    search_fields = ["reference", "supplier__name", "lines__item__name", "lines__item__sku"]
+    ordering_fields = ["purchase_date", "created_at", "total_cost"]
+
+    def get_permissions(self):
+        if self.action == "create":
+            return [IsAuthenticated(), HasPermission("receive_stock")]
+        if self.action == "cancel":
+            return [IsAuthenticated(), HasPermission("adjust_stock")]
+        return super().get_permissions()
+
+    def get_queryset(self):
+        return super().get_queryset().distinct()
+
+    def create(self, request):
+        serializer = PurchaseCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        purchase = services.receive_purchase(user_id=request.user.id, **serializer.validated_data)
+        log_action(
+            request, action="purchase_received", model_name="Purchase", object_id=purchase.pk,
+            changes={"supplier": str(purchase.supplier_id), "location": str(purchase.location_id),
+                     "total_cost": str(purchase.total_cost), "lines": purchase.lines.count()},
+        )
+        return Response(PurchaseSerializer(self.get_queryset().get(pk=purchase.pk)).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["post"])
+    def cancel(self, request, pk=None):
+        serializer = ReverseSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        purchase = services.cancel_purchase(self.get_object(), reason=serializer.validated_data["reason"],
+                                            user_id=request.user.id)
+        log_action(request, action="purchase_cancelled", model_name="Purchase", object_id=purchase.pk,
+                   changes={"reason": purchase.cancellation_reason})
+        return Response(PurchaseSerializer(self.get_queryset().get(pk=purchase.pk)).data)

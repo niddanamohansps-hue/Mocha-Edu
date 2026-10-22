@@ -54,6 +54,9 @@ class Item(models.Model):
     # 0 means "no reorder level": the item is never reported as low.
     reorder_level = models.DecimalField(default=Decimal("0"), validators=[MinValueValidator(Decimal("0"))], **QUANTITY)
     is_active = models.BooleanField(default=True)
+    # Set when a low-stock alert was sent for the current dip below the reorder level; cleared when
+    # stock is back above it, so one dip produces one alert (see inventory.alerts).
+    low_stock_notified_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -149,3 +152,74 @@ class StockMovement(models.Model):
 
     def __str__(self):
         return f"{self.kind} {self.quantity_delta} of {self.item_id} @ {self.location_id}"
+
+
+class Supplier(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=200, unique=True)
+    contact_name = models.CharField(max_length=150, blank=True)
+    phone = models.CharField(max_length=30, blank=True)
+    email = models.EmailField(blank=True)
+    address = models.TextField(blank=True)
+    notes = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
+class Purchase(models.Model):
+    """Stock bought from a supplier and received into one location. Creating it receives the stock
+    (one RECEIVE movement per line, carrying the unit cost); cancelling it reverses those movements,
+    and is refused if any of the stock has since been used."""
+
+    class Status(models.TextChoices):
+        RECEIVED = "received", "Received"
+        CANCELLED = "cancelled", "Cancelled"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    supplier = models.ForeignKey(Supplier, on_delete=models.PROTECT, related_name="purchases")
+    location = models.ForeignKey(StockLocation, on_delete=models.PROTECT, related_name="purchases")
+    reference = models.CharField(max_length=100, blank=True, help_text="Supplier invoice or order number")
+    purchase_date = models.DateField()
+    notes = models.CharField(max_length=255, blank=True)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.RECEIVED)
+    total_cost = models.DecimalField(max_digits=14, decimal_places=2)
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+    cancellation_reason = models.CharField(max_length=255, blank=True)
+    created_by_user_id = models.UUIDField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-purchase_date", "-created_at", "-id"]
+        indexes = [models.Index(fields=["supplier", "-purchase_date"], name="inventory_purch_supplier_idx")]
+        constraints = [
+            models.CheckConstraint(condition=Q(total_cost__gte=0), name="inventory_purchase_total_nonneg"),
+        ]
+
+    def __str__(self):
+        return f"{self.reference or self.id} ({self.status})"
+
+
+class PurchaseLine(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    purchase = models.ForeignKey(Purchase, on_delete=models.CASCADE, related_name="lines")
+    item = models.ForeignKey(Item, on_delete=models.PROTECT, related_name="purchase_lines")
+    quantity = models.DecimalField(**QUANTITY)
+    unit_cost = models.DecimalField(max_digits=12, decimal_places=2)
+    movement = models.OneToOneField(StockMovement, on_delete=models.PROTECT, related_name="purchase_line")
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["purchase", "item"], name="inventory_purchaseline_unique_item"),
+            models.CheckConstraint(condition=Q(quantity__gt=0), name="inventory_purchaseline_qty_positive"),
+            models.CheckConstraint(condition=Q(unit_cost__gte=0), name="inventory_purchaseline_cost_nonneg"),
+        ]
+
+    def __str__(self):
+        return f"{self.item_id} x {self.quantity} @ {self.unit_cost}"
