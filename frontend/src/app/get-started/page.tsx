@@ -271,7 +271,7 @@ function GetStartedContent() {
                                                 <FormLabel className="text-slate-700">Your Subdomain</FormLabel>
                                                 <FormControl>
                                                     <div className="flex">
-                                                        <Input
+                                                        <Input aria-label="myschool"
                                                             placeholder="myschool"
                                                             {...field}
                                                             className="rounded-r-none border-slate-300 focus:border-blue-500"

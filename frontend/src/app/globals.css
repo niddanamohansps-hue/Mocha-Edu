@@ -13,6 +13,14 @@
 @custom-variant dark (&:is(.dark *));
 
 /* Tailwind theme tokens used by shadcn */
+/* Readability on every device. Tailwind's `text-xs` (12px) is used for a lot of real information
+   (dates, statuses, help lines); 13px is noticeably easier to read, especially on phones, with a
+   little more line height. Larger sizes are left as they are. */
+@theme {
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.25rem;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -205,5 +213,83 @@
   }
   .animate-glow-pulse {
     animation: glow-pulse 3s ease-in-out infinite;
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------
+   All-device comfort. Plain CSS so it applies to every page without touching each one.
+   --------------------------------------------------------------------------------------------- */
+@layer base {
+  /* Stop phones from inflating text on rotation, and let long words/URLs/emails wrap instead of
+     pushing the page wider than the screen. */
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  main,
+  [role="dialog"] {
+    overflow-wrap: anywhere;
+  }
+
+  /* Touch screens: every button and field is at least 44px tall (the common minimum for a finger),
+     and form fields use 16px text so iPhones do not zoom the page when one is focused. */
+  @media (pointer: coarse) {
+    [data-slot="button"],
+    [data-slot="input"],
+    [data-slot="select-trigger"],
+    select,
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+    textarea {
+      min-height: 44px;
+    }
+
+    [data-slot="button"] {
+      min-width: 44px;
+    }
+
+    input:not([type="checkbox"]):not([type="radio"]),
+    select,
+    textarea,
+    [data-slot="input"],
+    [data-slot="select-trigger"] {
+      font-size: 16px;
+    }
+
+    input[type="checkbox"],
+    input[type="radio"] {
+      width: 1.25rem;
+      height: 1.25rem;
+    }
+  }
+
+  /* A clear keyboard focus ring everywhere. */
+  :focus-visible {
+    outline: 2px solid #0284c7;
+    outline-offset: 2px;
+  }
+
+  /* Respect the device setting for people who find animation uncomfortable. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  /* Printing (receipts, report cards): never let the comfort rules above change a printout. */
+  @media print {
+    [data-slot="button"],
+    [data-slot="input"],
+    input,
+    select,
+    textarea {
+      min-height: 0;
+      min-width: 0;
+    }
   }
 }
