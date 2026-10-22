@@ -50,7 +50,7 @@ export function AuditLogDetailModal({ log, isOpen, onClose }: AuditLogDetailModa
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader className="space-y-2 border-b border-slate-200 dark:border-slate-800 pb-4">
-                    <div className="flex items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
                             <Shield className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
                             <DialogTitle className="text-xl font-bold font-mono tracking-tight text-slate-900 dark:text-white">

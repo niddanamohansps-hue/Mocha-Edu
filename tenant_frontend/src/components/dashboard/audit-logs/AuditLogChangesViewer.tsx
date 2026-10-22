@@ -45,7 +45,7 @@ export function AuditLogChangesViewer({ changes }: AuditLogChangesViewerProps) {
 
     return (
         <div className="space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                     Changes ({entries.length} {entries.length === 1 ? "field" : "fields"})
                 </span>
@@ -83,7 +83,7 @@ export function AuditLogChangesViewer({ changes }: AuditLogChangesViewerProps) {
                                 key={field}
                                 className="p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 shadow-xs space-y-2"
                             >
-                                <div className="flex items-center justify-between">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
                                     <span className="font-medium text-xs text-slate-900 dark:text-slate-100 font-mono">
                                         {field}
                                     </span>

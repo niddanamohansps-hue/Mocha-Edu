@@ -99,7 +99,7 @@ export function LeaveTypesConfigTab() {
 
     return (
         <div className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                     <h3 className="font-semibold text-base text-slate-900 dark:text-white">Configured Leave Types</h3>
                     <p className="text-xs text-slate-500">
@@ -228,7 +228,7 @@ export function LeaveTypesConfigTab() {
                             </div>
                         </div>
 
-                        <div className="flex items-center justify-between p-3 rounded-lg border border-slate-200 dark:border-slate-800">
+                        <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-lg border border-slate-200 dark:border-slate-800">
                             <div>
                                 <Label htmlFor="paidToggle" className="text-xs font-semibold">Paid Leave</Label>
                                 <p className="text-[11px] text-slate-400">Full salary credited during absence</p>
@@ -236,7 +236,7 @@ export function LeaveTypesConfigTab() {
                             <Switch id="paidToggle" checked={isPaid} onCheckedChange={setIsPaid} />
                         </div>
 
-                        <div className="flex items-center justify-between p-3 rounded-lg border border-slate-200 dark:border-slate-800">
+                        <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-lg border border-slate-200 dark:border-slate-800">
                             <div>
                                 <Label htmlFor="docToggle" className="text-xs font-semibold">Proof Document Required</Label>
                                 <p className="text-[11px] text-slate-400">Mandate doctor's slip or document upload</p>

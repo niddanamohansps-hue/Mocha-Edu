@@ -279,7 +279,7 @@ export default function ProfilePage() {
                 <div className="lg:col-span-2 space-y-5">
                     <Card className="border-none shadow-xl shadow-slate-200/50 dark:shadow-none dark:bg-slate-900">
                         <CardHeader className="border-b border-slate-50 dark:border-slate-800 pb-0">
-                            <div className="flex items-center justify-between">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
                                 <div>
                                     <CardTitle className="text-2xl font-bold">Profile Details</CardTitle>
                                     <CardDescription>Manage your personal information and contact details</CardDescription>

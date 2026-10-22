@@ -48,7 +48,7 @@ export function LeaveBalanceCards({ balances, isLoading }: LeaveBalanceCardsProp
                             }`}
                         />
                         <CardContent className="p-4 space-y-3">
-                            <div className="flex items-start justify-between">
+                            <div className="flex flex-wrap items-start justify-between gap-2">
                                 <div>
                                     <div className="flex items-center gap-2">
                                         <h3 className="font-bold text-slate-900 dark:text-white text-base">{bal.leave_type_name}</h3>
@@ -68,7 +68,7 @@ export function LeaveBalanceCards({ balances, isLoading }: LeaveBalanceCardsProp
 
                             {/* Progress bar */}
                             <div className="space-y-1">
-                                <div className="flex justify-between text-[11px] text-slate-500 font-medium">
+                                <div className="flex flex-wrap justify-between gap-2 text-[11px] text-slate-500 font-medium">
                                     <span>Remaining</span>
                                     <span>{pct}%</span>
                                 </div>

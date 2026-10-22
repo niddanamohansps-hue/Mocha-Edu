@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Loader2, Receipt, AlertCircle, RefreshCw, CheckCircle2, Clock, XCircle } from "lucide-react";
 import { OnlinePaymentOrder } from "@/types/Fees";
 import { StatusBadge } from "@/components/common/StatusBadge";
+import { ResponsiveList } from "@/components/common/ResponsiveList";
 import { Button } from "@/components/ui/button";
 import { ReceiptModal } from "@/components/dashboard/fees/ReceiptModal";
 
@@ -37,7 +38,7 @@ export function OnlineOrdersTable({ orders, isLoading, onRefresh }: OnlineOrders
                 return (
                     <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200 border border-amber-300 dark:border-amber-700">
                         <AlertCircle className="h-3 w-3" />
-                        Reconciliation Required
+                        Needs a check
                     </span>
                 );
             case "failed":
@@ -61,7 +62,7 @@ export function OnlineOrdersTable({ orders, isLoading, onRefresh }: OnlineOrders
 
     return (
         <div className="space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                     <h2 className="text-lg font-bold text-slate-900 dark:text-white">
                         Online Payment Transactions
@@ -93,71 +94,64 @@ export function OnlineOrdersTable({ orders, isLoading, onRefresh }: OnlineOrders
                     No online payment transactions initiated yet.
                 </div>
             ) : (
-                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs">
-                    <table className="w-full text-sm">
-                        <thead className="bg-slate-50 dark:bg-slate-900">
-                            <tr className="text-left text-xs font-semibold text-slate-500 uppercase">
-                                <th className="px-4 py-3">Date</th>
-                                <th className="px-4 py-3">Order ID</th>
-                                <th className="px-4 py-3">Amount</th>
-                                <th className="px-4 py-3">Gateway</th>
-                                <th className="px-4 py-3">Status</th>
-                                <th className="px-4 py-3 text-right">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                            {orders.map((o) => (
-                                <tr key={o.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/50">
-                                    <td className="px-4 py-3 text-slate-500 whitespace-nowrap text-xs">
-                                        {new Date(o.created_at).toLocaleString()}
-                                    </td>
-                                    <td className="px-4 py-3 font-mono text-xs font-medium text-slate-700 dark:text-slate-300">
-                                        {o.gateway_order_id ? o.gateway_order_id.slice(0, 12) + "..." : o.id.slice(0, 8)}
-                                    </td>
-                                    <td className="px-4 py-3 font-mono font-bold text-slate-900 dark:text-slate-100">
-                                        NPR {Number(o.amount).toFixed(2)}
-                                    </td>
-                                    <td className="px-4 py-3 capitalize text-xs text-slate-600 dark:text-slate-400">
-                                        {o.gateway}
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <div className="flex flex-col gap-1 items-start">
-                                            {getStatusBadge(o.status)}
-                                            {o.reconciliation_reason && (
-                                                <span className="text-[11px] text-amber-600 dark:text-amber-400 max-w-xs truncate" title={o.reconciliation_reason}>
-                                                    {o.reconciliation_reason}
-                                                </span>
-                                            )}
-                                        </div>
-                                    </td>
-                                    <td className="px-4 py-3 text-right">
-                                        {o.status === "success" && o.payment ? (
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                onClick={() => setSelectedPaymentId(o.payment)}
-                                                className="gap-1.5 text-xs h-7 border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300"
-                                            >
-                                                <Receipt className="h-3.5 w-3.5" />
-                                                Receipt
-                                            </Button>
-                                        ) : o.status === "reconciliation_required" ? (
-                                            <span className="text-[11px] text-slate-400 italic">
-                                                Under school review
-                                            </span>
-                                        ) : o.status === "pending" ? (
-                                            <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
-                                                Awaiting settlement
-                                            </span>
-                                        ) : (
-                                            <span className="text-[11px] text-slate-400">—</span>
-                                        )}
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+                <ResponsiveList
+                    rows={orders}
+                    rowKey={(o) => o.id}
+                    columns={[
+                        {
+                            key: "amount",
+                            header: "Amount",
+                            primary: true,
+                            cell: (o) => <span className="font-mono font-bold">NPR {Number(o.amount).toFixed(2)}</span>,
+                        },
+                        {
+                            key: "date",
+                            header: "Date",
+                            className: "text-slate-500 whitespace-nowrap",
+                            cell: (o) => new Date(o.created_at).toLocaleString(),
+                        },
+                        {
+                            key: "order",
+                            header: "Order ID",
+                            hideOnMobile: true,
+                            className: "font-mono text-xs",
+                            cell: (o) => (o.gateway_order_id ? o.gateway_order_id.slice(0, 12) + "..." : o.id.slice(0, 8)),
+                        },
+                        { key: "gateway", header: "Paid with", className: "capitalize", cell: (o) => o.gateway },
+                        {
+                            key: "status",
+                            header: "Status",
+                            cell: (o) => (
+                                <div className="flex flex-col gap-1 items-start">
+                                    {getStatusBadge(o.status)}
+                                    {o.reconciliation_reason && (
+                                        <span className="text-xs text-amber-600 dark:text-amber-400 max-w-xs" title={o.reconciliation_reason}>
+                                            {o.reconciliation_reason}
+                                        </span>
+                                    )}
+                                </div>
+                            ),
+                        },
+                    ]}
+                    actionsHeader="Receipt"
+                    actions={(o) =>
+                        o.status === "success" && o.payment ? (
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setSelectedPaymentId(o.payment)}
+                                className="gap-1.5 border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300"
+                            >
+                                <Receipt className="h-3.5 w-3.5" />
+                                Receipt
+                            </Button>
+                        ) : o.status === "reconciliation_required" ? (
+                            <span className="text-xs text-slate-500 italic">Under school review</span>
+                        ) : o.status === "pending" ? (
+                            <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">Waiting for confirmation</span>
+                        ) : null
+                    }
+                />
             )}
 
             <ReceiptModal

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { EmptyState } from "@/components/feedback/EmptyState";
+import { EmptyHint, FilterBar } from "@/components/common/PageLayout";
 import { ErrorState } from "@/components/feedback/ErrorState";
 import { LoadingState } from "@/components/feedback/LoadingState";
 import { Field, FILTER_SELECT_CLASS, FormDialog, PageHeader, Pager, Pill, formatDateTime, formatQuantity } from "@/components/dashboard/inventory/shared";
@@ -62,8 +62,8 @@ export default function MovementsPage() {
         <div className="space-y-6">
             <PageHeader title="Movements" description="Every change to stock, newest first. Entries are never edited or deleted." />
 
-            <form className="flex flex-wrap gap-3" onSubmit={(e) => { e.preventDefault(); change({ search: searchText.trim() }); }}>
-                <Input className="w-full sm:w-64" placeholder="Search item, reference or reason" value={searchText} onChange={(e) => setSearchText(e.target.value)} />
+            <FilterBar onSubmit={() => change({ search: searchText.trim() })}>
+                <Input aria-label="Search item, reference or reason" className="w-full sm:w-64" placeholder="Search item, reference or reason" value={searchText} onChange={(e) => setSearchText(e.target.value)} />
                 <select aria-label="Kind" className={FILTER_SELECT_CLASS} value={filters.kind} onChange={(e) => change({ kind: e.target.value as MovementKind | "" })}>
                     <option value="">All kinds</option>
                     {(Object.keys(MOVEMENT_LABELS) as MovementKind[]).map((k) => (
@@ -77,14 +77,14 @@ export default function MovementsPage() {
                     ))}
                 </select>
                 <Button type="submit" variant="outline">Search</Button>
-            </form>
+            </FilterBar>
 
             {isLoading ? (
                 <LoadingState className="py-20" />
             ) : isError ? (
                 <ErrorState message="Failed to load movements. Please try again." onRetry={refetch} />
             ) : rows.length === 0 ? (
-                <EmptyState title="No stock movements yet." className="py-16 text-slate-500 text-sm" />
+                <EmptyHint title="No stock movements yet." hint="Every time stock is received, issued or corrected it is listed here. Start on the Stock tab by receiving some stock." />
             ) : (
                 <div className="rounded-2xl border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden">
                     {rows.map((m) => {

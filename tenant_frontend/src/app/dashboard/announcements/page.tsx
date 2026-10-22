@@ -47,7 +47,7 @@ export default function MyAnnouncementsPage() {
             )}
 
             {data && (data.next || data.previous) && (
-                <div className="flex items-center justify-between pt-2">
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
                     <Button variant="outline" size="sm" disabled={!data.previous} onClick={() => setPage((p) => Math.max(1, p - 1))}>
                         Previous
                     </Button>

@@ -46,7 +46,7 @@ export default function FacultyDirectoryPage() {
 
     return (
         <div className="space-y-6">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-wrap justify-between gap-2 items-center">
                 <div>
                     <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
                         Faculty Directory

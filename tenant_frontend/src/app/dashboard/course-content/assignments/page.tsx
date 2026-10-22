@@ -77,7 +77,7 @@ export default function AssignmentsPage() {
 
     return (
         <div className="space-y-6">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-wrap justify-between gap-2 items-center">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Assignments</h1>
                     <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">

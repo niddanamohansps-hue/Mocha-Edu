@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { EmptyState } from "@/components/feedback/EmptyState";
+import { EmptyHint, FilterBar } from "@/components/common/PageLayout";
 import { ErrorState } from "@/components/feedback/ErrorState";
 import { LoadingState } from "@/components/feedback/LoadingState";
 import { ItemDialog, STOCK_ACTION_LABELS, StockActionDialog } from "@/components/dashboard/inventory/StockDialogs";
@@ -71,15 +71,13 @@ export default function StockPage() {
                 }
             />
 
-            <form
-                className="flex flex-wrap gap-3"
-                onSubmit={(e) => {
-                    e.preventDefault();
+            <FilterBar
+                onSubmit={() => {
                     setPage(1);
                     setSearch(searchText.trim());
                 }}
             >
-                <Input className="w-full sm:w-64" placeholder="Search name or SKU" value={searchText} onChange={(e) => setSearchText(e.target.value)} />
+                <Input aria-label="Search name or SKU" className="w-full sm:w-64" placeholder="Search name or SKU" value={searchText} onChange={(e) => setSearchText(e.target.value)} />
                 <select aria-label="Category" className={FILTER_SELECT_CLASS} value={category} onChange={(e) => { setPage(1); setCategory(e.target.value); }}>
                     <option value="">All categories</option>
                     {(categories.data ?? []).map((c) => (
@@ -96,16 +94,17 @@ export default function StockPage() {
                     Low stock only
                 </label>
                 <Button type="submit" variant="outline">Search</Button>
-            </form>
+            </FilterBar>
 
             {isLoading ? (
                 <LoadingState className="py-20" />
             ) : isError ? (
                 <ErrorState message="Failed to load the stock list. Please try again." onRetry={refetch} />
             ) : items.length === 0 ? (
-                <EmptyState
-                    title={filtered ? "No items match." : "No items yet. Set up a category and a location, then add your first item."}
-                    className="py-16 text-slate-500 text-sm"
+                <EmptyHint
+                    title={filtered ? "No items match your search." : "No items yet."}
+                    hint={filtered ? "Try a different word or clear the filters." : "Items are supplies you use up, like paper or chalk. First add a category and a location on the Setup tab, then add your first item here."}
+                    action={!filtered && canManage ? <Button onClick={() => { setDialogItem(null); setItemDialogOpen(true); }}>Add your first item</Button> : undefined}
                 />
             ) : (
                 <div className="rounded-2xl border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden">

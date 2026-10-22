@@ -1,5 +1,6 @@
 "use client";
 
+import { ResponsiveList } from "@/components/common/ResponsiveList";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useOutstandingReport } from "@/hooks/useFees";
 import { usePermissions } from "@/providers/PermissionProvider";
@@ -50,7 +51,7 @@ export default function OutstandingReportPage() {
     return (
         <div className="space-y-6">
             <div>
-                <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Outstanding Balances</h1>
+                <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Fees still to pay</h1>
                 <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
                     Students with an active, unpaid balance.
                 </p>
@@ -81,7 +82,7 @@ export default function OutstandingReportPage() {
                         </Card>
                         <Card className="border-none shadow-md">
                             <CardContent className="p-4">
-                                <p className="text-xs text-slate-500 uppercase font-bold">Total Outstanding</p>
+                                <p className="text-xs text-slate-500 uppercase font-bold">Total still to pay</p>
                                 <p className="text-2xl font-black">{totalOutstanding.toFixed(2)}</p>
                             </CardContent>
                         </Card>
@@ -90,30 +91,17 @@ export default function OutstandingReportPage() {
                     {!data || data.results.length === 0 ? (
                         <EmptyState title={`No outstanding balances for ${academicYear}.`} className="py-6 text-slate-500 text-sm" />
                     ) : (
-                        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-                            <table className="w-full text-sm">
-                                <thead className="bg-slate-50 dark:bg-slate-900">
-                                    <tr className="text-left text-xs font-semibold text-slate-500 uppercase">
-                                        <th className="px-4 py-3">Student</th>
-                                        <th className="px-4 py-3">Enrollment ID</th>
-                                        <th className="px-4 py-3">Fee Head</th>
-                                        <th className="px-4 py-3">Due Date</th>
-                                        <th className="px-4 py-3">Outstanding</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {data.results.map((row, i) => (
-                                        <tr key={i} className="border-t border-slate-100 dark:border-slate-800">
-                                            <td className="px-4 py-2 font-medium">{row.full_name}</td>
-                                            <td className="px-4 py-2 text-slate-500">{row.enrollment_id}</td>
-                                            <td className="px-4 py-2">{row.fee_head}</td>
-                                            <td className="px-4 py-2 text-slate-500">{row.due_date || "—"}</td>
-                                            <td className="px-4 py-2 font-bold text-red-600">{row.outstanding}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                        <ResponsiveList
+                            rows={data.results}
+                            rowKey={(row, i) => String(i)}
+                            columns={[
+                                { key: "student", header: "Student", primary: true, cell: (row) => row.full_name },
+                                { key: "outstanding", header: "Still to pay", className: "font-bold text-red-600", cell: (row) => row.outstanding },
+                                { key: "fee", header: "Fee", cell: (row) => row.fee_head },
+                                { key: "due", header: "Due date", className: "text-slate-500", cell: (row) => row.due_date || "—" },
+                                { key: "enrollment", header: "Enrollment ID", className: "text-slate-500", cell: (row) => row.enrollment_id },
+                            ]}
+                        />
                     )}
                 </>
             )}

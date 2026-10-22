@@ -54,7 +54,7 @@ export default function LoginPage() {
                     </div>
                 </div>
 
-                <div className="relative z-10 pt-12 border-t border-white/20 flex justify-between items-center text-white text-sm">
+                <div className="relative z-10 pt-12 border-t border-white/20 flex flex-wrap justify-between gap-2 items-center text-white text-sm">
                     <p>© 2025 Edu Sekai Ltd.</p>
                     <div className="flex gap-4">
                         <a href="#">Privacy</a>
@@ -85,6 +85,7 @@ export default function LoginPage() {
                             <form onSubmit={handleLogin} className="space-y-6">
                                 <FloatingLabelInput
                                     id="username"
+                                    autoComplete="username"
                                     type="text"
                                     label="Username"
                                     value={username}
@@ -96,6 +97,7 @@ export default function LoginPage() {
                                 <div className="space-y-1">
                                     <FloatingLabelInput
                                         id="password"
+                                        autoComplete="current-password"
                                         type="password"
                                         label="Password"
                                         value={password}

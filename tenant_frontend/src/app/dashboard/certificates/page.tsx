@@ -57,7 +57,7 @@ export default function CertificatesPage() {
                     change({ search: searchText.trim() });
                 }}
             >
-                <Input
+                <Input aria-label="Search number or name"
                     className="w-full sm:w-64"
                     placeholder="Search number or name"
                     value={searchText}
@@ -122,7 +122,7 @@ export default function CertificatesPage() {
             )}
 
             {data && (data.next || data.previous) && (
-                <div className="flex items-center justify-between pt-2">
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
                     <Button variant="outline" size="sm" disabled={!data.previous} onClick={() => setFilters((f) => ({ ...f, page: Math.max(1, f.page - 1) }))}>
                         Previous
                     </Button>

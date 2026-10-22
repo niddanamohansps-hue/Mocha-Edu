@@ -77,7 +77,7 @@ export function LeaveDetailModal({
         <Dialog open={!!applicationId} onOpenChange={(open) => !open && onClose()}>
             <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                         <DialogTitle className="flex items-center gap-2">
                             <Calendar className="w-5 h-5 text-indigo-600" />
                             Leave Application Details
@@ -97,7 +97,7 @@ export function LeaveDetailModal({
                 ) : (
                     <div className="space-y-4 pt-2">
                         {/* Staff Profile Overview */}
-                        <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-between">
+                        <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex flex-wrap items-center justify-between gap-2">
                             <div>
                                 <h4 className="font-semibold text-slate-900 dark:text-white">{app.staff_name}</h4>
                                 <p className="text-xs text-slate-500">
@@ -157,7 +157,7 @@ export function LeaveDetailModal({
 
                         {/* Document Download */}
                         {app.document_url && (
-                            <div className="flex items-center justify-between p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950">
+                            <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950">
                                 <div className="flex items-center gap-2.5">
                                     <FileText className="w-5 h-5 text-indigo-500" />
                                     <div>
@@ -188,7 +188,7 @@ export function LeaveDetailModal({
                                             key={ap.id}
                                             className="p-3 rounded-lg border border-slate-100 dark:border-slate-800 text-xs space-y-1"
                                         >
-                                            <div className="flex items-center justify-between">
+                                            <div className="flex flex-wrap items-center justify-between gap-2">
                                                 <div className="flex items-center gap-1.5 font-medium text-slate-800 dark:text-slate-200">
                                                     {ap.decision === "approved" ? (
                                                         <CheckCircle2 className="w-4 h-4 text-emerald-500" />
@@ -220,7 +220,7 @@ export function LeaveDetailModal({
                                 <p className="text-xs font-semibold text-rose-800 dark:text-rose-300">
                                     Are you sure you want to cancel this leave application?
                                 </p>
-                                <input
+                                <input aria-label="Optional cancellation reason..."
                                     type="text"
                                     placeholder="Optional cancellation reason..."
                                     value={cancelReason}
@@ -244,7 +244,7 @@ export function LeaveDetailModal({
                             </div>
                         )}
 
-                        <DialogFooter className="pt-2 flex items-center justify-between gap-2">
+                        <DialogFooter className="pt-2 flex flex-wrap items-center justify-between gap-2">
                             <div>
                                 {onViewAffectedPeriods && (
                                     <Button

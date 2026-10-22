@@ -39,7 +39,7 @@ export function AssignmentCard({ assignment, isStudent, canCreate, onSubmitClick
 
     return (
         <Card className="p-5 hover:shadow-md transition-shadow">
-            <div className="flex items-start justify-between mb-3">
+            <div className="flex flex-wrap items-start justify-between gap-2 mb-3">
                 <h3 className="font-semibold text-slate-900 dark:text-white pr-2">
                     {assignment.content_details.title}
                 </h3>
@@ -67,7 +67,7 @@ export function AssignmentCard({ assignment, isStudent, canCreate, onSubmitClick
 
             {submission && submission.status === 'graded' && (
                 <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/10 rounded-lg border border-green-200 dark:border-green-900/20">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                         <span className="text-sm font-medium text-green-700 dark:text-green-400">Score</span>
                         <span className="text-lg font-bold text-green-700 dark:text-green-400">
                             {submission.score}/{assignment.total_points}
@@ -81,7 +81,7 @@ export function AssignmentCard({ assignment, isStudent, canCreate, onSubmitClick
                 </div>
             )}
 
-            <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
                 <Badge variant="outline" className="text-xs">
                     {statusInfo.label}
                 </Badge>

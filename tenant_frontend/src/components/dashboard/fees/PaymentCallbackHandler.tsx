@@ -194,21 +194,21 @@ export function PaymentCallbackHandler({ returnPath, portalTitle }: PaymentCallb
 
                             {orderData && (
                                 <div className="w-full bg-slate-50 dark:bg-slate-900/60 rounded-xl p-5 border border-slate-100 dark:border-slate-800 text-left space-y-3">
-                                    <div className="flex justify-between items-center text-sm">
+                                    <div className="flex flex-wrap justify-between gap-2 items-center text-sm">
                                         <span className="text-slate-500">Amount Paid</span>
                                         <span className="font-mono font-bold text-base text-slate-900 dark:text-white">
                                             NPR {Number(orderData.amount).toFixed(2)}
                                         </span>
                                     </div>
                                     {receiptNumber && (
-                                        <div className="flex justify-between items-center text-sm">
+                                        <div className="flex flex-wrap justify-between gap-2 items-center text-sm">
                                             <span className="text-slate-500">Official Receipt</span>
                                             <span className="font-mono font-semibold text-indigo-600 dark:text-indigo-400">
                                                 {receiptNumber}
                                             </span>
                                         </div>
                                     )}
-                                    <div className="flex justify-between items-center text-sm">
+                                    <div className="flex flex-wrap justify-between gap-2 items-center text-sm">
                                         <span className="text-slate-500">Gateway Transaction</span>
                                         <span className="font-mono text-xs text-slate-600 dark:text-slate-400">
                                             {orderData.gateway_order_id}
@@ -254,7 +254,7 @@ export function PaymentCallbackHandler({ returnPath, portalTitle }: PaymentCallb
 
                             <div className="space-y-2">
                                 <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
-                                    Reconciliation Required
+                                    Needs a check
                                 </h2>
                                 <p className="text-sm text-slate-600 dark:text-slate-300 max-w-lg">
                                     Your funds were successfully received and verified by the eSewa gateway,
@@ -272,7 +272,7 @@ export function PaymentCallbackHandler({ returnPath, portalTitle }: PaymentCallb
                                         "School administrative staff have been notified to review this order and apply the credit manually. The displayed fee balance will be updated once reconciliation is complete."}
                                 </p>
                                 {orderData && (
-                                    <div className="pt-2 border-t border-amber-200/60 dark:border-amber-900/60 text-xs font-mono text-amber-800 dark:text-amber-300 flex justify-between">
+                                    <div className="pt-2 border-t border-amber-200/60 dark:border-amber-900/60 text-xs font-mono text-amber-800 dark:text-amber-300 flex flex-wrap justify-between gap-2">
                                         <span>Order Amount: NPR {Number(orderData.amount).toFixed(2)}</span>
                                         <span>Reference: {orderData.gateway_order_id.slice(0, 12)}...</span>
                                     </div>

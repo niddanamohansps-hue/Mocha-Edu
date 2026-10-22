@@ -3,11 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ReactNode } from "react";
+import { PageHeader } from "@/components/common/PageLayout";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { usePermissions } from "@/providers/PermissionProvider";
 import { AssetCondition, AssetStatus, ASSET_CONDITION_LABELS, ASSET_STATUS_LABELS } from "@/types/Inventory";
+
+export { PageHeader };
 
 export const SELECT_CLASS =
     "w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent px-3 py-2 text-sm";
@@ -77,18 +80,6 @@ export function InventoryNav() {
     );
 }
 
-export function PageHeader({ title, description, actions }: { title: string; description?: string; actions?: ReactNode }) {
-    return (
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-                <h1 className="text-2xl font-bold text-slate-900 dark:text-white">{title}</h1>
-                {description && <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{description}</p>}
-            </div>
-            {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
-        </div>
-    );
-}
-
 export function Pager({
     data,
     page,
@@ -100,7 +91,7 @@ export function Pager({
 }) {
     if (!data || (!data.next && !data.previous)) return null;
     return (
-        <div className="flex items-center justify-between pt-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
             <Button variant="outline" size="sm" disabled={!data.previous} onClick={() => onPage(Math.max(1, page - 1))}>
                 Previous
             </Button>

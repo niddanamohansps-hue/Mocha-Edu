@@ -323,17 +323,17 @@ export default function NewApplicationDialog({
                                 Secondary Contact / Co-Guardian (Optional)
                             </span>
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                <Input
+                                <Input aria-label="Co-Guardian Name"
                                     placeholder="Co-Guardian Name"
                                     value={secondaryName}
                                     onChange={(e) => setSecondaryName(e.target.value)}
                                 />
-                                <Input
+                                <Input aria-label="Relationship (e.g. Mother)"
                                     placeholder="Relationship (e.g. Mother)"
                                     value={secondaryRel}
                                     onChange={(e) => setSecondaryRel(e.target.value)}
                                 />
-                                <Input
+                                <Input aria-label="Contact Phone"
                                     placeholder="Contact Phone"
                                     value={secondaryPhone}
                                     onChange={(e) => setSecondaryPhone(e.target.value)}

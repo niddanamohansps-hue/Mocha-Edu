@@ -123,8 +123,8 @@ export default function ExaminationsPage() {
                     <>
                         <div className="flex gap-2 items-end">
                             <div>
-                                <label className="text-xs font-medium text-slate-500 mb-1 block">New Exam Type</label>
-                                <Input value={newTypeName} onChange={(e) => setNewTypeName(e.target.value)} placeholder="e.g. Mid-Term" className="w-48" />
+                                <label htmlFor="f-new-exam-type" className="text-xs font-medium text-slate-500 mb-1 block">New Exam Type</label>
+                                <Input id="f-new-exam-type" value={newTypeName} onChange={(e) => setNewTypeName(e.target.value)} placeholder="e.g. Mid-Term" className="w-48" />
                             </div>
                             <Button variant="outline" onClick={handleAddExamType}>Add Type</Button>
                         </div>
@@ -160,7 +160,7 @@ export default function ExaminationsPage() {
 
             {selectedExam && (
                 <div className="space-y-4">
-                    <div className="flex justify-between items-center">
+                    <div className="flex flex-wrap justify-between gap-2 items-center">
                         <h2 className="text-lg font-bold">{selectedExam.name} - Schedules</h2>
                         <div className="flex gap-2">
                             {canManage && !selectedExam.is_published && (
@@ -228,7 +228,7 @@ export default function ExaminationsPage() {
                         <DialogDescription>Academic year: {academicYear}</DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4">
-                        <Input placeholder="Name (e.g. Mid-Term 2026)" value={examForm.name} onChange={(e) => setExamForm((f) => ({ ...f, name: e.target.value }))} />
+                        <Input aria-label="Name (e.g. Mid-Term 2026)" placeholder="Name (e.g. Mid-Term 2026)" value={examForm.name} onChange={(e) => setExamForm((f) => ({ ...f, name: e.target.value }))} />
                         <Select value={examForm.exam_type} onValueChange={(v) => setExamForm((f) => ({ ...f, exam_type: v }))}>
                             <SelectTrigger><SelectValue placeholder="Exam type" /></SelectTrigger>
                             <SelectContent>
@@ -276,8 +276,8 @@ export default function ExaminationsPage() {
                             </SelectContent>
                         </Select>
                         <div className="grid grid-cols-2 gap-2">
-                            <Input type="number" placeholder="Max marks" value={scheduleForm.max_marks} onChange={(e) => setScheduleForm((f) => ({ ...f, max_marks: e.target.value }))} />
-                            <Input type="number" placeholder="Pass marks" value={scheduleForm.pass_marks} onChange={(e) => setScheduleForm((f) => ({ ...f, pass_marks: e.target.value }))} />
+                            <Input aria-label="Max marks" type="number" placeholder="Max marks" value={scheduleForm.max_marks} onChange={(e) => setScheduleForm((f) => ({ ...f, max_marks: e.target.value }))} />
+                            <Input aria-label="Pass marks" type="number" placeholder="Pass marks" value={scheduleForm.pass_marks} onChange={(e) => setScheduleForm((f) => ({ ...f, pass_marks: e.target.value }))} />
                         </div>
                     </div>
                     <Button onClick={handleCreateSchedule} disabled={isCreatingSchedule || !scheduleForm.subject || !scheduleForm.section}>

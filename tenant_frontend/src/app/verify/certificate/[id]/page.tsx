@@ -53,7 +53,7 @@ export default function VerifyCertificatePage() {
 function Item({ label, value }: { label: string; value: string | null }) {
     if (!value) return null;
     return (
-        <div className="flex justify-between gap-4 py-3">
+        <div className="flex flex-wrap justify-between gap-4 py-3">
             <dt className="text-slate-500">{label}</dt>
             <dd className="font-medium text-slate-900 text-right break-words">{value}</dd>
         </div>

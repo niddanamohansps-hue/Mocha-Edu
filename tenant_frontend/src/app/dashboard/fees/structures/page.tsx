@@ -1,5 +1,6 @@
 "use client";
 
+import { ResponsiveList } from "@/components/common/ResponsiveList";
 import { useState } from "react";
 import { LoaderCircle, Plus } from "lucide-react";
 import {
@@ -78,11 +79,11 @@ export default function FeeStructuresPage() {
 
             {canManage && (
                 <div className="space-y-3 border-b border-slate-200 dark:border-slate-800 pb-6">
-                    <h2 className="text-lg font-bold">Fee Heads</h2>
+                    <h2 className="text-lg font-bold">Fee types</h2>
                     <div className="flex gap-3 items-end">
                         <div className="w-64">
-                            <label className="text-xs font-medium text-slate-500 mb-1 block">New Fee Head</label>
-                            <Input value={newHeadName} onChange={(e) => setNewHeadName(e.target.value)} placeholder="e.g. Sports Fee" />
+                            <label htmlFor="f-new-fee-type" className="text-xs font-medium text-slate-500 mb-1 block">New fee type</label>
+                            <Input id="f-new-fee-type" value={newHeadName} onChange={(e) => setNewHeadName(e.target.value)} placeholder="e.g. Sports Fee" />
                         </div>
                         <Button onClick={handleCreateHead} disabled={creatingHead || !newHeadName} className="gap-2">
                             {creatingHead && <LoaderCircle className="h-4 w-4 animate-spin" />}
@@ -113,7 +114,7 @@ export default function FeeStructuresPage() {
                     <h2 className="text-lg font-bold">New Fee Structure ({academicYear})</h2>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3 items-end">
                         <div>
-                            <label className="text-xs font-medium text-slate-500 mb-1 block">Fee Head</label>
+                            <label className="text-xs font-medium text-slate-500 mb-1 block">Fee type</label>
                             <Select value={form.fee_head} onValueChange={(v) => setForm((f) => ({ ...f, fee_head: v }))}>
                                 <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                                 <SelectContent>
@@ -124,8 +125,8 @@ export default function FeeStructuresPage() {
                             </Select>
                         </div>
                         <div>
-                            <label className="text-xs font-medium text-slate-500 mb-1 block">Amount</label>
-                            <Input type="number" value={form.amount} onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))} />
+                            <label htmlFor="f-amount" className="text-xs font-medium text-slate-500 mb-1 block">Amount</label>
+                            <Input id="f-amount" type="number" value={form.amount} onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))} />
                         </div>
                         <div>
                             <label className="text-xs font-medium text-slate-500 mb-1 block">Frequency</label>
@@ -139,8 +140,8 @@ export default function FeeStructuresPage() {
                             </Select>
                         </div>
                         <div>
-                            <label className="text-xs font-medium text-slate-500 mb-1 block">Due Date (optional)</label>
-                            <Input type="date" value={form.due_date} onChange={(e) => setForm((f) => ({ ...f, due_date: e.target.value }))} />
+                            <label htmlFor="f-due-date-optional" className="text-xs font-medium text-slate-500 mb-1 block">Due Date (optional)</label>
+                            <Input id="f-due-date-optional" type="date" value={form.due_date} onChange={(e) => setForm((f) => ({ ...f, due_date: e.target.value }))} />
                         </div>
                     </div>
                     <Button
@@ -163,30 +164,17 @@ export default function FeeStructuresPage() {
                 ) : !structures || structures.length === 0 ? (
                     <EmptyState title={`No fee structures defined for ${academicYear} yet.`} className="py-4 text-slate-500 text-sm" />
                 ) : (
-                    <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-                        <table className="w-full text-sm">
-                            <thead className="bg-slate-50 dark:bg-slate-900">
-                                <tr className="text-left text-xs font-semibold text-slate-500 uppercase">
-                                    <th className="px-4 py-3">Fee Head</th>
-                                    <th className="px-4 py-3">Amount</th>
-                                    <th className="px-4 py-3">Frequency</th>
-                                    <th className="px-4 py-3">Due Date</th>
-                                    <th className="px-4 py-3">Level</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {structures.map((s) => (
-                                    <tr key={s.id} className="border-t border-slate-100 dark:border-slate-800">
-                                        <td className="px-4 py-2 font-medium">{s.fee_head_name}</td>
-                                        <td className="px-4 py-2">{s.amount}</td>
-                                        <td className="px-4 py-2 capitalize">{s.frequency.replace("_", " ")}</td>
-                                        <td className="px-4 py-2 text-slate-500">{s.due_date || "—"}</td>
-                                        <td className="px-4 py-2 text-slate-500">{s.level_name || "All levels"}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                        <ResponsiveList
+                            rows={structures}
+                            rowKey={(s) => String(s.id)}
+                            columns={[
+                                { key: "c0", header: "Fee type", primary: true, className: "font-medium", cell: (s) => (<>{s.fee_head_name}</>), },
+                                { key: "c1", header: "Amount", cell: (s) => (<>{s.amount}</>), },
+                                { key: "c2", header: "Frequency", className: "capitalize", cell: (s) => (<>{s.frequency.replace("_", " ")}</>), },
+                                { key: "c3", header: "Due Date", className: "text-slate-500", cell: (s) => (<>{s.due_date || "—"}</>), },
+                                { key: "c4", header: "Level", className: "text-slate-500", cell: (s) => (<>{s.level_name || "All levels"}</>), },
+                            ]}
+                        />
                 )}
             </div>
         </div>

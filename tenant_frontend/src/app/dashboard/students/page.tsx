@@ -124,7 +124,7 @@ export default function StudentsPage() {
             <div className="flex flex-col md:flex-row gap-4 items-center justify-between p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
                 <div className="relative flex-1 w-full max-w-md">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                    <Input
+                    <Input aria-label="Search students by name or ID..."
                         placeholder="Search students by name or ID..."
                         className="pl-10 h-10 rounded-xl border-slate-100 dark:border-slate-800 focus:border-sky-500"
                     />

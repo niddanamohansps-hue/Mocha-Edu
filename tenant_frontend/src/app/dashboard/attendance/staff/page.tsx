@@ -69,8 +69,8 @@ export default function StaffAttendancePage() {
 
             <div className="flex flex-wrap gap-4 items-end">
                 <div className="w-48">
-                    <label className="text-xs font-medium text-slate-500 mb-1 block">Date</label>
-                    <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+                    <label htmlFor="f-date" className="text-xs font-medium text-slate-500 mb-1 block">Date</label>
+                    <Input id="f-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
                 </div>
                 {staffMembers && staffMembers.length > 0 && (
                     <Button variant="outline" onClick={markAllPresent} className="gap-2">
@@ -91,7 +91,7 @@ export default function StaffAttendancePage() {
                 <EmptyState title="No staff members found." className="py-16 text-slate-500 text-sm" />
             ) : (
                 <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-                    <table className="w-full text-sm">
+                    <div className="w-full overflow-x-auto"><table className="w-full text-sm">
                         <thead className="bg-slate-50 dark:bg-slate-900">
                             <tr className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
                                 <th className="px-4 py-3">Staff Member</th>
@@ -126,7 +126,7 @@ export default function StaffAttendancePage() {
                                 </tr>
                             ))}
                         </tbody>
-                    </table>
+                    </table></div>
                 </div>
             )}
 

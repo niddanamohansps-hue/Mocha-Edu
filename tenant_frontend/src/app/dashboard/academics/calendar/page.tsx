@@ -325,7 +325,7 @@ export default function AcademicCalendarPage() {
                 <div className="flex flex-wrap items-center gap-2.5">
                     <div className="relative w-44">
                         <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
-                        <Input
+                        <Input aria-label="Search events..."
                             placeholder="Search events..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}

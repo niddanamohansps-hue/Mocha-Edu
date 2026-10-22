@@ -1,5 +1,6 @@
 "use client";
 
+import { ResponsiveList } from "@/components/common/ResponsiveList";
 import { useState } from "react";
 import { useChildAttendance, useLinkedChildren } from "@/hooks/useParentPortal";
 import { AttendanceStatus } from "@/types/ParentPortal";
@@ -51,12 +52,12 @@ export default function ParentPortalAttendancePage() {
                     onChange={setSelectedChildId}
                 />
                 <div className="w-44">
-                    <label className="text-xs font-medium text-slate-500 mb-1 block">From</label>
-                    <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+                    <label htmlFor="f-from" className="text-xs font-medium text-slate-500 mb-1 block">From</label>
+                    <Input id="f-from" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
                 </div>
                 <div className="w-44">
-                    <label className="text-xs font-medium text-slate-500 mb-1 block">To</label>
-                    <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+                    <label htmlFor="f-to" className="text-xs font-medium text-slate-500 mb-1 block">To</label>
+                    <Input id="f-to" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
                 </div>
             </div>
 
@@ -97,26 +98,15 @@ export default function ParentPortalAttendancePage() {
                     {data.records.length === 0 ? (
                         <EmptyState title="No attendance records found." className="py-16 text-slate-500 text-sm" />
                     ) : (
-                        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-                            <table className="w-full text-sm">
-                                <thead className="bg-slate-50 dark:bg-slate-900">
-                                    <tr className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                                        <th className="px-4 py-3">Date</th>
-                                        <th className="px-4 py-3">Status</th>
-                                        <th className="px-4 py-3">Remarks</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {data.records.map((r, i) => (
-                                        <tr key={i} className="border-t border-slate-100 dark:border-slate-800">
-                                            <td className="px-4 py-2">{r.date}</td>
-                                            <td className="px-4 py-2">{STATUS_LABELS[r.status] ?? r.status}</td>
-                                            <td className="px-4 py-2 text-slate-500">{r.remarks || "—"}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                        <ResponsiveList
+                            rows={data.records}
+                            rowKey={(r) => `${r.date}-${r.status}`}
+                            columns={[
+                                { key: "date", header: "Date", primary: true, cell: (r) => r.date },
+                                { key: "status", header: "Status", cell: (r) => STATUS_LABELS[r.status] ?? r.status },
+                                { key: "remarks", header: "Remarks", className: "text-slate-500", cell: (r) => r.remarks || "—" },
+                            ]}
+                        />
                     )}
                 </>
             ) : null}

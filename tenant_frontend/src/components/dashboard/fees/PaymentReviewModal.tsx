@@ -233,7 +233,7 @@ export function PaymentReviewModal({
 
                         {/* Gateway selection info */}
                         <div className="bg-slate-50 dark:bg-slate-900/60 p-4 rounded-xl border border-slate-100 dark:border-slate-800 space-y-3">
-                            <div className="flex items-center justify-between">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
                                 <Label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
                                     Payment Method
                                 </Label>
@@ -247,7 +247,7 @@ export function PaymentReviewModal({
                         </div>
 
                         {/* Summary Total */}
-                        <div className="bg-indigo-50/60 dark:bg-indigo-950/40 p-4 rounded-xl border border-indigo-100 dark:border-indigo-900/50 flex items-center justify-between">
+                        <div className="bg-indigo-50/60 dark:bg-indigo-950/40 p-4 rounded-xl border border-indigo-100 dark:border-indigo-900/50 flex flex-wrap items-center justify-between gap-2">
                             <div>
                                 <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider">
                                     Total Payable Amount

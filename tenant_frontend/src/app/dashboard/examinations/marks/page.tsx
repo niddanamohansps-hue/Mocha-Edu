@@ -121,7 +121,7 @@ export default function MarksEntryPage() {
             {scheduleId && roster && roster.length > 0 && schedule && (
                 <>
                     <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-                        <table className="w-full text-sm">
+                        <div className="w-full overflow-x-auto"><table className="w-full text-sm">
                             <thead className="bg-slate-50 dark:bg-slate-900">
                                 <tr className="text-left text-xs font-semibold text-slate-500 uppercase">
                                     <th className="px-4 py-3">Student</th>
@@ -148,7 +148,7 @@ export default function MarksEntryPage() {
                                             />
                                         </td>
                                         <td className="px-4 py-2">
-                                            <Input
+                                            <Input aria-label="Optional"
                                                 className="h-9" disabled={schedule.is_locked} placeholder="Optional"
                                                 value={marks[s.student]?.remarks ?? ""}
                                                 onChange={(e) => setMarks((prev) => ({ ...prev, [s.student]: { ...prev[s.student], remarks: e.target.value } }))}
@@ -157,7 +157,7 @@ export default function MarksEntryPage() {
                                     </tr>
                                 ))}
                             </tbody>
-                        </table>
+                        </table></div>
                     </div>
                     <div className="flex justify-end">
                         <Button onClick={handleSubmit} disabled={schedule.is_locked || isPending} className="gap-2">

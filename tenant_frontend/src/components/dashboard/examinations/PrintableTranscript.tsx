@@ -208,7 +208,7 @@ export const PrintableTranscript: React.FC<PrintableTranscriptProps> = ({
                                                     </span>
                                                 </div>
 
-                                                <table className="w-full text-[11px] text-left">
+                                                <div className="w-full overflow-x-auto"><table className="w-full text-[11px] text-left">
                                                     <thead className="bg-slate-50 border-y border-slate-200 text-slate-600 font-semibold uppercase">
                                                         <tr>
                                                             <th className="py-1 px-2">Subject</th>
@@ -247,7 +247,7 @@ export const PrintableTranscript: React.FC<PrintableTranscriptProps> = ({
                                                             </tr>
                                                         ))}
                                                     </tbody>
-                                                </table>
+                                                </table></div>
                                             </div>
                                         ))}
                                     </div>

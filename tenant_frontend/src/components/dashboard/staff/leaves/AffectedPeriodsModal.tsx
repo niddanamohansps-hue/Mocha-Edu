@@ -89,7 +89,7 @@ export function AffectedPeriodsModal({ applicationId, onClose }: AffectedPeriods
                                     key={`${slot.entry_id}-${slot.date}-${index}`}
                                     className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 shadow-sm space-y-2.5"
                                 >
-                                    <div className="flex items-start justify-between">
+                                    <div className="flex flex-wrap items-start justify-between gap-2">
                                         <div>
                                             <div className="flex items-center gap-2">
                                                 <Badge variant="outline" className="text-xs font-mono">
@@ -170,7 +170,7 @@ export function AffectedPeriodsModal({ applicationId, onClose }: AffectedPeriods
                                                     </div>
                                                 </div>
                                             ) : (
-                                                <div className="flex items-center justify-between">
+                                                <div className="flex flex-wrap items-center justify-between gap-2">
                                                     <span className="text-xs text-slate-500">
                                                         {slot.eligible_substitutes.length} faculty free this period
                                                     </span>

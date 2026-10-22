@@ -123,7 +123,7 @@ export default function TeachingAssignmentsTab({ instructorId }: TeachingAssignm
 
     return (
         <div className="space-y-6">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-wrap justify-between gap-2 items-center">
                 <div>
                     <h3 className="text-lg font-medium">Teaching Load</h3>
                     <p className="text-sm text-slate-500">Classes and subjects assigned to this instructor.</p>

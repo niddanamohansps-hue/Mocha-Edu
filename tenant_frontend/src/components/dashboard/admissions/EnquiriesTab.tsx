@@ -105,7 +105,7 @@ export default function EnquiriesTab() {
                 <div className="flex flex-1 items-center gap-3 w-full sm:w-auto">
                     <div className="relative flex-1 sm:w-80">
                         <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                        <Input
+                        <Input aria-label="Search by student, guardian, phone, ref..."
                             placeholder="Search by student, guardian, phone, ref..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}

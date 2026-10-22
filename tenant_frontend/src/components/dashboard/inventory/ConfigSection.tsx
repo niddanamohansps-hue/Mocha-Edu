@@ -106,7 +106,7 @@ export function ConfigSection({
 
     return (
         <section className="rounded-2xl border border-slate-200 dark:border-slate-800 p-5 space-y-4">
-            <div className="flex items-start justify-between gap-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                     <h2 className="font-semibold text-slate-900 dark:text-white">{title}</h2>
                     <p className="text-xs text-slate-500 mt-0.5">{hint}</p>

@@ -77,9 +77,9 @@ export default function AttendanceSettingsPage() {
             <Card className="border-none shadow-md">
                 <CardContent className="p-6 space-y-4">
                     {Object.entries(STATUS_LABELS).map(([key, label]) => (
-                        <div key={key} className="flex items-center justify-between gap-4">
+                        <div key={key} className="flex flex-wrap items-center justify-between gap-4">
                             <label className="text-sm font-medium">{label}</label>
-                            <Input
+                            <Input aria-label="Excluded"
                                 type="number"
                                 step="0.1"
                                 min={0}
@@ -96,9 +96,9 @@ export default function AttendanceSettingsPage() {
 
             <Card className="border-none shadow-md">
                 <CardContent className="p-6 space-y-4">
-                    <div className="flex items-center justify-between gap-4">
-                        <label className="text-sm font-medium">Minimum attendance percentage</label>
-                        <Input
+                    <div className="flex flex-wrap items-center justify-between gap-4">
+                        <label htmlFor="f-minimum-attendance-percentage" className="text-sm font-medium">Minimum attendance percentage</label>
+                        <Input id="f-minimum-attendance-percentage"
                             type="number"
                             step="0.01"
                             className="w-32"
@@ -106,9 +106,9 @@ export default function AttendanceSettingsPage() {
                             onChange={(e) => setThreshold(e.target.value)}
                         />
                     </div>
-                    <div className="flex items-center justify-between gap-4">
-                        <label className="text-sm font-medium">Auto-lock after (days, 0 = never)</label>
-                        <Input
+                    <div className="flex flex-wrap items-center justify-between gap-4">
+                        <label htmlFor="f-auto-lock-after-days-0-never" className="text-sm font-medium">Auto-lock after (days, 0 = never)</label>
+                        <Input id="f-auto-lock-after-days-0-never"
                             type="number"
                             min={0}
                             className="w-32"

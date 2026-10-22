@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { EmptyState } from "@/components/feedback/EmptyState";
+import { EmptyHint, FilterBar } from "@/components/common/PageLayout";
 import { ErrorState } from "@/components/feedback/ErrorState";
 import { LoadingState } from "@/components/feedback/LoadingState";
 import { Field, FILTER_SELECT_CLASS, FormDialog, PageHeader, Pager, Pill, formatDate, formatMoney, formatQuantity } from "@/components/dashboard/inventory/shared";
@@ -64,8 +64,8 @@ export default function PurchasesPage() {
                 actions={can("receive_stock") && <Button asChild><Link href="/dashboard/inventory/purchases/new">Record purchase</Link></Button>}
             />
 
-            <form className="flex flex-wrap gap-3" onSubmit={(e) => { e.preventDefault(); change({ search: searchText.trim() }); }}>
-                <Input className="w-full sm:w-64" placeholder="Search reference, supplier or item" value={searchText} onChange={(e) => setSearchText(e.target.value)} />
+            <FilterBar onSubmit={() => change({ search: searchText.trim() })}>
+                <Input aria-label="Search reference, supplier or item" className="w-full sm:w-64" placeholder="Search reference, supplier or item" value={searchText} onChange={(e) => setSearchText(e.target.value)} />
                 <select aria-label="Supplier" className={FILTER_SELECT_CLASS} value={filters.supplier} onChange={(e) => change({ supplier: e.target.value })}>
                     <option value="">All suppliers</option>
                     {(suppliers.data ?? []).map((s) => (
@@ -78,14 +78,14 @@ export default function PurchasesPage() {
                     <option value="cancelled">Cancelled</option>
                 </select>
                 <Button type="submit" variant="outline">Search</Button>
-            </form>
+            </FilterBar>
 
             {isLoading ? (
                 <LoadingState className="py-20" />
             ) : isError ? (
                 <ErrorState message="Failed to load purchases. Please try again." onRetry={refetch} />
             ) : rows.length === 0 ? (
-                <EmptyState title="No purchases recorded yet." className="py-16 text-slate-500 text-sm" />
+                <EmptyHint title="No purchases recorded yet." hint="When you buy supplies, record the purchase here and the stock is added automatically." action={can("receive_stock") ? <Button asChild><Link href="/dashboard/inventory/purchases/new">Record purchase</Link></Button> : undefined} />
             ) : (
                 <div className="rounded-2xl border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden">
                     {rows.map((p) => (

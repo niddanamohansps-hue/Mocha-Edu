@@ -18,6 +18,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Unauthorized from "@/components/Unauthorized";
 import { StatusBadge } from "@/components/common/StatusBadge";
+import { ResponsiveList } from "@/components/common/ResponsiveList";
 
 
 export default function CollectPaymentPage() {
@@ -107,8 +108,8 @@ export default function CollectPaymentPage() {
             </div>
 
             <div className="w-72">
-                <label className="text-xs font-medium text-slate-500 mb-1 block">Student ID</label>
-                <Input placeholder="Paste a student ID" value={studentId} onChange={(e) => setStudentId(e.target.value)} />
+                <label htmlFor="f-student-id" className="text-xs font-medium text-slate-500 mb-1 block">Student ID</label>
+                <Input id="f-student-id" placeholder="Paste a student ID" value={studentId} onChange={(e) => setStudentId(e.target.value)} />
             </div>
 
             {!studentId ? (
@@ -119,7 +120,7 @@ export default function CollectPaymentPage() {
                 <div className="space-y-8">
                     <Card className="border-none shadow-md">
                         <CardContent className="p-6">
-                            <p className="text-xs text-slate-500 uppercase font-bold">Total Outstanding</p>
+                            <p className="text-xs text-slate-500 uppercase font-bold">Total still to pay</p>
                             <p className="text-3xl font-black">{feesData.total_outstanding}</p>
                         </CardContent>
                     </Card>
@@ -129,7 +130,7 @@ export default function CollectPaymentPage() {
                             <h2 className="text-lg font-bold">Assign a Fee</h2>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 items-end">
                                 <div>
-                                    <label className="text-xs font-medium text-slate-500 mb-1 block">Fee Head</label>
+                                    <label className="text-xs font-medium text-slate-500 mb-1 block">Fee type</label>
                                     <Select value={assignForm.fee_head} onValueChange={(v) => setAssignForm((f) => ({ ...f, fee_head: v }))}>
                                         <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                                         <SelectContent>
@@ -140,12 +141,12 @@ export default function CollectPaymentPage() {
                                     </Select>
                                 </div>
                                 <div>
-                                    <label className="text-xs font-medium text-slate-500 mb-1 block">Amount Due</label>
-                                    <Input type="number" value={assignForm.amount_due} onChange={(e) => setAssignForm((f) => ({ ...f, amount_due: e.target.value }))} />
+                                    <label htmlFor="f-amount-due" className="text-xs font-medium text-slate-500 mb-1 block">Amount Due</label>
+                                    <Input id="f-amount-due" type="number" value={assignForm.amount_due} onChange={(e) => setAssignForm((f) => ({ ...f, amount_due: e.target.value }))} />
                                 </div>
                                 <div>
-                                    <label className="text-xs font-medium text-slate-500 mb-1 block">Due Date</label>
-                                    <Input type="date" value={assignForm.due_date} onChange={(e) => setAssignForm((f) => ({ ...f, due_date: e.target.value }))} />
+                                    <label htmlFor="f-due-date" className="text-xs font-medium text-slate-500 mb-1 block">Due Date</label>
+                                    <Input id="f-due-date" type="date" value={assignForm.due_date} onChange={(e) => setAssignForm((f) => ({ ...f, due_date: e.target.value }))} />
                                 </div>
                                 <Button onClick={handleAssign} disabled={assigning || !assignForm.fee_head || !assignForm.amount_due} className="gap-2">
                                     {assigning && <LoaderCircle className="h-4 w-4 animate-spin" />}
@@ -160,71 +161,67 @@ export default function CollectPaymentPage() {
                         {feesData.fees.length === 0 ? (
                             <p className="text-sm text-slate-500 py-4">No fees assigned yet.</p>
                         ) : (
-                            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-                                <table className="w-full text-sm">
-                                    <thead className="bg-slate-50 dark:bg-slate-900">
-                                        <tr className="text-left text-xs font-semibold text-slate-500 uppercase">
-                                            <th className="px-4 py-3">Fee Head</th>
-                                            <th className="px-4 py-3">Due</th>
-                                            <th className="px-4 py-3">Paid</th>
-                                            <th className="px-4 py-3">Outstanding</th>
-                                            <th className="px-4 py-3">Status</th>
-                                            {canCollect && <th className="px-4 py-3">Allocate</th>}
-                                            {canManage && <th className="px-4 py-3"></th>}
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {feesData.fees.map((f) => (
-                                            <tr key={f.id} className="border-t border-slate-100 dark:border-slate-800">
-                                                <td className="px-4 py-2 font-medium">{f.fee_head_name}</td>
-                                                <td className="px-4 py-2">{f.amount_due}</td>
-                                                <td className="px-4 py-2 text-emerald-600">{f.amount_paid}</td>
-                                                <td className="px-4 py-2 font-bold">{f.outstanding_balance}</td>
-                                                <td className="px-4 py-2">
-                                                    <StatusBadge
-                                                        label={f.status}
-                                                        className={f.status === "active" ? "bg-slate-100 text-slate-700" : "bg-red-50 text-red-500"}
-                                                    />
-                                                </td>
-                                                {canCollect && (
-                                                    <td className="px-4 py-2">
-                                                        {f.status === "active" && parseFloat(f.outstanding_balance) > 0 ? (
-                                                            <Input
-                                                                type="number"
-                                                                className="w-28"
-                                                                placeholder="0.00"
-                                                                value={selectedAllocations[f.id] ?? ""}
-                                                                onChange={(e) =>
-                                                                    setSelectedAllocations((s) => ({ ...s, [f.id]: e.target.value }))
-                                                                }
-                                                            />
-                                                        ) : (
-                                                            "—"
-                                                        )}
-                                                    </td>
-                                                )}
-                                                {canManage && (
-                                                    <td className="px-4 py-2">
-                                                        {f.status === "active" && (
-                                                            <div className="flex gap-2 items-center">
-                                                                <Input
-                                                                    className="w-32"
-                                                                    placeholder="Reason"
-                                                                    value={cancelReason[f.id] ?? ""}
-                                                                    onChange={(e) => setCancelReason((s) => ({ ...s, [f.id]: e.target.value }))}
-                                                                />
-                                                                <Button size="sm" variant="ghost" onClick={() => handleCancel(f.id)}>
-                                                                    <XCircle className="h-4 w-4 text-red-500" />
-                                                                </Button>
-                                                            </div>
-                                                        )}
-                                                    </td>
-                                                )}
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
+                                <ResponsiveList
+                                    rows={feesData.fees}
+                                    rowKey={(f) => f.id}
+                                    columns={[
+                                        { key: "head", header: "Fee", primary: true, cell: (f) => f.fee_head_name },
+                                        { key: "outstanding", header: "Still to pay", className: "font-bold", cell: (f) => f.outstanding_balance },
+                                        { key: "due", header: "Amount due", cell: (f) => f.amount_due },
+                                        { key: "paid", header: "Paid", className: "text-emerald-600", cell: (f) => f.amount_paid },
+                                        {
+                                            key: "status",
+                                            header: "Status",
+                                            cell: (f) => (
+                                                <StatusBadge
+                                                    label={f.status}
+                                                    className={f.status === "active" ? "bg-slate-100 text-slate-700" : "bg-red-50 text-red-500"}
+                                                />
+                                            ),
+                                        },
+                                        ...(canCollect
+                                            ? [
+                                                  {
+                                                      key: "allocate",
+                                                      header: "Take payment (NPR)",
+                                                      cell: (f: (typeof feesData.fees)[number]) =>
+                                                          f.status === "active" && parseFloat(f.outstanding_balance) > 0 ? (
+                                                              <Input
+                                                                  type="number"
+                                                                  className="w-28"
+                                                                  placeholder="0.00"
+                                                                  aria-label={`Amount to take for ${f.fee_head_name}`}
+                                                                  value={selectedAllocations[f.id] ?? ""}
+                                                                  onChange={(e) => setSelectedAllocations((s) => ({ ...s, [f.id]: e.target.value }))}
+                                                              />
+                                                          ) : (
+                                                              "—"
+                                                          ),
+                                                  },
+                                              ]
+                                            : []),
+                                    ]}
+                                    actionsHeader="Cancel this fee"
+                                    actions={
+                                        canManage
+                                            ? (f) =>
+                                                  f.status === "active" ? (
+                                                      <div className="flex gap-2 items-center">
+                                                          <Input
+                                                              className="w-32"
+                                                              placeholder="Reason"
+                                                              aria-label={`Reason for cancelling ${f.fee_head_name}`}
+                                                              value={cancelReason[f.id] ?? ""}
+                                                              onChange={(e) => setCancelReason((s) => ({ ...s, [f.id]: e.target.value }))}
+                                                          />
+                                                          <Button size="sm" variant="ghost" aria-label={`Cancel ${f.fee_head_name}`} onClick={() => handleCancel(f.id)}>
+                                                              <XCircle className="h-4 w-4 text-red-500" />
+                                                          </Button>
+                                                      </div>
+                                                  ) : null
+                                            : undefined
+                                    }
+                                />
                         )}
                     </div>
 
@@ -244,7 +241,7 @@ export default function CollectPaymentPage() {
                                     </Select>
                                 </div>
                                 <div>
-                                    <p className="text-xs text-slate-500">Total Allocated</p>
+                                    <p className="text-xs text-slate-500">Amount being paid now</p>
                                     <p className="text-xl font-black">{totalAllocated.toFixed(2)}</p>
                                 </div>
                                 <Button onClick={handleRecordPayment} disabled={recording || totalAllocated <= 0} className="gap-2">
@@ -260,35 +257,26 @@ export default function CollectPaymentPage() {
                         {!payments || payments.length === 0 ? (
                             <p className="text-sm text-slate-500 py-4">No payments recorded yet.</p>
                         ) : (
-                            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-                                <table className="w-full text-sm">
-                                    <thead className="bg-slate-50 dark:bg-slate-900">
-                                        <tr className="text-left text-xs font-semibold text-slate-500 uppercase">
-                                            <th className="px-4 py-3">Receipt</th>
-                                            <th className="px-4 py-3">Amount</th>
-                                            <th className="px-4 py-3">Method</th>
-                                            <th className="px-4 py-3">Status</th>
-                                            <th className="px-4 py-3">Date</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {payments.map((p) => (
-                                            <tr key={p.id} className="border-t border-slate-100 dark:border-slate-800">
-                                                <td className="px-4 py-2 font-mono text-xs">{p.receipt_number}</td>
-                                                <td className="px-4 py-2 font-medium">{p.amount}</td>
-                                                <td className="px-4 py-2 capitalize">{p.method.replace("_", " ")}</td>
-                                                <td className="px-4 py-2">
-                                                    <StatusBadge
-                                                        label={p.status}
-                                                        className={p.status === "completed" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}
-                                                    />
-                                                </td>
-                                                <td className="px-4 py-2 text-slate-500">{new Date(p.created_at).toLocaleDateString()}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
+                                <ResponsiveList
+                                    rows={payments}
+                                    rowKey={(p) => p.id}
+                                    columns={[
+                                        { key: "receipt", header: "Receipt", primary: true, className: "font-mono text-xs", cell: (p) => p.receipt_number },
+                                        { key: "amount", header: "Amount", className: "font-medium", cell: (p) => p.amount },
+                                        { key: "method", header: "Paid by", className: "capitalize", cell: (p) => p.method.replace("_", " ") },
+                                        {
+                                            key: "status",
+                                            header: "Status",
+                                            cell: (p) => (
+                                                <StatusBadge
+                                                    label={p.status}
+                                                    className={p.status === "completed" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}
+                                                />
+                                            ),
+                                        },
+                                        { key: "date", header: "Date", className: "text-slate-500", cell: (p) => new Date(p.created_at).toLocaleDateString() },
+                                    ]}
+                                />
                         )}
                     </div>
                 </div>

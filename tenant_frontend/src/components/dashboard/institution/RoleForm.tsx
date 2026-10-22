@@ -163,7 +163,7 @@ export default function RoleForm({ initialData, permissionGroups, onSubmit, isSu
                 {/* Permissions */}
                 <div className="mt-6">
                     <Card className="border-none shadow-xl shadow-slate-200/50 dark:shadow-none dark:bg-slate-900">
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-6">
+                        <CardHeader className="flex flex-wrap flex-row items-center justify-between gap-2 space-y-0 pb-6">
                             <div>
                                 <CardTitle className="text-xl">Access Permissions</CardTitle>
                                 <CardDescription>Select what this role is allowed to do</CardDescription>
@@ -200,7 +200,7 @@ export default function RoleForm({ initialData, permissionGroups, onSubmit, isSu
                                             <button
                                                 type="button"
                                                 onClick={() => toggleModule(group.module)}
-                                                className="w-full flex items-center justify-between gap-3 px-4 py-3 cursor-pointer group"
+                                                className="w-full flex flex-wrap items-center justify-between gap-3 px-4 py-3 cursor-pointer group"
                                             >
                                                 <span className="flex items-center gap-2">
                                                     <h4 className="font-bold text-sm text-slate-500 dark:text-slate-400 uppercase tracking-widest group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors">

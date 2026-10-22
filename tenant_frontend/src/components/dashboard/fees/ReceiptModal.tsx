@@ -28,7 +28,7 @@ export function ReceiptModal({ paymentId, isOpen, onClose }: ReceiptModalProps) 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
             <DialogContent className="max-w-2xl p-0 overflow-hidden sm:rounded-2xl">
-                <DialogHeader className="p-6 pb-2 border-b border-slate-100 dark:border-slate-800 flex flex-row items-center justify-between">
+                <DialogHeader className="p-6 pb-2 border-b border-slate-100 dark:border-slate-800 flex flex-wrap flex-row items-center justify-between gap-2">
                     <div>
                         <DialogTitle className="text-xl font-bold">Payment Receipt</DialogTitle>
                         <p className="text-xs text-slate-500 mt-1">
@@ -120,10 +120,10 @@ export function ReceiptModal({ paymentId, isOpen, onClose }: ReceiptModalProps) 
                                     Fee Allocation Breakdown
                                 </p>
                                 <div className="rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-                                    <table className="w-full text-sm">
+                                    <div className="w-full overflow-x-auto"><table className="w-full text-sm">
                                         <thead className="bg-slate-50 dark:bg-slate-900">
                                             <tr className="text-left text-xs font-semibold text-slate-500 uppercase">
-                                                <th className="px-4 py-2.5">Fee Head</th>
+                                                <th className="px-4 py-2.5">Fee type</th>
                                                 <th className="px-4 py-2.5 text-right">Amount (NPR)</th>
                                             </tr>
                                         </thead>
@@ -157,7 +157,7 @@ export function ReceiptModal({ paymentId, isOpen, onClose }: ReceiptModalProps) 
                                                 </th>
                                             </tr>
                                         </tfoot>
-                                    </table>
+                                    </table></div>
                                 </div>
                             </div>
 

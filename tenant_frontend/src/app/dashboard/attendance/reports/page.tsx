@@ -1,5 +1,6 @@
 "use client";
 
+import { ResponsiveList } from "@/components/common/ResponsiveList";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { LoaderCircle } from "lucide-react";
 import { useSections } from "@/hooks/useAcademics";
@@ -112,26 +113,15 @@ export default function AttendanceReportsPage() {
                 ) : !belowThreshold || belowThreshold.students.length === 0 ? (
                     <EmptyState title="No students are currently below the threshold." className="py-6 text-slate-500 text-sm" />
                 ) : (
-                    <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-                        <table className="w-full text-sm">
-                            <thead className="bg-slate-50 dark:bg-slate-900">
-                                <tr className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                                    <th className="px-4 py-3">Student</th>
-                                    <th className="px-4 py-3">Enrollment ID</th>
-                                    <th className="px-4 py-3">Percentage</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {belowThreshold.students.map((s) => (
-                                    <tr key={s.student} className="border-t border-slate-100 dark:border-slate-800">
-                                        <td className="px-4 py-2 font-medium">{s.full_name}</td>
-                                        <td className="px-4 py-2 text-slate-500">{s.enrollment_id}</td>
-                                        <td className="px-4 py-2 text-red-600 font-bold">{s.percentage}%</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                        <ResponsiveList
+                            rows={belowThreshold.students}
+                            rowKey={(s) => String(s.student)}
+                            columns={[
+                                { key: "c0", header: "Student", primary: true, className: "font-medium", cell: (s) => (<>{s.full_name}</>), },
+                                { key: "c1", header: "Enrollment ID", className: "text-slate-500", cell: (s) => (<>{s.enrollment_id}</>), },
+                                { key: "c2", header: "Percentage", className: "text-red-600 font-bold", cell: (s) => (<>{s.percentage}%</>), },
+                            ]}
+                        />
                 )}
             </div>
         </div>

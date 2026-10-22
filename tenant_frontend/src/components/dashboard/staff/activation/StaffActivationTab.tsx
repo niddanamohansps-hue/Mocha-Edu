@@ -191,7 +191,7 @@ export default function StaffActivationTab({ onSuccess }: ActivationTabProps) {
                                     const isAdded = selections.find(s => s.staff_id === staff.id);
                                     const fullName = `${staff.profile_details.first_name} ${staff.profile_details.last_name}`;
                                     return (
-                                        <div key={staff.id} className="p-4 flex items-center justify-between group hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                                        <div key={staff.id} className="p-4 flex flex-wrap items-center justify-between gap-2 group hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                                             <div>
                                                 <p className="font-bold text-slate-900 dark:text-white capitalize">{fullName}</p>
                                                 <p className="text-xs text-slate-500 font-mono tracking-tighter uppercase">{staff.employee_id} • {staff.designation}</p>
@@ -219,7 +219,7 @@ export default function StaffActivationTab({ onSuccess }: ActivationTabProps) {
                 {/* Account Preparation Grid */}
                 <Card className="lg:col-span-2 border-none shadow-2xl ring-1 ring-slate-200 dark:ring-slate-800 overflow-hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-md py-0">
                     <CardHeader className="bg-slate-50/50 dark:bg-slate-800/20 border-b border-slate-100 dark:border-slate-800 px-8 py-6">
-                        <div className="flex items-center justify-between">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
                             <div className="space-y-1">
                                 <CardTitle className="text-2xl font-bold">Account Setup</CardTitle>
                                 <CardDescription>Assign system roles and generate credentials.</CardDescription>

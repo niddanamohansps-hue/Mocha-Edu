@@ -1,5 +1,6 @@
 "use client";
 
+import { ResponsiveList } from "@/components/common/ResponsiveList";
 import { useState } from "react";
 import { LoaderCircle } from "lucide-react";
 import { useSections } from "@/hooks/useAcademics";
@@ -88,8 +89,8 @@ export default function SubstitutionsPage() {
                     </Select>
                 </div>
                 <div>
-                    <label className="text-xs font-medium text-slate-500 mb-1 block">Date</label>
-                    <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+                    <label htmlFor="f-date" className="text-xs font-medium text-slate-500 mb-1 block">Date</label>
+                    <Input id="f-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
                 </div>
                 <div>
                     <label className="text-xs font-medium text-slate-500 mb-1 block">Substitute Instructor</label>
@@ -107,8 +108,8 @@ export default function SubstitutionsPage() {
                     </Select>
                 </div>
                 <div className="md:col-span-2">
-                    <label className="text-xs font-medium text-slate-500 mb-1 block">Reason (optional)</label>
-                    <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. sick leave" />
+                    <label htmlFor="f-reason-optional" className="text-xs font-medium text-slate-500 mb-1 block">Reason (optional)</label>
+                    <Input id="f-reason-optional" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. sick leave" />
                 </div>
             </div>
 
@@ -126,24 +127,14 @@ export default function SubstitutionsPage() {
                 ) : !substitutions || substitutions.length === 0 ? (
                     <EmptyState title="No substitutions recorded yet." className="py-6 text-slate-500 text-sm" />
                 ) : (
-                    <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-                        <table className="w-full text-sm">
-                            <thead className="bg-slate-50 dark:bg-slate-900">
-                                <tr className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                                    <th className="px-4 py-3">Date</th>
-                                    <th className="px-4 py-3">Reason</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {substitutions.map((s) => (
-                                    <tr key={s.id} className="border-t border-slate-100 dark:border-slate-800">
-                                        <td className="px-4 py-2">{s.date}</td>
-                                        <td className="px-4 py-2 text-slate-500">{s.reason || "—"}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                        <ResponsiveList
+                            rows={substitutions}
+                            rowKey={(s) => String(s.id)}
+                            columns={[
+                                { key: "c0", header: "Date", primary: true, cell: (s) => (<>{s.date}</>), },
+                                { key: "c1", header: "Reason", className: "text-slate-500", cell: (s) => (<>{s.reason || "—"}</>), },
+                            ]}
+                        />
                 )}
             </div>
         </div>

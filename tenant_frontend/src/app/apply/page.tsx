@@ -276,7 +276,7 @@ export default function PublicApplyPage() {
                             </div>
 
                             <div className="space-y-2">
-                                <div className="flex items-center justify-between">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
                                     <div className="flex items-center gap-1.5">
                                         <Shield className="w-4 h-4 text-amber-600" />
                                         <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
@@ -420,7 +420,7 @@ export default function PublicApplyPage() {
                                         <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">
                                             Student Full Name <span className="text-red-500">*</span>
                                         </Label>
-                                        <Input
+                                        <Input aria-label="e.g. Aarav Sharma"
                                             required
                                             value={enqStudentName}
                                             onChange={(e) => setEnqStudentName(e.target.value)}
@@ -433,7 +433,7 @@ export default function PublicApplyPage() {
                                         <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">
                                             Parent / Guardian Name <span className="text-red-500">*</span>
                                         </Label>
-                                        <Input
+                                        <Input aria-label="e.g. Rajesh Sharma"
                                             required
                                             value={enqGuardianName}
                                             onChange={(e) => setEnqGuardianName(e.target.value)}
@@ -446,9 +446,9 @@ export default function PublicApplyPage() {
                                         <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">
                                             Primary Contact Phone <span className="text-red-500">*</span>
                                         </Label>
-                                        <Input
+                                        <Input aria-label="e.g. 9876543210"
                                             required
-                                            type="tel"
+                                            type="tel" autoComplete="tel"
                                             value={enqPhone}
                                             onChange={(e) => setEnqPhone(e.target.value)}
                                             placeholder="e.g. 9876543210"
@@ -457,11 +457,11 @@ export default function PublicApplyPage() {
                                     </div>
 
                                     <div className="space-y-1.5">
-                                        <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                        <Label htmlFor="f-contact-email-optional" className="text-xs font-bold text-slate-700 dark:text-slate-300">
                                             Contact Email (Optional)
                                         </Label>
-                                        <Input
-                                            type="email"
+                                        <Input id="f-contact-email-optional"
+                                            type="email" autoComplete="email"
                                             value={enqEmail}
                                             onChange={(e) => setEnqEmail(e.target.value)}
                                             placeholder="e.g. parent@example.com"
@@ -507,10 +507,10 @@ export default function PublicApplyPage() {
                                 </div>
 
                                 <div className="space-y-1.5">
-                                    <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                    <Label htmlFor="f-enquiry-message-specific-quest" className="text-xs font-bold text-slate-700 dark:text-slate-300">
                                         Enquiry Message / Specific Questions
                                     </Label>
-                                    <Textarea
+                                    <Textarea id="f-enquiry-message-specific-quest"
                                         rows={3}
                                         value={enqNotes}
                                         onChange={(e) => setEnqNotes(e.target.value)}
@@ -554,7 +554,7 @@ export default function PublicApplyPage() {
                                 className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-10 border border-slate-200 dark:border-slate-800 shadow-sm space-y-8"
                             >
                                 {/* Step Navigation Tracker */}
-                                <div className="flex items-center justify-between pb-6 border-b border-slate-100 dark:border-slate-800">
+                                <div className="flex flex-wrap items-center justify-between gap-2 pb-6 border-b border-slate-100 dark:border-slate-800">
                                     {[
                                         { num: 1, label: "Student Details" },
                                         { num: 2, label: "Guardian Details" },
@@ -608,7 +608,7 @@ export default function PublicApplyPage() {
                                                 <Label className="text-xs font-bold">
                                                     First Name <span className="text-red-500">*</span>
                                                 </Label>
-                                                <Input
+                                                <Input aria-label="First Name"
                                                     required
                                                     value={firstName}
                                                     onChange={(e) => setFirstName(e.target.value)}
@@ -617,8 +617,8 @@ export default function PublicApplyPage() {
                                                 />
                                             </div>
                                             <div className="space-y-1.5">
-                                                <Label className="text-xs font-bold">Middle Name</Label>
-                                                <Input
+                                                <Label htmlFor="f-middle-name" className="text-xs font-bold">Middle Name</Label>
+                                                <Input id="f-middle-name"
                                                     value={middleName}
                                                     onChange={(e) => setMiddleName(e.target.value)}
                                                     placeholder="Middle Name (Optional)"
@@ -629,7 +629,7 @@ export default function PublicApplyPage() {
                                                 <Label className="text-xs font-bold">
                                                     Last Name <span className="text-red-500">*</span>
                                                 </Label>
-                                                <Input
+                                                <Input aria-label="Last Name"
                                                     required
                                                     value={lastName}
                                                     onChange={(e) => setLastName(e.target.value)}
@@ -672,8 +672,8 @@ export default function PublicApplyPage() {
 
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                             <div className="space-y-1.5">
-                                                <Label className="text-xs font-bold">Previous School (If any)</Label>
-                                                <Input
+                                                <Label htmlFor="f-previous-school-if-any" className="text-xs font-bold">Previous School (If any)</Label>
+                                                <Input id="f-previous-school-if-any"
                                                     value={previousSchool}
                                                     onChange={(e) => setPreviousSchool(e.target.value)}
                                                     placeholder="Name of last school attended"
@@ -681,8 +681,8 @@ export default function PublicApplyPage() {
                                                 />
                                             </div>
                                             <div className="space-y-1.5">
-                                                <Label className="text-xs font-bold">Last Grade Passed</Label>
-                                                <Input
+                                                <Label htmlFor="f-last-grade-passed" className="text-xs font-bold">Last Grade Passed</Label>
+                                                <Input id="f-last-grade-passed"
                                                     value={lastGradePassed}
                                                     onChange={(e) => setLastGradePassed(e.target.value)}
                                                     placeholder="e.g. Grade 4"
@@ -692,8 +692,8 @@ export default function PublicApplyPage() {
                                         </div>
 
                                         <div className="space-y-1.5">
-                                            <Label className="text-xs font-bold">Residential Address</Label>
-                                            <Textarea
+                                            <Label htmlFor="f-residential-address" className="text-xs font-bold">Residential Address</Label>
+                                            <Textarea id="f-residential-address"
                                                 rows={2}
                                                 value={studentAddress}
                                                 onChange={(e) => setStudentAddress(e.target.value)}
@@ -732,7 +732,7 @@ export default function PublicApplyPage() {
                                                 <Label className="text-xs font-bold">
                                                     Guardian First Name <span className="text-red-500">*</span>
                                                 </Label>
-                                                <Input
+                                                <Input aria-label="First Name"
                                                     required
                                                     value={guardianFirstName}
                                                     onChange={(e) => setGuardianFirstName(e.target.value)}
@@ -744,7 +744,7 @@ export default function PublicApplyPage() {
                                                 <Label className="text-xs font-bold">
                                                     Guardian Last Name <span className="text-red-500">*</span>
                                                 </Label>
-                                                <Input
+                                                <Input aria-label="Last Name"
                                                     required
                                                     value={guardianLastName}
                                                     onChange={(e) => setGuardianLastName(e.target.value)}
@@ -773,9 +773,9 @@ export default function PublicApplyPage() {
                                                 <Label className="text-xs font-bold">
                                                     Primary Phone Number <span className="text-red-500">*</span>
                                                 </Label>
-                                                <Input
+                                                <Input aria-label="e.g. 9876543210"
                                                     required
-                                                    type="tel"
+                                                    type="tel" autoComplete="tel"
                                                     value={guardianPhone}
                                                     onChange={(e) => setGuardianPhone(e.target.value)}
                                                     placeholder="e.g. 9876543210"
@@ -784,11 +784,11 @@ export default function PublicApplyPage() {
                                             </div>
 
                                             <div className="space-y-1.5">
-                                                <Label className="text-xs font-bold">
+                                                <Label htmlFor="f-email-address-for-acknowledgem" className="text-xs font-bold">
                                                     Email Address (For Acknowledgements)
                                                 </Label>
-                                                <Input
-                                                    type="email"
+                                                <Input id="f-email-address-for-acknowledgem"
+                                                    type="email" autoComplete="email"
                                                     value={guardianEmail}
                                                     onChange={(e) => setGuardianEmail(e.target.value)}
                                                     placeholder="e.g. parent@example.com"
@@ -798,8 +798,8 @@ export default function PublicApplyPage() {
                                         </div>
 
                                         <div className="space-y-1.5">
-                                            <Label className="text-xs font-bold">Occupation / Employer</Label>
-                                            <Input
+                                            <Label htmlFor="f-occupation-employer" className="text-xs font-bold">Occupation / Employer</Label>
+                                            <Input id="f-occupation-employer"
                                                 value={guardianOccupation}
                                                 onChange={(e) => setGuardianOccupation(e.target.value)}
                                                 placeholder="e.g. Engineer, Business, Government Service"
@@ -813,19 +813,19 @@ export default function PublicApplyPage() {
                                                 Secondary Guardian / Emergency Contact (Optional)
                                             </span>
                                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                                <Input
+                                                <Input aria-label="Name"
                                                     value={secGuardianName}
                                                     onChange={(e) => setSecGuardianName(e.target.value)}
                                                     placeholder="Name"
                                                     className="rounded-xl h-10 text-xs"
                                                 />
-                                                <Input
+                                                <Input aria-label="Relationship (e.g. Mother)"
                                                     value={secGuardianRel}
                                                     onChange={(e) => setSecGuardianRel(e.target.value)}
                                                     placeholder="Relationship (e.g. Mother)"
                                                     className="rounded-xl h-10 text-xs"
                                                 />
-                                                <Input
+                                                <Input aria-label="Phone"
                                                     value={secGuardianPhone}
                                                     onChange={(e) => setSecGuardianPhone(e.target.value)}
                                                     placeholder="Phone"
@@ -834,7 +834,7 @@ export default function PublicApplyPage() {
                                             </div>
                                         </div>
 
-                                        <div className="flex items-center justify-between pt-4">
+                                        <div className="flex flex-wrap items-center justify-between gap-2 pt-4">
                                             <Button
                                                 type="button"
                                                 variant="outline"
@@ -906,10 +906,10 @@ export default function PublicApplyPage() {
                                         </div>
 
                                         <div className="space-y-1.5">
-                                            <Label className="text-xs font-bold">
+                                            <Label htmlFor="f-prior-enquiry-number-if-you-al" className="text-xs font-bold">
                                                 Prior Enquiry Number (If you already logged an enquiry)
                                             </Label>
-                                            <Input
+                                            <Input id="f-prior-enquiry-number-if-you-al"
                                                 value={enquiryNumberRef}
                                                 onChange={(e) => setEnquiryNumberRef(e.target.value)}
                                                 placeholder="e.g. ENQ-2026-0001"
@@ -940,7 +940,7 @@ export default function PublicApplyPage() {
                                             </div>
                                         </div>
 
-                                        <div className="flex items-center justify-between pt-4">
+                                        <div className="flex flex-wrap items-center justify-between gap-2 pt-4">
                                             <Button
                                                 type="button"
                                                 variant="outline"
@@ -1018,7 +1018,7 @@ export default function PublicApplyPage() {
                                             </div>
                                         </div>
 
-                                        <div className="flex items-center justify-between pt-4">
+                                        <div className="flex flex-wrap items-center justify-between gap-2 pt-4">
                                             <Button
                                                 type="button"
                                                 variant="outline"

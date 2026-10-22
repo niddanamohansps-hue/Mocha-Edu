@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { EmptyState } from "@/components/feedback/EmptyState";
+import { EmptyHint, FilterBar } from "@/components/common/PageLayout";
 import { ErrorState } from "@/components/feedback/ErrorState";
 import { LoadingState } from "@/components/feedback/LoadingState";
 import { AssetFormDialog } from "@/components/dashboard/inventory/AssetDialogs";
@@ -59,8 +59,8 @@ export default function AssetsPage() {
             />
             <SummaryCards />
 
-            <form className="flex flex-wrap gap-3" onSubmit={(e) => { e.preventDefault(); change({ search: searchText.trim() }); }}>
-                <Input className="w-full sm:w-64" placeholder="Search tag, name or serial number" value={searchText} onChange={(e) => setSearchText(e.target.value)} />
+            <FilterBar onSubmit={() => change({ search: searchText.trim() })}>
+                <Input aria-label="Search tag, name or serial number" className="w-full sm:w-64" placeholder="Search tag, name or serial number" value={searchText} onChange={(e) => setSearchText(e.target.value)} />
                 <select aria-label="Status" className={FILTER_SELECT_CLASS} value={filters.status} onChange={(e) => change({ status: e.target.value as AssetStatus | "" })}>
                     <option value="">All statuses</option>
                     {STATUSES.map((s) => <option key={s} value={s}>{ASSET_STATUS_LABELS[s]}</option>)}
@@ -70,16 +70,17 @@ export default function AssetsPage() {
                     {(categories.data ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
                 <Button type="submit" variant="outline">Search</Button>
-            </form>
+            </FilterBar>
 
             {isLoading ? (
                 <LoadingState className="py-20" />
             ) : isError ? (
                 <ErrorState message="Failed to load assets. Please try again." onRetry={refetch} />
             ) : rows.length === 0 ? (
-                <EmptyState
-                    title={filters.search || filters.status || filters.category ? "No assets match." : "No assets registered yet."}
-                    className="py-16 text-slate-500 text-sm"
+                <EmptyHint
+                    title={filters.search || filters.status || filters.category ? "No assets match your search." : "No assets registered yet."}
+                    hint={filters.search || filters.status || filters.category ? "Try a different word or clear the filters." : "Assets are things like computers, projectors and furniture that you keep track of one by one."}
+                    action={!(filters.search || filters.status || filters.category) && can("manage_assets") ? <Button onClick={() => setRegisterOpen(true)}>Register your first asset</Button> : undefined}
                 />
             ) : (
                 <div className="rounded-2xl border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden">

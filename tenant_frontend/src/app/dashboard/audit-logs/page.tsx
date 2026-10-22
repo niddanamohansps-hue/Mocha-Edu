@@ -197,7 +197,7 @@ export default function AuditLogsPage() {
                         {/* Search Input */}
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                            <Input
+                            <Input aria-label="Search keyword or object ID..."
                                 placeholder="Search keyword or object ID..."
                                 value={searchInput}
                                 onChange={(e) => setSearchInput(e.target.value)}
@@ -208,7 +208,7 @@ export default function AuditLogsPage() {
                         {/* Actor Username Input */}
                         <div className="relative">
                             <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                            <Input
+                            <Input aria-label="Filter by actor username..."
                                 placeholder="Filter by actor username..."
                                 value={actorUsername}
                                 onChange={(e) => setActorUsername(e.target.value)}
@@ -320,7 +320,7 @@ export default function AuditLogsPage() {
             {/* Error State */}
             {isError && (
                 <Card className="border-rose-200 dark:border-rose-900 bg-rose-50/50 dark:bg-rose-950/20">
-                    <CardContent className="p-4 flex items-center justify-between">
+                    <CardContent className="p-4 flex flex-wrap items-center justify-between gap-2">
                         <div className="flex items-center gap-2 text-rose-800 dark:text-rose-300 text-sm">
                             <AlertCircle className="w-5 h-5 shrink-0" />
                             <span>{auditLogErrorMessage(error, "Failed to load audit logs. Please try again.")}</span>

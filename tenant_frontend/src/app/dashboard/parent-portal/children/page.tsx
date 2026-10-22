@@ -48,7 +48,7 @@ export default function ParentPortalChildrenPage() {
                     {children.map((child) => (
                         <Card key={child.student_id} className="border-none shadow-md">
                             <CardContent className="p-5 space-y-2">
-                                <div className="flex items-start justify-between">
+                                <div className="flex flex-wrap items-start justify-between gap-2">
                                     <p className="text-lg font-bold text-slate-900 dark:text-white">
                                         {child.full_name}
                                     </p>

@@ -67,6 +67,7 @@ export default function ForgotPasswordPage() {
                                     <FloatingLabelInput
                                         id="email"
                                         type="email"
+                                    autoComplete="email"
                                         label="Email"
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}

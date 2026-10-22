@@ -87,7 +87,7 @@ export function PersonPicker({
                 </select>
             )}
             {data && (data.next || data.previous) && (
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                     <Button type="button" variant="outline" size="sm" disabled={!data.previous} onClick={() => setPage((p) => Math.max(1, p - 1))}>
                         Previous
                     </Button>

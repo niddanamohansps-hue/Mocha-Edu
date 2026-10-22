@@ -199,7 +199,7 @@ export const PrintableReportCard: React.FC<PrintableReportCardProps> = ({
                                     </div>
                                 </div>
 
-                                <table className="w-full text-xs text-left">
+                                <div className="w-full overflow-x-auto"><table className="w-full text-xs text-left">
                                     <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider">
                                         <tr>
                                             <th className="py-2 px-3">#</th>
@@ -269,7 +269,7 @@ export const PrintableReportCard: React.FC<PrintableReportCardProps> = ({
                                             </td>
                                         </tr>
                                     </tfoot>
-                                </table>
+                                </table></div>
                             </div>
                         ))}
                     </div>

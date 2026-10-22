@@ -86,7 +86,7 @@ export default function DashboardOverview() {
                         {stats.map((stat, i) => (
                             <Card key={i} className="border-none shadow-xl shadow-slate-200/50 dark:shadow-none dark:bg-slate-900 group h-full transition-all hover:-translate-y-1">
                                 <CardContent className="p-8">
-                                    <div className="flex justify-between items-start mb-6">
+                                    <div className="flex flex-wrap justify-between gap-2 items-start mb-6">
                                         <div className={`p-4 bg-${stat.color}-100 dark:bg-${stat.color}-500/10 text-${stat.color}-600 rounded-2xl group-hover:scale-110 transition-transform duration-300`}>
                                             <stat.icon className="h-7 w-7" />
                                         </div>
@@ -104,7 +104,7 @@ export default function DashboardOverview() {
 
                     {/* Recent Activity */}
                     <Card className="border-none shadow-xl shadow-slate-200/50 dark:shadow-none dark:bg-slate-900">
-                        <CardHeader className="flex flex-row items-center justify-between pb-8 border-b border-slate-50 dark:border-slate-800">
+                        <CardHeader className="flex flex-wrap flex-row items-center justify-between gap-2 pb-8 border-b border-slate-50 dark:border-slate-800">
                             <div>
                                 <CardTitle className="text-xl">Recent Promotion Activity</CardTitle>
                                 <CardDescription>Latest student lifecycle changes</CardDescription>

@@ -127,7 +127,7 @@ export default function ParentPortalDashboardPage() {
                             ) : (
                                 <ul className="divide-y divide-slate-100 dark:divide-slate-800">
                                     {upcomingExams.map((exam) => (
-                                        <li key={exam.id} className="py-2 flex justify-between text-sm">
+                                        <li key={exam.id} className="py-2 flex flex-wrap justify-between gap-2 text-sm">
                                             <span className="font-medium">
                                                 {exam.examination_name} — {exam.subject_name}
                                             </span>

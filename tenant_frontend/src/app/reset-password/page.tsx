@@ -110,6 +110,7 @@ function ResetPasswordContent() {
                                     <FloatingLabelInput
                                         id="new-password"
                                         type="password"
+                                        autoComplete="new-password"
                                         label="New password"
                                         value={newPassword}
                                         onChange={(e) => setNewPassword(e.target.value)}
@@ -119,6 +120,7 @@ function ResetPasswordContent() {
                                     <FloatingLabelInput
                                         id="confirm-password"
                                         type="password"
+                                        autoComplete="new-password"
                                         label="Confirm new password"
                                         value={confirmPassword}
                                         onChange={(e) => setConfirmPassword(e.target.value)}

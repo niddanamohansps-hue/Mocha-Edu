@@ -383,7 +383,7 @@ export default function ApplicationDetailDrawer({
 
                         {/* Tabs */}
                         <Tabs defaultValue="overview" className="w-full">
-                            <TabsList className="bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl grid grid-cols-4 w-full">
+                            <TabsList className="bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl grid grid-cols-2 sm:grid-cols-4 w-full h-auto">
                                 <TabsTrigger value="overview" className="rounded-xl font-semibold text-xs">
                                     <User className="w-3.5 h-3.5 mr-1.5" />
                                     Student & Guardians
@@ -507,7 +507,7 @@ export default function ApplicationDetailDrawer({
                                                     <SelectItem value="other">Other Document</SelectItem>
                                                 </SelectContent>
                                             </Select>
-                                            <Input
+                                            <Input aria-label="Title / Description (Optional)"
                                                 placeholder="Title / Description (Optional)"
                                                 value={docTitle}
                                                 onChange={(e) => setDocTitle(e.target.value)}
@@ -634,10 +634,10 @@ export default function ApplicationDetailDrawer({
                                 {/* Inline Document Rejection Modal */}
                                 {rejectingDocId && (
                                     <div className="p-4 rounded-2xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 space-y-3">
-                                        <Label className="text-xs font-bold text-red-900 dark:text-red-200">
+                                        <Label htmlFor="f-specify-reason-for-rejecting-d" className="text-xs font-bold text-red-900 dark:text-red-200">
                                             Specify Reason for Rejecting Document *
                                         </Label>
-                                        <Input
+                                        <Input id="f-specify-reason-for-rejecting-d"
                                             value={rejectionReason}
                                             onChange={(e) => setRejectionReason(e.target.value)}
                                             placeholder="e.g. Incomplete scan, missing signature, seal not clear..."
@@ -730,7 +730,7 @@ export default function ApplicationDetailDrawer({
                                                 key={iv.id}
                                                 className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 space-y-2"
                                             >
-                                                <div className="flex items-center justify-between">
+                                                <div className="flex flex-wrap items-center justify-between gap-2">
                                                     <div className="flex items-center gap-2">
                                                         <span className="font-bold text-sm text-slate-800 dark:text-white">
                                                             {iv.interview_type_display}
@@ -776,7 +776,7 @@ export default function ApplicationDetailDrawer({
                                         application.activities?.map((act) => (
                                             <div
                                                 key={act.id}
-                                                className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 flex items-start justify-between text-xs"
+                                                className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 flex flex-wrap items-start justify-between gap-2 text-xs"
                                             >
                                                 <div>
                                                     <div className="font-bold text-slate-800 dark:text-white capitalize">

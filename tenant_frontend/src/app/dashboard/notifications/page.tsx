@@ -97,7 +97,7 @@ export default function NotificationsPage() {
                             <div className="flex items-start gap-3">
                                 {!n.is_read && <span className="mt-1.5 h-2 w-2 rounded-full bg-sky-500 flex-shrink-0" />}
                                 <div className="min-w-0 flex-1">
-                                    <div className="flex items-center justify-between gap-2">
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
                                         <p className="font-semibold text-slate-800 dark:text-slate-200">{n.title}</p>
                                         {n.category && (
                                             <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400 flex-shrink-0">
@@ -117,7 +117,7 @@ export default function NotificationsPage() {
             )}
 
             {data && (data.next || data.previous) && (
-                <div className="flex items-center justify-between pt-2">
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
                     <Button variant="outline" size="sm" disabled={!data.previous} onClick={() => setPage((p) => Math.max(1, p - 1))}>
                         Previous
                     </Button>

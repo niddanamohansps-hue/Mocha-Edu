@@ -163,7 +163,7 @@ export default function StaffLeavesPage() {
                 <TabsContent value="my-leaves" className="space-y-6">
                     {/* Balance Quotas */}
                     <div className="space-y-2">
-                        <div className="flex items-center justify-between">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
                             <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-200">
                                 My Leave Quotas ({academicYear || "Active Year"})
                             </h2>
@@ -423,7 +423,7 @@ export default function StaffLeavesPage() {
                 {/* ========================================================= */}
                 {canViewAll && (
                     <TabsContent value="staff-quotas" className="space-y-4">
-                        <div className="flex items-center justify-between">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
                             <div>
                                 <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-200">
                                     School Staff Leave Balances ({academicYear || "Active Year"})

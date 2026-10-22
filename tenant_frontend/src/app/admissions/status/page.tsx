@@ -215,7 +215,7 @@ function StatusContent() {
                                 <Label className="text-xs font-bold">
                                     Application Reference <span className="text-red-500">*</span>
                                 </Label>
-                                <Input
+                                <Input aria-label="e.g. APP-2026-0001"
                                     required
                                     placeholder="e.g. APP-2026-0001"
                                     value={appNumberInput}
@@ -229,7 +229,7 @@ function StatusContent() {
                                     <KeyRound className="w-3.5 h-3.5 text-amber-500" />
                                     Access Token <span className="text-red-500">*</span>
                                 </Label>
-                                <Input
+                                <Input aria-label="Paste private access token"
                                     required
                                     type="password"
                                     placeholder="Paste private access token"
@@ -414,8 +414,8 @@ function StatusContent() {
                                         </div>
 
                                         <div className="space-y-1">
-                                            <Label className="text-[11px] font-bold">Document Title (Optional)</Label>
-                                            <Input
+                                            <Label htmlFor="f-document-title-optional" className="text-[11px] font-bold">Document Title (Optional)</Label>
+                                            <Input id="f-document-title-optional"
                                                 value={docTitle}
                                                 onChange={(e) => setDocTitle(e.target.value)}
                                                 placeholder="e.g. Birth Certificate Copy"

@@ -119,7 +119,7 @@ export function ApplyLeaveDialog({ open, onOpenChange }: ApplyLeaveDialogProps) 
                                     const avail = bal ? bal.available_days : type.annual_allocation_days;
                                     return (
                                         <SelectItem key={type.id} value={type.id}>
-                                            <div className="flex items-center justify-between gap-4 w-full">
+                                            <div className="flex flex-wrap items-center justify-between gap-4 w-full">
                                                 <span>{type.name} ({type.code})</span>
                                                 <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                                                     {avail}d available
@@ -147,7 +147,7 @@ export function ApplyLeaveDialog({ open, onOpenChange }: ApplyLeaveDialogProps) 
                     </div>
 
                     {/* Half Day Toggle */}
-                    <div className="flex items-center justify-between p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
+                    <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
                         <div className="space-y-0.5">
                             <Label htmlFor="halfDay" className="text-sm font-medium">Half-Day Leave</Label>
                             <p className="text-xs text-slate-500">Apply for a 0.5-day morning or afternoon absence</p>

@@ -308,7 +308,7 @@ export default function TimetablePage() {
                         </div>
                     </div>
 
-                    <div className="flex justify-between pt-2">
+                    <div className="flex flex-wrap justify-between gap-2 pt-2">
                         {dialogState?.entry ? (
                             <Button variant="outline" className="text-red-600 gap-2" onClick={handleDelete}>
                                 <Trash2 className="h-4 w-4" />

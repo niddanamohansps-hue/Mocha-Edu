@@ -77,7 +77,7 @@ export default function ManageAnnouncementDetailPage() {
                             ) : (
                                 <div className="rounded-2xl border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden">
                                     {recipients.data?.results.map((r) => (
-                                        <div key={r.user_id} className="flex items-center justify-between gap-3 px-4 py-2 text-sm">
+                                        <div key={r.user_id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-2 text-sm">
                                             <span className="font-mono text-xs text-slate-500 break-all">{r.user_id}</span>
                                             <span className="text-xs text-slate-400 flex-shrink-0">
                                                 {r.email_sent ? "Emailed" : "In-app only"}
@@ -87,7 +87,7 @@ export default function ManageAnnouncementDetailPage() {
                                 </div>
                             )}
                             {recipients.data && (recipients.data.next || recipients.data.previous) && (
-                                <div className="flex items-center justify-between">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
                                     <Button variant="outline" size="sm" disabled={!recipients.data.previous} onClick={() => setRecipientPage((p) => Math.max(1, p - 1))}>
                                         Previous
                                     </Button>

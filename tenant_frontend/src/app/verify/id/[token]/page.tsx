@@ -33,15 +33,15 @@ export default function VerifyIdCardPage() {
                         {data.valid ? "This ID card is valid" : "This ID card is no longer active"}
                     </div>
                     <dl className="rounded-2xl border border-slate-200 divide-y divide-slate-100 px-5 text-sm">
-                        <div className="flex justify-between gap-4 py-3">
+                        <div className="flex flex-wrap justify-between gap-4 py-3">
                             <dt className="text-slate-500">School</dt>
                             <dd className="font-medium text-slate-900 text-right">{data.school_name}</dd>
                         </div>
-                        <div className="flex justify-between gap-4 py-3">
+                        <div className="flex flex-wrap justify-between gap-4 py-3">
                             <dt className="text-slate-500">Card holder</dt>
                             <dd className="font-medium text-slate-900 text-right">{data.holder}</dd>
                         </div>
-                        <div className="flex justify-between gap-4 py-3">
+                        <div className="flex flex-wrap justify-between gap-4 py-3">
                             <dt className="text-slate-500">Type</dt>
                             <dd className="font-medium text-slate-900 text-right capitalize">{data.kind}</dd>
                         </div>

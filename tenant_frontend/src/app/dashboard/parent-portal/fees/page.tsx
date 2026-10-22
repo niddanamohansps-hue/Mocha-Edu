@@ -19,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Unauthorized from "@/components/Unauthorized";
 import ChildSwitcher from "@/components/parent-portal/ChildSwitcher";
 import { StatusBadge } from "@/components/common/StatusBadge";
+import { ResponsiveList } from "@/components/common/ResponsiveList";
 import { PaymentReviewModal } from "@/components/dashboard/fees/PaymentReviewModal";
 import { ReceiptModal } from "@/components/dashboard/fees/ReceiptModal";
 import { OnlineOrdersTable } from "@/components/dashboard/fees/OnlineOrdersTable";
@@ -151,7 +152,7 @@ export default function ParentPortalFeesPage() {
                         <Card className="border border-slate-200 dark:border-slate-800 shadow-sm rounded-2xl">
                             <CardContent className="p-5">
                                 <p className="text-xs text-slate-500 uppercase font-bold tracking-wider">
-                                    Total Outstanding
+                                    Total still to pay
                                 </p>
                                 <p className="text-3xl font-black font-mono text-slate-900 dark:text-white mt-1">
                                     NPR {Number(feeData.total_outstanding).toFixed(2)}
@@ -232,92 +233,61 @@ export default function ParentPortalFeesPage() {
                                     No fees assigned to this student.
                                 </div>
                             ) : (
-                                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs">
-                                    <table className="w-full text-sm">
-                                        <thead className="bg-slate-50 dark:bg-slate-900">
-                                            <tr className="text-left text-xs font-semibold text-slate-500 uppercase">
-                                                {canPay && (
-                                                    <th className="px-4 py-3 w-10">
-                                                        <Checkbox
-                                                            checked={isAllSelected}
-                                                            onCheckedChange={handleSelectAll}
-                                                            disabled={eligibleFees.length === 0}
-                                                            aria-label="Select all eligible fees"
-                                                        />
-                                                    </th>
-                                                )}
-                                                <th className="px-4 py-3">Fee Head</th>
-                                                <th className="px-4 py-3">Academic Year</th>
-                                                <th className="px-4 py-3">Amount Due</th>
-                                                <th className="px-4 py-3">Discount</th>
-                                                <th className="px-4 py-3">Paid</th>
-                                                <th className="px-4 py-3">Outstanding</th>
-                                                <th className="px-4 py-3">Due Date</th>
-                                                <th className="px-4 py-3">Status</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                            {feeData.fees.map((f) => {
-                                                const isEligible =
-                                                    f.status === "active" && parseFloat(f.outstanding_balance) > 0;
-                                                const isSelected = selectedFeeIds.includes(f.id);
-
-                                                return (
-                                                    <tr
-                                                        key={f.id}
-                                                        className={`hover:bg-slate-50/60 dark:hover:bg-slate-900/60 ${
-                                                            isSelected ? "bg-indigo-50/40 dark:bg-indigo-950/20" : ""
-                                                        }`}
-                                                    >
-                                                        {canPay && (
-                                                            <td className="px-4 py-3">
-                                                                <Checkbox
-                                                                    checked={isSelected}
-                                                                    onCheckedChange={() => handleToggleFee(f.id)}
-                                                                    disabled={!isEligible}
-                                                                    aria-label={`Select ${f.fee_head}`}
-                                                                />
-                                                            </td>
-                                                        )}
-                                                        <td className="px-4 py-3 font-medium text-slate-900 dark:text-slate-100">
-                                                            {f.fee_head}
-                                                        </td>
-                                                        <td className="px-4 py-3 text-xs text-slate-500 font-mono">
-                                                            {f.academic_year || "—"}
-                                                        </td>
-                                                        <td className="px-4 py-3 font-mono">
-                                                            NPR {Number(f.amount_due).toFixed(2)}
-                                                        </td>
-                                                        <td className="px-4 py-3 text-xs font-mono text-slate-400">
-                                                            {parseFloat(f.discount_amount) > 0
-                                                                ? `NPR ${Number(f.discount_amount).toFixed(2)}`
-                                                                : "—"}
-                                                        </td>
-                                                        <td className="px-4 py-3 font-mono text-emerald-600 font-medium">
-                                                            NPR {Number(f.amount_paid).toFixed(2)}
-                                                        </td>
-                                                        <td className="px-4 py-3 font-mono font-bold text-slate-900 dark:text-slate-100">
-                                                            NPR {Number(f.outstanding_balance).toFixed(2)}
-                                                        </td>
-                                                        <td className="px-4 py-3 text-xs text-slate-500">
-                                                            {f.due_date ? new Date(f.due_date).toLocaleDateString() : "—"}
-                                                        </td>
-                                                        <td className="px-4 py-3">
-                                                            <StatusBadge
-                                                                label={f.status}
-                                                                className={
-                                                                    f.status === "active"
-                                                                        ? "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
-                                                                        : "bg-red-50 text-red-500 dark:bg-red-950 dark:text-red-400"
-                                                                }
-                                                            />
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
-                                </div>
+                                <ResponsiveList
+                                    rows={feeData.fees}
+                                    rowKey={(f) => f.id}
+                                    rowClassName={(f) => (selectedFeeIds.includes(f.id) ? "bg-indigo-50/40 dark:bg-indigo-950/20" : "")}
+                                    leading={
+                                        canPay
+                                            ? {
+                                                  header: (
+                                                      <Checkbox
+                                                          checked={isAllSelected}
+                                                          onCheckedChange={handleSelectAll}
+                                                          disabled={eligibleFees.length === 0}
+                                                          aria-label="Select all eligible fees"
+                                                      />
+                                                  ),
+                                                  cell: (f) => (
+                                                      <Checkbox
+                                                          checked={selectedFeeIds.includes(f.id)}
+                                                          onCheckedChange={() => handleToggleFee(f.id)}
+                                                          disabled={!(f.status === "active" && parseFloat(f.outstanding_balance) > 0)}
+                                                          aria-label={`Select ${f.fee_head}`}
+                                                      />
+                                                  ),
+                                              }
+                                            : undefined
+                                    }
+                                    columns={[
+                                        { key: "head", header: "Fee", primary: true, cell: (f) => f.fee_head },
+                                        { key: "outstanding", header: "Still to pay", className: "font-mono font-bold", cell: (f) => `NPR ${Number(f.outstanding_balance).toFixed(2)}` },
+                                        { key: "due", header: "Due date", className: "text-slate-500", cell: (f) => (f.due_date ? new Date(f.due_date).toLocaleDateString() : "—") },
+                                        { key: "amount", header: "Amount due", className: "font-mono", cell: (f) => `NPR ${Number(f.amount_due).toFixed(2)}` },
+                                        {
+                                            key: "discount",
+                                            header: "Discount",
+                                            className: "font-mono text-slate-400",
+                                            cell: (f) => (parseFloat(f.discount_amount) > 0 ? `NPR ${Number(f.discount_amount).toFixed(2)}` : "—"),
+                                        },
+                                        { key: "paid", header: "Paid", className: "font-mono text-emerald-600 font-medium", cell: (f) => `NPR ${Number(f.amount_paid).toFixed(2)}` },
+                                        { key: "year", header: "Academic year", className: "text-slate-500 font-mono", cell: (f) => f.academic_year || "—" },
+                                        {
+                                            key: "status",
+                                            header: "Status",
+                                            cell: (f) => (
+                                                <StatusBadge
+                                                    label={f.status}
+                                                    className={
+                                                        f.status === "active"
+                                                            ? "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                                                            : "bg-red-50 text-red-500 dark:bg-red-950 dark:text-red-400"
+                                                    }
+                                                />
+                                            ),
+                                        },
+                                    ]}
+                                />
                             )}
 
                             {/* Floating / Bottom Pay Bar */}
@@ -349,70 +319,53 @@ export default function ParentPortalFeesPage() {
                                     No completed payments or official receipts recorded for this child.
                                 </div>
                             ) : (
-                                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs">
-                                    <table className="w-full text-sm">
-                                        <thead className="bg-slate-50 dark:bg-slate-900">
-                                            <tr className="text-left text-xs font-semibold text-slate-500 uppercase">
-                                                <th className="px-4 py-3">Receipt Number</th>
-                                                <th className="px-4 py-3">Amount</th>
-                                                <th className="px-4 py-3">Payment Method</th>
-                                                <th className="px-4 py-3">Date</th>
-                                                <th className="px-4 py-3">Status</th>
-                                                <th className="px-4 py-3 text-right">Action</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                            {feeData.payments.map((p) => (
-                                                <tr key={p.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/50">
-                                                    <td className="px-4 py-3 font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400">
-                                                        {p.receipt_number}
-                                                    </td>
-                                                    <td className="px-4 py-3 font-mono font-medium text-slate-900 dark:text-slate-100">
-                                                        NPR {Number(p.amount).toFixed(2)}
-                                                    </td>
-                                                    <td className="px-4 py-3 capitalize text-xs text-slate-600 dark:text-slate-400">
-                                                        {p.method.replace("_", " ")}
-                                                    </td>
-                                                    <td className="px-4 py-3 text-xs text-slate-500">
-                                                        {new Date(p.created_at).toLocaleDateString()}
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        <span
-                                                            className={`inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full ${
-                                                                p.status === "completed"
-                                                                    ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
-                                                                    : "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300"
-                                                            }`}
-                                                        >
-                                                            {p.status === "completed" ? (
-                                                                <>
-                                                                    <CheckCircle2 className="h-3 w-3" />
-                                                                    Completed
-                                                                </>
-                                                            ) : (
-                                                                <>
-                                                                    <AlertCircle className="h-3 w-3" />
-                                                                    Reversed
-                                                                </>
-                                                            )}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-4 py-3 text-right">
-                                                        <Button
-                                                            size="sm"
-                                                            variant="outline"
-                                                            onClick={() => setSelectedReceiptPaymentId(p.id)}
-                                                            className="gap-1.5 text-xs h-7 border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300"
-                                                        >
-                                                            <Receipt className="h-3.5 w-3.5" />
-                                                            View Receipt
-                                                        </Button>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
+                                <ResponsiveList
+                                    rows={feeData.payments}
+                                    rowKey={(p) => p.id}
+                                    columns={[
+                                        { key: "receipt", header: "Receipt", primary: true, className: "font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400", cell: (p) => p.receipt_number },
+                                        { key: "amount", header: "Amount", className: "font-mono font-medium", cell: (p) => `NPR ${Number(p.amount).toFixed(2)}` },
+                                        { key: "method", header: "Paid by", className: "capitalize", cell: (p) => p.method.replace("_", " ") },
+                                        { key: "date", header: "Date", className: "text-slate-500", cell: (p) => new Date(p.created_at).toLocaleDateString() },
+                                        {
+                                            key: "status",
+                                            header: "Status",
+                                            cell: (p) => (
+                                                <span
+                                                    className={`inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full ${
+                                                        p.status === "completed"
+                                                            ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                                                            : "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300"
+                                                    }`}
+                                                >
+                                                    {p.status === "completed" ? (
+                                                        <>
+                                                            <CheckCircle2 className="h-3 w-3" />
+                                                            Completed
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <AlertCircle className="h-3 w-3" />
+                                                            Reversed
+                                                        </>
+                                                    )}
+                                                </span>
+                                            ),
+                                        },
+                                    ]}
+                                    actionsHeader="Receipt"
+                                    actions={(p) => (
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => setSelectedReceiptPaymentId(p.id)}
+                                            className="gap-1.5 border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300"
+                                        >
+                                            <Receipt className="h-3.5 w-3.5" />
+                                            View receipt
+                                        </Button>
+                                    )}
+                                />
                             )}
                         </TabsContent>
 
