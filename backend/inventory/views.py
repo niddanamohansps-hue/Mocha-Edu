@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from django.db import connection
-from django.db.models import DecimalField, F, Q, Sum, Value
+from django.db.models import Count, DecimalField, F, Prefetch, Q, Sum, Value
 from django.db.models.deletion import ProtectedError
 from django.db.models.functions import Coalesce
 from django_filters.rest_framework import DjangoFilterBackend
@@ -16,10 +16,33 @@ from core.audit import log_action
 from core.pagination import StandardResultsPagination
 from roles.permissions import HasPermission
 
-from . import services
-from .models import Item, ItemCategory, Purchase, StockLevel, StockLocation, StockMovement, Supplier
+from . import asset_services, services
+from .models import (
+    Asset,
+    AssetAssignment,
+    AssetCategory,
+    Item,
+    ItemCategory,
+    Purchase,
+    StockLevel,
+    StockLocation,
+    StockMovement,
+    Supplier,
+)
 from .serializers import (
     AdjustSerializer,
+    AssetAssignInputSerializer,
+    AssetAssignmentSerializer,
+    AssetCategorySerializer,
+    AssetCreateSerializer,
+    AssetEventSerializer,
+    AssetFoundInputSerializer,
+    AssetMoveInputSerializer,
+    AssetReasonInputSerializer,
+    AssetRepairCompleteInputSerializer,
+    AssetReturnInputSerializer,
+    AssetSerializer,
+    MaintenanceRecordSerializer,
     IssueSerializer,
     ItemCategorySerializer,
     ItemSerializer,
@@ -261,3 +284,131 @@ class PurchaseViewSet(InventoryBaseViewSet, mixins.ListModelMixin, mixins.Retrie
         log_action(request, action="purchase_cancelled", model_name="Purchase", object_id=purchase.pk,
                    changes={"reason": purchase.cancellation_reason})
         return Response(PurchaseSerializer(self.get_queryset().get(pk=purchase.pk)).data)
+
+
+class AssetCategoryViewSet(ConfigViewSet):
+    serializer_class = AssetCategorySerializer
+    queryset = AssetCategory.objects.all()
+    read_permission = "view_assets"
+    write_permission = "manage_assets"
+    filter_backends = [SearchFilter, OrderingFilter]
+    search_fields = ["name"]
+
+
+class AssetViewSet(InventoryBaseViewSet, mixins.ListModelMixin, mixins.RetrieveModelMixin,
+                   mixins.CreateModelMixin, mixins.UpdateModelMixin):
+    """The asset register. Assets are never deleted; status and holder change only through the actions."""
+
+    read_permission = "view_assets"
+    write_permission = "manage_assets"
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ["category", "status", "condition", "location", "supplier"]
+    search_fields = ["tag", "name", "serial_number"]
+    ordering_fields = ["tag", "name", "purchase_date", "created_at"]
+    ACTION_PERMISSIONS = {"assign": "assign_assets", "return_asset": "assign_assets", "move": "assign_assets"}
+    READ_ACTIONS = ("history", "assignments", "maintenance", "summary")
+
+    def get_serializer_class(self):
+        return AssetCreateSerializer if self.action == "create" else AssetSerializer
+
+    def get_queryset(self):
+        open_assignments = AssetAssignment.objects.filter(returned_at__isnull=True).select_related(
+            "staff__profile", "location"
+        )
+        return (
+            Asset.objects.select_related("category", "supplier", "location")
+            .prefetch_related(Prefetch("assignments", queryset=open_assignments, to_attr="open_assignments"))
+            .order_by("tag")
+        )
+
+    def get_permissions(self):
+        if self.action in self.ACTION_PERMISSIONS:
+            return [IsAuthenticated(), HasPermission(self.ACTION_PERMISSIONS[self.action])]
+        if self.action in self.READ_ACTIONS:
+            return [IsAuthenticated(), HasPermission(self.read_permission)]
+        return super().get_permissions()
+
+    def _fresh(self, asset):
+        return AssetSerializer(self.get_queryset().get(pk=asset.pk)).data
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        asset = asset_services.register(user_id=request.user.id, **serializer.validated_data)
+        log_action(request, action="asset_registered", model_name="Asset", object_id=asset.pk, changes={"tag": asset.tag})
+        return Response(self._fresh(asset), status=status.HTTP_201_CREATED)
+
+    def perform_update(self, serializer):
+        asset = serializer.save()
+        log_action(self.request, action="asset_updated", model_name="Asset", object_id=asset.pk)
+
+    def _act(self, request, input_serializer, operation, action_name):
+        serializer = input_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        asset = operation(self.get_object(), user_id=request.user.id, **serializer.validated_data)
+        log_action(request, action=action_name, model_name="Asset", object_id=asset.pk, changes={"status": asset.status})
+        return Response(self._fresh(asset))
+
+    @action(detail=True, methods=["post"])
+    def assign(self, request, pk=None):
+        return self._act(request, AssetAssignInputSerializer, asset_services.assign, "asset_assigned")
+
+    @action(detail=True, methods=["post"], url_path="return")
+    def return_asset(self, request, pk=None):
+        return self._act(request, AssetReturnInputSerializer, asset_services.return_asset, "asset_returned")
+
+    @action(detail=True, methods=["post"])
+    def move(self, request, pk=None):
+        return self._act(request, AssetMoveInputSerializer, asset_services.move, "asset_moved")
+
+    @action(detail=True, methods=["post"])
+    def repair(self, request, pk=None):
+        return self._act(request, AssetReasonInputSerializer, asset_services.send_to_repair, "asset_sent_to_repair")
+
+    @action(detail=True, methods=["post"], url_path="complete-repair")
+    def complete_repair(self, request, pk=None):
+        return self._act(request, AssetRepairCompleteInputSerializer, asset_services.complete_repair, "asset_repaired")
+
+    @action(detail=True, methods=["post"])
+    def lost(self, request, pk=None):
+        return self._act(request, AssetReasonInputSerializer, asset_services.mark_lost, "asset_marked_lost")
+
+    @action(detail=True, methods=["post"])
+    def found(self, request, pk=None):
+        return self._act(request, AssetFoundInputSerializer, asset_services.mark_found, "asset_found")
+
+    @action(detail=True, methods=["post"])
+    def dispose(self, request, pk=None):
+        return self._act(request, AssetReasonInputSerializer, asset_services.dispose, "asset_disposed")
+
+    def _page(self, queryset, serializer_class):
+        page = self.paginate_queryset(queryset)
+        return self.get_paginated_response(serializer_class(page, many=True).data)
+
+    @action(detail=True, methods=["get"])
+    def history(self, request, pk=None):
+        return self._page(self.get_object().events.all(), AssetEventSerializer)
+
+    @action(detail=True, methods=["get"])
+    def assignments(self, request, pk=None):
+        queryset = self.get_object().assignments.select_related("staff__profile", "location")
+        return self._page(queryset, AssetAssignmentSerializer)
+
+    @action(detail=True, methods=["get"])
+    def maintenance(self, request, pk=None):
+        return self._page(self.get_object().maintenance.all(), MaintenanceRecordSerializer)
+
+    @action(detail=False, methods=["get"])
+    def summary(self, request):
+        """Counts by status and category, and the purchase cost of everything not disposed of."""
+        assets = Asset.objects.all()
+        in_service = assets.exclude(status=Asset.Status.DISPOSED)
+        by_status = {row["status"]: row["n"] for row in assets.values("status").annotate(n=Count("id"))}
+        by_category = in_service.values("category__name").annotate(n=Count("id")).order_by("category__name")
+        cost = in_service.aggregate(total=Sum("purchase_cost"))["total"] or Decimal("0")
+        return Response({
+            "total": assets.count(),
+            "by_status": {value: by_status.get(value, 0) for value in Asset.Status.values},
+            "by_category": [{"category": row["category__name"], "count": row["n"]} for row in by_category],
+            "purchase_cost_in_service": f"{cost:.2f}",
+        })

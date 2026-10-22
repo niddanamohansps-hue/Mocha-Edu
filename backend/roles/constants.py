@@ -713,4 +713,22 @@ SYSTEM_PERMISSIONS = [
         "module": "Inventory",
         "description": "Correct counts, write stock off and reverse stock movements",
     },
+    {
+        "codename": "view_assets",
+        "name": "View Assets",
+        "module": "Inventory",
+        "description": "View the asset register, its history and reports",
+    },
+    {
+        "codename": "manage_assets",
+        "name": "Manage Assets",
+        "module": "Inventory",
+        "description": "Register and edit assets, send them to repair, mark them lost or found and dispose of them",
+    },
+    {
+        "codename": "assign_assets",
+        "name": "Assign Assets",
+        "module": "Inventory",
+        "description": "Give assets to staff or places, take them back and move them between locations",
+    },
 ]

@@ -5,7 +5,21 @@ from rest_framework import serializers
 
 from staff.models import StaffMember
 
-from .models import Item, ItemCategory, Purchase, PurchaseLine, StockLevel, StockLocation, StockMovement, Supplier
+from .models import (
+    Asset,
+    AssetAssignment,
+    AssetCategory,
+    AssetEvent,
+    Item,
+    ItemCategory,
+    MaintenanceRecord,
+    Purchase,
+    PurchaseLine,
+    StockLevel,
+    StockLocation,
+    StockMovement,
+    Supplier,
+)
 
 QUANTITY_INPUT = {"max_digits": 12, "decimal_places": 3, "min_value": Decimal("0.001")}
 
@@ -182,3 +196,120 @@ class PurchaseCreateSerializer(serializers.Serializer):
     reference = serializers.CharField(max_length=100, required=False, allow_blank=True, default="")
     notes = serializers.CharField(max_length=255, required=False, allow_blank=True, default="")
     lines = PurchaseLineInputSerializer(many=True, allow_empty=False, max_length=200)
+
+
+class AssetCategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AssetCategory
+        fields = ("id", "name", "description", "created_at", "updated_at")
+        read_only_fields = ("id", "created_at", "updated_at")
+
+
+class AssetAssignmentSerializer(serializers.ModelSerializer):
+    staff_name = serializers.SerializerMethodField()
+    location_name = serializers.CharField(source="location.name", read_only=True, default=None)
+
+    class Meta:
+        model = AssetAssignment
+        fields = ("id", "staff", "staff_name", "location", "location_name", "note", "assigned_at",
+                  "assigned_by_user_id", "returned_at", "returned_by_user_id", "return_condition")
+        read_only_fields = fields
+
+    def get_staff_name(self, assignment):
+        if assignment.staff_id is None:
+            return None
+        profile = assignment.staff.profile
+        return f"{profile.first_name} {profile.last_name}".strip()
+
+
+class AssetSerializer(serializers.ModelSerializer):
+    """Descriptive fields are editable; status, location and holder change only through the actions."""
+
+    category_name = serializers.CharField(source="category.name", read_only=True)
+    supplier_name = serializers.CharField(source="supplier.name", read_only=True, default=None)
+    location_name = serializers.CharField(source="location.name", read_only=True, default=None)
+    current_assignment = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Asset
+        fields = (
+            "id", "tag", "name", "category", "category_name", "serial_number", "description", "supplier",
+            "supplier_name", "purchase_date", "purchase_cost", "condition", "status", "location", "location_name",
+            "current_assignment", "disposed_at", "disposal_reason", "created_at", "updated_at",
+        )
+        read_only_fields = ("id", "status", "location", "disposed_at", "disposal_reason", "created_at", "updated_at")
+
+    def get_current_assignment(self, asset):
+        rows = getattr(asset, "open_assignments", None)
+        if rows is None:
+            rows = list(asset.assignments.filter(returned_at__isnull=True))
+        return AssetAssignmentSerializer(rows[0]).data if rows else None
+
+    def validate_purchase_cost(self, value):
+        if value is not None and value < 0:
+            raise serializers.ValidationError("The cost cannot be negative.")
+        return value
+
+    def validate(self, attrs):
+        if self.instance is not None and "tag" in attrs and attrs["tag"] != self.instance.tag:
+            raise serializers.ValidationError({"tag": "An asset tag cannot be changed."})
+        return attrs
+
+
+class AssetCreateSerializer(AssetSerializer):
+    """Registration may also place the asset in a location."""
+
+    class Meta(AssetSerializer.Meta):
+        read_only_fields = ("id", "status", "disposed_at", "disposal_reason", "created_at", "updated_at")
+
+
+class MaintenanceRecordSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MaintenanceRecord
+        fields = ("id", "reason", "opened_at", "opened_by_user_id", "closed_at", "closed_by_user_id", "cost", "notes")
+        read_only_fields = fields
+
+
+class AssetEventSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AssetEvent
+        fields = ("id", "kind", "from_status", "to_status", "note", "user_id", "created_at")
+        read_only_fields = fields
+
+
+class _OptionalLocation(serializers.Serializer):
+    location = serializers.PrimaryKeyRelatedField(
+        queryset=StockLocation.objects.all(), required=False, allow_null=True, default=None
+    )
+    note = serializers.CharField(max_length=255, required=False, allow_blank=True, default="")
+
+
+class AssetAssignInputSerializer(_OptionalLocation):
+    staff = serializers.PrimaryKeyRelatedField(
+        queryset=StaffMember.objects.all(), required=False, allow_null=True, default=None
+    )
+
+
+class AssetReturnInputSerializer(_OptionalLocation):
+    condition = serializers.ChoiceField(choices=Asset.Condition.choices, required=False, default=None)
+
+
+class AssetFoundInputSerializer(_OptionalLocation):
+    pass
+
+
+class AssetMoveInputSerializer(serializers.Serializer):
+    location = serializers.PrimaryKeyRelatedField(queryset=StockLocation.objects.all())
+    note = serializers.CharField(max_length=255, required=False, allow_blank=True, default="")
+
+
+class AssetReasonInputSerializer(serializers.Serializer):
+    reason = serializers.CharField(max_length=255)
+
+
+class AssetRepairCompleteInputSerializer(serializers.Serializer):
+    cost = serializers.DecimalField(
+        max_digits=12, decimal_places=2, min_value=Decimal("0"), required=False, allow_null=True, default=None
+    )
+    notes = serializers.CharField(max_length=255, required=False, allow_blank=True, default="")
+    condition = serializers.ChoiceField(choices=Asset.Condition.choices, required=False, default=None)

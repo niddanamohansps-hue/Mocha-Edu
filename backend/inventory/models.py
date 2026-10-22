@@ -223,3 +223,162 @@ class PurchaseLine(models.Model):
 
     def __str__(self):
         return f"{self.item_id} x {self.quantity} @ {self.unit_cost}"
+
+
+class AssetCategory(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=100, unique=True)
+    description = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name_plural = "asset categories"
+
+    def __str__(self):
+        return self.name
+
+
+class Asset(models.Model):
+    """A durable item that is tracked one by one (desk, computer, projector, lab equipment).
+
+    ``status``, ``location`` and the holder are changed only by ``inventory.asset_services`` (each
+    change under a row lock, with an immutable ``AssetEvent``); the descriptive fields are edited
+    normally. An asset is never deleted: a disposed asset stays in the register.
+    """
+
+    class Status(models.TextChoices):
+        AVAILABLE = "available", "Available"
+        ASSIGNED = "assigned", "Assigned"
+        IN_REPAIR = "in_repair", "In repair"
+        LOST = "lost", "Lost"
+        DISPOSED = "disposed", "Disposed"
+
+    class Condition(models.TextChoices):
+        NEW = "new", "New"
+        GOOD = "good", "Good"
+        FAIR = "fair", "Fair"
+        POOR = "poor", "Poor"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tag = models.CharField(max_length=50, unique=True, help_text="The school's asset tag number")
+    name = models.CharField(max_length=200)
+    category = models.ForeignKey(AssetCategory, on_delete=models.PROTECT, related_name="assets")
+    serial_number = models.CharField(max_length=100, blank=True)
+    description = models.TextField(blank=True)
+    supplier = models.ForeignKey(Supplier, null=True, blank=True, on_delete=models.PROTECT, related_name="assets")
+    purchase_date = models.DateField(null=True, blank=True)
+    purchase_cost = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    condition = models.CharField(max_length=10, choices=Condition.choices, default=Condition.GOOD)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.AVAILABLE)
+    location = models.ForeignKey(StockLocation, null=True, blank=True, on_delete=models.PROTECT, related_name="assets")
+    disposed_at = models.DateTimeField(null=True, blank=True)
+    disposal_reason = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["tag"]
+        indexes = [models.Index(fields=["status"], name="inventory_asset_status_idx")]
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(purchase_cost__isnull=True) | Q(purchase_cost__gte=0), name="inventory_asset_cost_nonneg"
+            ),
+            models.CheckConstraint(
+                condition=~Q(status="disposed") | Q(disposed_at__isnull=False), name="inventory_asset_disposed_dated"
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.tag} - {self.name}"
+
+
+class AssetAssignment(models.Model):
+    """Who (or where) an asset was given to, and when it came back. An asset has at most one open
+    assignment at a time (a partial unique index)."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    asset = models.ForeignKey(Asset, on_delete=models.PROTECT, related_name="assignments")
+    staff = models.ForeignKey("staff.StaffMember", null=True, blank=True, on_delete=models.PROTECT, related_name="+")
+    location = models.ForeignKey(StockLocation, null=True, blank=True, on_delete=models.PROTECT, related_name="+")
+    note = models.CharField(max_length=255, blank=True)
+    assigned_at = models.DateTimeField(auto_now_add=True)
+    assigned_by_user_id = models.UUIDField(null=True, blank=True)
+    returned_at = models.DateTimeField(null=True, blank=True)
+    returned_by_user_id = models.UUIDField(null=True, blank=True)
+    return_condition = models.CharField(max_length=10, choices=Asset.Condition.choices, blank=True)
+
+    class Meta:
+        ordering = ["-assigned_at", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["asset"], condition=Q(returned_at__isnull=True), name="inventory_assign_one_open"
+            ),
+            models.CheckConstraint(
+                condition=Q(staff__isnull=False) | Q(location__isnull=False) | ~Q(note=""),
+                name="inventory_assign_has_holder",
+            ),
+        ]
+
+
+class MaintenanceRecord(models.Model):
+    """One repair or service. An asset has at most one open record at a time."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    asset = models.ForeignKey(Asset, on_delete=models.PROTECT, related_name="maintenance")
+    reason = models.CharField(max_length=255)
+    opened_at = models.DateTimeField(auto_now_add=True)
+    opened_by_user_id = models.UUIDField(null=True, blank=True)
+    closed_at = models.DateTimeField(null=True, blank=True)
+    closed_by_user_id = models.UUIDField(null=True, blank=True)
+    cost = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    notes = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        ordering = ["-opened_at", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["asset"], condition=Q(closed_at__isnull=True), name="inventory_maint_one_open"
+            ),
+            models.CheckConstraint(
+                condition=Q(cost__isnull=True) | Q(cost__gte=0), name="inventory_maint_cost_nonneg"
+            ),
+        ]
+
+
+class AssetEvent(models.Model):
+    """Immutable history of an asset: every registration and status/location change."""
+
+    class Kind(models.TextChoices):
+        REGISTERED = "registered", "Registered"
+        ASSIGNED = "assigned", "Assigned"
+        RETURNED = "returned", "Returned"
+        MOVED = "moved", "Moved"
+        SENT_TO_REPAIR = "sent_to_repair", "Sent to repair"
+        REPAIRED = "repaired", "Repair completed"
+        LOST = "lost", "Marked lost"
+        FOUND = "found", "Found"
+        DISPOSED = "disposed", "Disposed"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    asset = models.ForeignKey(Asset, on_delete=models.PROTECT, related_name="events")
+    kind = models.CharField(max_length=20, choices=Kind.choices)
+    from_status = models.CharField(max_length=20, blank=True)
+    to_status = models.CharField(max_length=20)
+    note = models.CharField(max_length=255, blank=True)
+    user_id = models.UUIDField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        indexes = [models.Index(fields=["asset", "-created_at"], name="inventory_assetev_asset_idx")]
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise RuntimeError("An asset event is immutable.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise RuntimeError("An asset event can never be deleted.")
+
