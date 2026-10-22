@@ -5,6 +5,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { XIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { FormSurfaceContext } from "@/components/ui/form-surface"
 
 function Dialog({
   ...props
@@ -46,6 +47,18 @@ function DialogOverlay({
   )
 }
 
+const SM_WIDTHS: Record<string, string> = {
+  "max-w-sm": "sm:max-w-sm",
+  "max-w-md": "sm:max-w-md",
+  "max-w-lg": "sm:max-w-lg",
+  "max-w-xl": "sm:max-w-xl",
+  "max-w-2xl": "sm:max-w-2xl",
+  "max-w-3xl": "sm:max-w-3xl",
+  "max-w-4xl": "sm:max-w-4xl",
+  "max-w-5xl": "sm:max-w-5xl",
+  "max-w-6xl": "sm:max-w-6xl",
+}
+
 function DialogContent({
   className,
   children,
@@ -54,18 +67,26 @@ function DialogContent({
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
 }) {
+  // A width requested by the caller (e.g. `max-w-3xl`) applies from the `sm` breakpoint up, so it is
+  // not overridden by the default cap and phones still keep a small margin on each side. The class
+  // names are written out in full on purpose: the stylesheet is built by scanning the source for
+  // literal class names, so a name assembled at run time (`sm:${token}`) would never be generated.
+  const requested = (className ?? "").split(/\s+/).filter(Boolean)
+  const ownWidth = requested.some((token) => token in SM_WIDTHS)
+  const callerClasses = requested.map((token) => SM_WIDTHS[token] ?? token).join(" ")
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay />
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] max-h-[calc(100dvh-2rem)] gap-4 overflow-y-auto rounded-lg border p-4 shadow-lg duration-200 outline-none sm:max-w-lg sm:p-6",
-          className
+          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] max-h-[calc(100dvh-2rem)] gap-4 overflow-y-auto rounded-lg border p-4 shadow-lg duration-200 outline-none sm:p-6",
+          !ownWidth && "sm:max-w-lg",
+          callerClasses
         )}
         {...props}
       >
-        {children}
+        <FormSurfaceContext.Provider value={true}>{children}</FormSurfaceContext.Provider>
         {showCloseButton && (
           <DialogPrimitive.Close
             data-slot="dialog-close"
