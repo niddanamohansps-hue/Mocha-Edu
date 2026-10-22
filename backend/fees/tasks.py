@@ -115,3 +115,42 @@ def reconcile_pending_online_payments(batch_size=BATCH_SIZE, time_budget=TIME_BU
 
     return summary
 
+
+
+# The daily reminder run covers every school, so it gets its own, longer limit than the 30s default.
+REMINDER_TIME_BUDGET_SECONDS = 240
+
+
+@shared_task(time_limit=300, soft_time_limit=270)
+def send_fee_reminders(time_budget=REMINDER_TIME_BUDGET_SECONDS):
+    """
+    Daily task: fee "due soon" and "overdue" alerts (see ``fees.reminders``) for every school that
+    enabled them. Safe to repeat and to overlap (alerts are claimed through a unique row). A school
+    that fails does not stop the others; work left when the time budget runs out is picked up by
+    the next run.
+    """
+    from .reminders import alert_today, send_fee_reminders_for_current_school
+
+    deadline = time.monotonic() + time_budget
+    today = alert_today()
+    summary = {"schools": 0, "schools_enabled": 0, "sent": 0, "already_sent": 0, "no_recipient": 0,
+               "errors": 0, "deferred": 0}
+    for tenant in get_tenant_model().objects.exclude(schema_name="public"):
+        if time.monotonic() > deadline:
+            summary["deferred"] += 1
+            logger.warning("Time budget reached during fee reminders; remaining schools deferred.")
+            break
+        summary["schools"] += 1
+        try:
+            with schema_context(tenant.schema_name):
+                result = send_fee_reminders_for_current_school(deadline=deadline, today=today)
+        except Exception:
+            summary["errors"] += 1
+            logger.exception("Fee reminders failed for school schema %s.", tenant.schema_name)
+            continue
+        summary["schools_enabled"] += 1 if result["enabled"] else 0
+        for key in ("sent", "already_sent", "no_recipient", "errors", "deferred"):
+            summary[key] += result[key]
+    if summary["sent"] or summary["errors"]:
+        logger.info("send_fee_reminders finished: %s", summary)
+    return summary

@@ -1,5 +1,7 @@
 from pathlib import Path
 from datetime import timedelta
+
+from celery.schedules import crontab
 from decouple import config, Csv
 from django.core.exceptions import ImproperlyConfigured
 import os
@@ -201,6 +203,9 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"
+# School calendar used by automated alerts to decide what "today" is (fee reminders). Stage 2 uses
+# one zone for every school; a per-school zone is a later change.
+ALERT_TIME_ZONE = config("ALERT_TIME_ZONE", default="Asia/Kathmandu")
 USE_I18N = True
 USE_TZ = True
 
@@ -426,6 +431,12 @@ CELERY_BEAT_SCHEDULE = {
     "reconcile-signup-payments": {
         "task": "payments.tasks.reconcile_signup_payments",
         "schedule": timedelta(minutes=5),
+    },
+    # Fee due-soon / overdue reminders, once a day at 02:30 UTC = 08:15 in Nepal. Which day counts
+    # as "today" is decided by ALERT_TIME_ZONE; a missed run is caught up on the next one.
+    "send-fee-reminders": {
+        "task": "fees.tasks.send_fee_reminders",
+        "schedule": crontab(hour=2, minute=30),
     },
 }
 
