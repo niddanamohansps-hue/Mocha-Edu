@@ -34,9 +34,24 @@ export function useInitPayment() {
     });
 }
 
-async function verifyPayment(dataString: string): Promise<any> {
-    const { data } = await axiosInstance.get(`/payments/verify/?data=${dataString}`);
-    return data;
+// The backend answers 202 while the institution is still being created. Asking again is safe (the
+// setup is claimed once), so wait and ask a limited number of times before giving up.
+const VERIFY_POLL_INTERVAL_MS = 3000;
+const VERIFY_POLL_MAX_ATTEMPTS = 20;
+
+type VerifyPaymentResponse = { message?: string; domain_url?: string };
+
+async function verifyPayment(dataString: string): Promise<VerifyPaymentResponse> {
+    for (let attempt = 1; attempt <= VERIFY_POLL_MAX_ATTEMPTS; attempt++) {
+        const response = await axiosInstance.get(`/payments/verify/?data=${encodeURIComponent(dataString)}`);
+        if (response.status !== 202) {
+            return response.data;
+        }
+        await new Promise((resolve) => setTimeout(resolve, VERIFY_POLL_INTERVAL_MS));
+    }
+    throw new Error(
+        "Your payment was received and your institution is still being set up. Please reload this page in a minute or contact support."
+    );
 }
 
 export function useVerifyPayment() {

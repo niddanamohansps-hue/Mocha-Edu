@@ -31,9 +31,10 @@ function PaymentSuccessContent() {
         if (dataParam) {
             verifyPayment(dataParam, {
                 onSuccess: (response) => {
-                    if (response.domain_url) {
+                    const domainUrl = response.domain_url;
+                    if (domainUrl) {
                         setTimeout(() => {
-                            window.location.href = response.domain_url;
+                            window.location.href = domainUrl;
                         }, 3000);
                     }
                 }
