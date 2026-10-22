@@ -1,5 +1,6 @@
 "use client";
 
+import { ResponsiveList } from "@/components/common/ResponsiveList";
 import { useMemo, useState } from "react";
 import { LoaderCircle, CheckCheck, Lock } from "lucide-react";
 import { useSections } from "@/hooks/useAcademics";
@@ -151,65 +152,61 @@ export default function MarkAttendancePage() {
                     {roster.students.length === 0 ? (
                         <EmptyState title="No students are currently enrolled in this section." className="py-16 text-slate-500 text-sm" />
                     ) : (
-                        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-                            <div className="w-full overflow-x-auto"><table className="w-full text-sm">
-                                <thead className="bg-slate-50 dark:bg-slate-900">
-                                    <tr className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                                        <th className="px-4 py-3">Student</th>
-                                        <th className="px-4 py-3">Enrollment ID</th>
-                                        <th className="px-4 py-3 w-40">Status</th>
-                                        <th className="px-4 py-3">Remarks</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {roster.students.map((s) => (
-                                        <tr key={s.student} className="border-t border-slate-100 dark:border-slate-800">
-                                            <td className="px-4 py-2 font-medium text-slate-800 dark:text-slate-200">
-                                                {s.full_name}
-                                            </td>
-                                            <td className="px-4 py-2 text-slate-500">{s.enrollment_id}</td>
-                                            <td className="px-4 py-2">
-                                                <Select
-                                                    value={marks[s.student]?.status ?? "present"}
-                                                    onValueChange={(v) =>
-                                                        setMarks((prev) => ({
-                                                            ...prev,
-                                                            [s.student]: { ...prev[s.student], status: v as AttendanceStatus },
-                                                        }))
-                                                    }
-                                                    disabled={isLocked}
-                                                >
-                                                    <SelectTrigger className="h-9">
-                                                        <SelectValue />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {STATUS_OPTIONS.map((opt) => (
-                                                            <SelectItem key={opt.value} value={opt.value}>
-                                                                {opt.label}
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                            </td>
-                                            <td className="px-4 py-2">
-                                                <Input aria-label="Optional"
-                                                    className="h-9"
-                                                    placeholder="Optional"
-                                                    disabled={isLocked}
-                                                    value={marks[s.student]?.remarks ?? ""}
-                                                    onChange={(e) =>
-                                                        setMarks((prev) => ({
-                                                            ...prev,
-                                                            [s.student]: { ...prev[s.student], remarks: e.target.value },
-                                                        }))
-                                                    }
-                                                />
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table></div>
-                        </div>
+                        <ResponsiveList
+                            rows={roster.students}
+                            rowKey={(s) => s.student}
+                            columns={[
+                                { key: "student", header: "Student", primary: true, cell: (s) => s.full_name },
+                                { key: "enrollment", header: "Enrollment ID", className: "text-slate-500", cell: (s) => s.enrollment_id },
+                                {
+                                    key: "status",
+                                    header: "Status",
+                                    className: "w-40",
+                                    cell: (s) => (
+                                        <Select
+                                            value={marks[s.student]?.status ?? "present"}
+                                            onValueChange={(v) =>
+                                                setMarks((prev) => ({
+                                                    ...prev,
+                                                    [s.student]: { ...prev[s.student], status: v as AttendanceStatus },
+                                                }))
+                                            }
+                                            disabled={isLocked}
+                                        >
+                                            <SelectTrigger className="h-9 w-full" aria-label={`Attendance status for ${s.full_name}`}>
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {STATUS_OPTIONS.map((opt) => (
+                                                    <SelectItem key={opt.value} value={opt.value}>
+                                                        {opt.label}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    ),
+                                },
+                                {
+                                    key: "remarks",
+                                    header: "Remarks",
+                                    cell: (s) => (
+                                        <Input
+                                            aria-label={`Remarks for ${s.full_name}`}
+                                            className="h-9"
+                                            placeholder="Optional"
+                                            disabled={isLocked}
+                                            value={marks[s.student]?.remarks ?? ""}
+                                            onChange={(e) =>
+                                                setMarks((prev) => ({
+                                                    ...prev,
+                                                    [s.student]: { ...prev[s.student], remarks: e.target.value },
+                                                }))
+                                            }
+                                        />
+                                    ),
+                                },
+                            ]}
+                        />
                     )}
 
                     {roster.students.length > 0 && (

@@ -1,5 +1,6 @@
 "use client";
 
+import { ResponsiveList } from "@/components/common/ResponsiveList";
 import { useState } from "react";
 import { LoaderCircle, CheckCheck } from "lucide-react";
 import { useStaffMembers } from "@/hooks/useStaff";
@@ -51,7 +52,7 @@ export default function StaffAttendancePage() {
 
     const handleSubmit = () => {
         if (!staffMembers) return;
-        const records = staffMembers.map((s: any) => ({
+        const records = staffMembers.map((s) => ({
             staff: s.id,
             status: marks[s.id] ?? "present",
         }));
@@ -90,44 +91,44 @@ export default function StaffAttendancePage() {
             ) : !staffMembers || staffMembers.length === 0 ? (
                 <EmptyState title="No staff members found." className="py-16 text-slate-500 text-sm" />
             ) : (
-                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-                    <div className="w-full overflow-x-auto"><table className="w-full text-sm">
-                        <thead className="bg-slate-50 dark:bg-slate-900">
-                            <tr className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                                <th className="px-4 py-3">Staff Member</th>
-                                <th className="px-4 py-3">Employee ID</th>
-                                <th className="px-4 py-3 w-40">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {staffMembers.map((s: any) => (
-                                <tr key={s.id} className="border-t border-slate-100 dark:border-slate-800">
-                                    <td className="px-4 py-2 font-medium">
-                                        {s.profile_details?.first_name} {s.profile_details?.last_name}
-                                    </td>
-                                    <td className="px-4 py-2 text-slate-500">{s.employee_id}</td>
-                                    <td className="px-4 py-2">
-                                        <Select
-                                            value={marks[s.id] ?? "present"}
-                                            onValueChange={(v) => setMarks((prev) => ({ ...prev, [s.id]: v as AttendanceStatus }))}
-                                        >
-                                            <SelectTrigger className="h-9">
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {STATUS_OPTIONS.map((opt) => (
-                                                    <SelectItem key={opt.value} value={opt.value}>
-                                                        {opt.label}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table></div>
-                </div>
+                <ResponsiveList
+                    rows={staffMembers}
+                    rowKey={(s) => s.id}
+                    columns={[
+                        {
+                            key: "staff",
+                            header: "Staff Member",
+                            primary: true,
+                            cell: (s) => `${s.profile_details?.first_name ?? ""} ${s.profile_details?.last_name ?? ""}`,
+                        },
+                        { key: "employee", header: "Employee ID", className: "text-slate-500", cell: (s) => s.employee_id },
+                        {
+                            key: "status",
+                            header: "Status",
+                            className: "w-40",
+                            cell: (s) => (
+                                <Select
+                                    value={marks[s.id] ?? "present"}
+                                    onValueChange={(v) => setMarks((prev) => ({ ...prev, [s.id]: v as AttendanceStatus }))}
+                                >
+                                    <SelectTrigger
+                                        className="h-9 w-full"
+                                        aria-label={`Attendance status for ${s.profile_details?.first_name ?? ""} ${s.profile_details?.last_name ?? ""}`}
+                                    >
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {STATUS_OPTIONS.map((opt) => (
+                                            <SelectItem key={opt.value} value={opt.value}>
+                                                {opt.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            ),
+                        },
+                    ]}
+                />
             )}
 
             {staffMembers && staffMembers.length > 0 && (

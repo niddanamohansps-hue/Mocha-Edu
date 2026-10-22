@@ -1,5 +1,6 @@
 "use client";
 
+import { ResponsiveList } from "@/components/common/ResponsiveList";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { LoaderCircle, Lock } from "lucide-react";
@@ -120,45 +121,63 @@ export default function MarksEntryPage() {
 
             {scheduleId && roster && roster.length > 0 && schedule && (
                 <>
-                    <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-                        <div className="w-full overflow-x-auto"><table className="w-full text-sm">
-                            <thead className="bg-slate-50 dark:bg-slate-900">
-                                <tr className="text-left text-xs font-semibold text-slate-500 uppercase">
-                                    <th className="px-4 py-3">Student</th>
-                                    <th className="px-4 py-3">Marks (/{schedule.max_marks})</th>
-                                    <th className="px-4 py-3">Absent</th>
-                                    <th className="px-4 py-3">Remarks</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {roster.map((s) => (
-                                    <tr key={s.student} className="border-t border-slate-100 dark:border-slate-800">
-                                        <td className="px-4 py-2 font-medium">{s.full_name} <span className="text-slate-400 text-xs">({s.enrollment_id})</span></td>
-                                        <td className="px-4 py-2">
-                                            <Input
-                                                type="number" className="h-9 w-24" disabled={schedule.is_locked || marks[s.student]?.is_absent}
-                                                value={marks[s.student]?.marks_obtained ?? ""}
-                                                onChange={(e) => setMarks((prev) => ({ ...prev, [s.student]: { ...prev[s.student], marks_obtained: e.target.value } }))}
-                                            />
-                                        </td>
-                                        <td className="px-4 py-2">
-                                            <Checkbox
-                                                checked={marks[s.student]?.is_absent ?? false} disabled={schedule.is_locked}
-                                                onCheckedChange={(v) => setMarks((prev) => ({ ...prev, [s.student]: { ...prev[s.student], is_absent: !!v } }))}
-                                            />
-                                        </td>
-                                        <td className="px-4 py-2">
-                                            <Input aria-label="Optional"
-                                                className="h-9" disabled={schedule.is_locked} placeholder="Optional"
-                                                value={marks[s.student]?.remarks ?? ""}
-                                                onChange={(e) => setMarks((prev) => ({ ...prev, [s.student]: { ...prev[s.student], remarks: e.target.value } }))}
-                                            />
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table></div>
-                    </div>
+                    <ResponsiveList
+                        rows={roster}
+                        rowKey={(s) => s.student}
+                        columns={[
+                            {
+                                key: "student",
+                                header: "Student",
+                                primary: true,
+                                cell: (s) => (
+                                    <>
+                                        {s.full_name} <span className="text-slate-400 text-xs font-normal">({s.enrollment_id})</span>
+                                    </>
+                                ),
+                            },
+                            {
+                                key: "marks",
+                                header: `Marks (out of ${schedule.max_marks})`,
+                                cell: (s) => (
+                                    <Input
+                                        type="number"
+                                        inputMode="decimal"
+                                        aria-label={`Marks for ${s.full_name}`}
+                                        className="h-9 w-24"
+                                        disabled={schedule.is_locked || marks[s.student]?.is_absent}
+                                        value={marks[s.student]?.marks_obtained ?? ""}
+                                        onChange={(e) => setMarks((prev) => ({ ...prev, [s.student]: { ...prev[s.student], marks_obtained: e.target.value } }))}
+                                    />
+                                ),
+                            },
+                            {
+                                key: "absent",
+                                header: "Absent",
+                                cell: (s) => (
+                                    <Checkbox
+                                        aria-label={`${s.full_name} was absent`}
+                                        checked={marks[s.student]?.is_absent ?? false}
+                                        disabled={schedule.is_locked}
+                                        onCheckedChange={(v) => setMarks((prev) => ({ ...prev, [s.student]: { ...prev[s.student], is_absent: !!v } }))}
+                                    />
+                                ),
+                            },
+                            {
+                                key: "remarks",
+                                header: "Remarks",
+                                cell: (s) => (
+                                    <Input
+                                        aria-label={`Remarks for ${s.full_name}`}
+                                        className="h-9"
+                                        disabled={schedule.is_locked}
+                                        placeholder="Optional"
+                                        value={marks[s.student]?.remarks ?? ""}
+                                        onChange={(e) => setMarks((prev) => ({ ...prev, [s.student]: { ...prev[s.student], remarks: e.target.value } }))}
+                                    />
+                                ),
+                            },
+                        ]}
+                    />
                     <div className="flex justify-end">
                         <Button onClick={handleSubmit} disabled={schedule.is_locked || isPending} className="gap-2">
                             {isPending && <LoaderCircle className="h-4 w-4 animate-spin" />}
