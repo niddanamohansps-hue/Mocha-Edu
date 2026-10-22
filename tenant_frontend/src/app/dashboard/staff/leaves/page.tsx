@@ -175,7 +175,7 @@ export default function StaffLeavesPage() {
                     <div className="space-y-3">
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                             <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-200">
-                                My Leave Applications History
+                                My leave requests
                             </h2>
 
                             <div className="flex items-center gap-2">
@@ -199,7 +199,7 @@ export default function StaffLeavesPage() {
                                 <TableHeader className="bg-slate-50 dark:bg-slate-900">
                                     <TableRow>
                                         <TableHead>Category</TableHead>
-                                        <TableHead>Date Window</TableHead>
+                                        <TableHead>Dates</TableHead>
                                         <TableHead>Duration</TableHead>
                                         <TableHead>Reason</TableHead>
                                         <TableHead>Proof</TableHead>
@@ -287,7 +287,7 @@ export default function StaffLeavesPage() {
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                             <div>
                                 <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-200">
-                                    Staff Leave Review Inbox
+                                    Leave requests to review
                                 </h2>
                                 <p className="text-xs text-slate-500">
                                     Review, approve, or decline pending requests. Approvals automatically sync daily attendance.
@@ -318,7 +318,7 @@ export default function StaffLeavesPage() {
                                         <TableHead>Proof</TableHead>
                                         <TableHead>Status</TableHead>
                                         <TableHead>Reason</TableHead>
-                                        <TableHead className="text-right">Decision Actions</TableHead>
+                                        <TableHead className="text-right">Approve or reject</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>

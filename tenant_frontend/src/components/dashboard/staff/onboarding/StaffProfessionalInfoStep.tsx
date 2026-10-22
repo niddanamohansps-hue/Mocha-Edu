@@ -30,7 +30,7 @@ export default function StaffProfessionalInfoStep({ form }: ProfessionalInfoStep
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                     <Label htmlFor="designation" className={errors.designation ? "text-red-500" : ""}>
-                        Job Designation / Role *
+                        Job title *
                     </Label>
                     <Select
                         onValueChange={(val) => {

@@ -351,10 +351,10 @@ export default function AuditLogsPage() {
                             <TableHeader className="bg-slate-50 dark:bg-slate-900/80">
                                 <TableRow>
                                     <TableHead className="w-[180px] text-xs font-semibold">Timestamp</TableHead>
-                                    <TableHead className="text-xs font-semibold">Actor</TableHead>
+                                    <TableHead className="text-xs font-semibold">Done by</TableHead>
                                     <TableHead className="text-xs font-semibold">Action</TableHead>
-                                    <TableHead className="text-xs font-semibold">Resource</TableHead>
-                                    <TableHead className="text-xs font-semibold">Target ID</TableHead>
+                                    <TableHead className="text-xs font-semibold">What</TableHead>
+                                    <TableHead className="text-xs font-semibold">Record ID</TableHead>
                                     <TableHead className="text-xs font-semibold">Changes</TableHead>
                                     <TableHead className="text-xs font-semibold">IP Address</TableHead>
                                     <TableHead className="text-right text-xs font-semibold">Details</TableHead>

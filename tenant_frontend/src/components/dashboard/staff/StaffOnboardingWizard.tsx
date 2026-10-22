@@ -63,7 +63,7 @@ export default function StaffOnboardingWizard() {
         <div className="max-w-5xl mx-auto py-8">
             <div className="mb-10 text-center">
                 <h1 className="text-3xl font-black text-slate-800 dark:text-white mb-2">
-                    Staff Onboarding
+                    Add a staff member
                 </h1>
                 <p className="text-slate-500 dark:text-slate-400">
                     Complete the form below to hire a new staff member

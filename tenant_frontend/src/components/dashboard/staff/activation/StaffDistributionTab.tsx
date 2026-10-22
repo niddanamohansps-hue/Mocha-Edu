@@ -49,7 +49,7 @@ export default function StaffDistributionTab() {
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                         <div className="space-y-1">
                             <CardTitle className="text-2xl">
-                                Unclaimed Staff Credentials
+                                Staff login details not yet handed out
                             </CardTitle>
                             <CardDescription className="text-base">
                                 List of staff members who haven't performed their first security reset yet.

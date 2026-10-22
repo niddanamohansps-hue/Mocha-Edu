@@ -65,7 +65,7 @@ export default function InstructorOnboardingWizard() {
         <div className="max-w-5xl mx-auto py-8">
             <div className="mb-10 text-center">
                 <h1 className="text-3xl font-black text-slate-800 dark:text-white mb-2">
-                    Instructor Onboarding
+                    Add a teacher
                 </h1>
                 <p className="text-slate-500 dark:text-slate-400">
                     Complete the form below to hire a new instructor

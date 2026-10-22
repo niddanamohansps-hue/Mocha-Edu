@@ -197,7 +197,7 @@ export default function ActivationTab({ onSuccess }: ActivationTabProps) {
                                     size="lg"
                                     disabled={!unenrolledStudents || unenrolledStudents.length === 0}
                                 >
-                                    Batch Generate
+                                    Create many logins at once
                                 </Button>
 
                                 <div className="bg-blue-50 dark:bg-blue-900/20 px-4 py-2 shadow-sm rounded-sm border border-blue-100 dark:border-blue-800">
@@ -302,7 +302,7 @@ export default function ActivationTab({ onSuccess }: ActivationTabProps) {
                 <div className="bg-red-50/50 dark:bg-red-900/10 border-2 border-red-100 dark:border-red-900/30 rounded-3xl p-8 space-y-4">
                     <div className="flex items-center gap-3 text-red-600 dark:text-red-400">
                         <TriangleAlert className="h-6 w-6" />
-                        <h3 className="text-xl font-bold">Process Conflicts</h3>
+                        <h3 className="text-xl font-bold">Problems to fix</h3>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {errors.map((err, i) => (

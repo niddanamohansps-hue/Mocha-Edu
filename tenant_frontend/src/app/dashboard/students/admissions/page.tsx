@@ -43,7 +43,7 @@ export default function AdmissionsPage() {
                             <GraduationCap className="w-6 h-6" />
                         </div>
                         <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-                            Admissions Management Pipeline
+                            Admissions
                         </h1>
                     </div>
                     <p className="text-sm text-slate-500 dark:text-slate-400 mt-1.5 ml-1">
@@ -99,7 +99,7 @@ export default function AdmissionsPage() {
                             </div>
                             <div>
                                 <h3 className="text-base font-bold text-slate-800 dark:text-white">
-                                    Direct Walk-in Registration
+                                    Register a walk-in student
                                 </h3>
                                 <p className="text-xs text-slate-500">
                                     Quick manual student registration wizard for on-the-spot walk-in admissions without prior online application.

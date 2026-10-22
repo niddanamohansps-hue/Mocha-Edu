@@ -48,7 +48,7 @@ export default function DistributionTab() {
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                         <div className="space-y-1">
                             <CardTitle className="text-2xl">
-                                Unclaimed Credentials
+                                Login details not yet handed out
                             </CardTitle>
                             <CardDescription className="text-base">
                                 List of students who haven't performed their first security reset yet.

@@ -101,7 +101,7 @@ export function LeaveTypesConfigTab() {
         <div className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                    <h3 className="font-semibold text-base text-slate-900 dark:text-white">Configured Leave Types</h3>
+                    <h3 className="font-semibold text-base text-slate-900 dark:text-white">Leave types</h3>
                     <p className="text-xs text-slate-500">
                         Define school leave categories, annual allocations, and documentation policies.
                     </p>
@@ -118,10 +118,10 @@ export function LeaveTypesConfigTab() {
                         <TableRow>
                             <TableHead>Code</TableHead>
                             <TableHead>Leave Category</TableHead>
-                            <TableHead>Annual Quota</TableHead>
+                            <TableHead>Days per year</TableHead>
                             <TableHead>Type</TableHead>
                             <TableHead>Document</TableHead>
-                            <TableHead>Max Consecutive</TableHead>
+                            <TableHead>Most days in a row</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
@@ -219,11 +219,11 @@ export function LeaveTypesConfigTab() {
 
                         <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-1">
-                                <Label htmlFor="annualDays">Annual Days Allocation *</Label>
+                                <Label htmlFor="annualDays">Days allowed per year *</Label>
                                 <Input id="annualDays" type="number" step="0.5" min="0" value={annualAllocation} onChange={(e) => setAnnualAllocation(e.target.value)} required />
                             </div>
                             <div className="space-y-1">
-                                <Label htmlFor="maxDays">Max Consecutive Days</Label>
+                                <Label htmlFor="maxDays">Most days in a row</Label>
                                 <Input id="maxDays" type="number" min="1" value={maxConsecutive} onChange={(e) => setMaxConsecutive(e.target.value)} placeholder="e.g. 3" />
                             </div>
                         </div>

@@ -387,7 +387,7 @@ export default function PromotionPage() {
             {executeResponse && (
                 <Card className="border-none shadow-md">
                     <CardContent className="p-6 space-y-3">
-                        <h2 className="text-lg font-bold">Execution Summary</h2>
+                        <h2 className="text-lg font-bold">What was done</h2>
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <p className="text-xs text-slate-500 uppercase font-bold">Successful</p>
