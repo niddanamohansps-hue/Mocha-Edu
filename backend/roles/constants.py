@@ -682,4 +682,35 @@ SYSTEM_PERMISSIONS = [
         "module": "Alerts",
         "description": "View which automated alerts were sent and whether they were delivered",
     },
+    # Inventory
+    {
+        "codename": "view_inventory",
+        "name": "View Inventory",
+        "module": "Inventory",
+        "description": "View items, stock levels and the stock movement history",
+    },
+    {
+        "codename": "manage_inventory_items",
+        "name": "Manage Inventory Items",
+        "module": "Inventory",
+        "description": "Create and edit items, categories and stock locations",
+    },
+    {
+        "codename": "receive_stock",
+        "name": "Receive Stock",
+        "module": "Inventory",
+        "description": "Record stock received into a location",
+    },
+    {
+        "codename": "issue_stock",
+        "name": "Issue Stock",
+        "module": "Inventory",
+        "description": "Issue stock to staff, record returns and transfer stock between locations",
+    },
+    {
+        "codename": "adjust_stock",
+        "name": "Adjust Stock",
+        "module": "Inventory",
+        "description": "Correct counts, write stock off and reverse stock movements",
+    },
 ]
