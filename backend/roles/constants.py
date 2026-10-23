@@ -744,4 +744,22 @@ SYSTEM_PERMISSIONS = [
         "module": "Payroll",
         "description": "Set staff salaries, define pay components and change payroll settings",
     },
+    {
+        "codename": "run_payroll",
+        "name": "Run Payroll",
+        "module": "Payroll",
+        "description": "Start a monthly payroll run, calculate it, add adjustments and cancel it before approval",
+    },
+    {
+        "codename": "approve_payroll",
+        "name": "Approve Payroll",
+        "module": "Payroll",
+        "description": "Approve a calculated payroll run (locking it) and cancel an approved run",
+    },
+    {
+        "codename": "record_payroll_payment",
+        "name": "Record Payroll Payment",
+        "module": "Payroll",
+        "description": "Mark an approved payroll run as paid",
+    },
 ]

@@ -179,3 +179,348 @@ def compute_structure(staff, on_date, *, settings=None):
         staff_id=staff.pk, on_date=on_date, basic=basic, lines=lines, gross=gross, deductions=deductions,
         net=gross - deductions, rounded_to_whole_rupee=whole,
     )
+
+
+# =============================================================================================
+# Monthly payroll runs (Stage P2)
+# =============================================================================================
+#
+# What a run does, in plain words:
+#   * pay for a month = the salary structure in force on the LAST day of the month;
+#   * unpaid days = approved unpaid leave + days marked absent (half day counts half) + working days
+#     before the person's joining date; a day is never counted twice;
+#   * deduction for unpaid days = basic salary / working days in the month x unpaid days (basic only);
+#   * working days = days that are not the school's weekly off days and not published holidays;
+#   * working days with no attendance record are paid, and counted as "unmarked" so they can be reviewed.
+
+import calendar
+import logging
+from datetime import timedelta
+
+from django.utils import timezone
+
+from .models import Payslip, PayslipLine, PayrollAdjustment, PayrollRun
+
+logger = logging.getLogger(__name__)
+
+RunStatus = PayrollRun.Status
+LineKind = PayslipLine.Kind
+HALF = Decimal("0.5")
+ONE = Decimal("1")
+MIN_YEAR, MAX_YEAR = 2000, 2200
+
+
+def month_bounds(year, month):
+    return date(year, month, 1), date(year, month, calendar.monthrange(year, month)[1])
+
+
+def working_dates(start, end):
+    """The school's working days between two dates: not a weekly off day and not a published holiday."""
+    from academics.models import CalendarEvent
+    from attendance.models import AttendanceSettings
+
+    weekly_off = AttendanceSettings.weekly_off()
+    holidays = set()
+    for event in CalendarEvent.objects.filter(
+        is_holiday=True, status="PUBLISHED", start_date__lte=end, end_date__gte=start
+    ):
+        day, last = max(start, event.start_date), min(end, event.end_date)
+        while day <= last:
+            holidays.add(day)
+            day += timedelta(days=1)
+    result, day = [], start
+    while day <= end:
+        if day.weekday() not in weekly_off and day not in holidays:
+            result.append(day)
+        day += timedelta(days=1)
+    return result
+
+
+def _locked_run(run):
+    return PayrollRun.objects.select_for_update().get(pk=run.pk)
+
+
+def _require_status(run, allowed, action):
+    if run.status not in allowed:
+        raise serializers.ValidationError({"status": f"A {run.get_status_display().lower()} payroll run cannot be {action}."})
+
+
+def create_run(*, year, month, notes="", user_id=None):
+    if not (MIN_YEAR <= year <= MAX_YEAR) or not 1 <= month <= 12:
+        raise serializers.ValidationError({"month": "Choose a real year and month."})
+    start, end = month_bounds(year, month)
+    if start > timezone.localdate():
+        raise serializers.ValidationError({"month": "Payroll cannot be run for a month that has not started."})
+    try:
+        with transaction.atomic():
+            return PayrollRun.objects.create(
+                year=year, month=month, period_start=start, period_end=end, notes=(notes or "")[:255],
+                created_by_user_id=user_id, prepared_by_user_id=user_id,
+            )
+    except IntegrityError:
+        raise serializers.ValidationError({"month": "There is already a payroll run for this month. Cancel it first to start again."})
+
+
+def _unpaid_days(staff, period_start, work_set, leaves, attendance):
+    """Return ``(unpaid_days, unmarked_days)`` for one person. ``work_set`` is the month's working dates."""
+    unpaid = {}
+
+    def mark(day, fraction):
+        if day in work_set and unpaid.get(day, Decimal("0")) < fraction:
+            unpaid[day] = fraction
+
+    if staff.joining_date and staff.joining_date > period_start:
+        for day in work_set:
+            if day < staff.joining_date:
+                mark(day, ONE)
+    if work_set:
+        first, last = min(work_set), max(work_set)
+        for application in leaves:
+            day = max(application.start_date, first)
+            while day <= min(application.end_date, last):
+                mark(day, HALF if application.is_half_day else ONE)
+                day += timedelta(days=1)
+    records = attendance.get(staff.pk, {})
+    for day, status_value in records.items():
+        if status_value == "absent":
+            mark(day, ONE)
+        elif status_value == "half_day":
+            mark(day, HALF)
+    unmarked = sum(1 for day in work_set if day not in records and day not in unpaid)
+    return sum(unpaid.values(), Decimal("0")), Decimal(unmarked)
+
+
+def _gather_month(run, work_set):
+    """One query each for the month's unpaid leave and attendance, grouped by person."""
+    from attendance.models import StaffAttendance
+    from staff.models import LeaveApplication
+
+    leaves = {}
+    for application in LeaveApplication.objects.filter(
+        status="approved", leave_type__is_paid=False, start_date__lte=run.period_end, end_date__gte=run.period_start
+    ):
+        leaves.setdefault(application.staff_id, []).append(application)
+    attendance = {}
+    for record in StaffAttendance.objects.filter(date__gte=run.period_start, date__lte=run.period_end):
+        attendance.setdefault(record.staff_id, {})[record.date] = record.status
+    return leaves, attendance
+
+
+class _Rounding:
+    def __init__(self, whole):
+        self.round_to_whole_rupee = whole
+
+
+def _build_payslip(run, staff, work_set, leaves, attendance, adjustments):
+    """Create the payslip and its lines for one person, or return None when they have no salary."""
+    whole = run.round_to_whole_rupee
+    structure = compute_structure(staff, run.period_end, settings=_Rounding(whole))
+    if structure is None:
+        return None
+    salary = salary_on(staff, run.period_end)
+    working = len(work_set)
+    unpaid_days, unmarked = _unpaid_days(staff, run.period_start, work_set, leaves, attendance)
+    lines = [
+        (l.code, l.name, l.kind, l.amount, l.detail, "structure") for l in structure.lines
+    ]
+    if unpaid_days > 0 and working > 0:
+        # basic / working days x unpaid days, from the unrounded basic, never more than the basic itself
+        raw = salary.basic_amount / Decimal(working) * unpaid_days
+        amount = min(round_money(raw, whole=whole), structure.basic)
+        lines.append(("UNPAID", "Unpaid days", Kind.DEDUCTION, amount, f"{unpaid_days.normalize():f} of {working} working days", "unpaid"))
+    for adjustment in adjustments:
+        lines.append((
+            "ADJ", adjustment.name, adjustment.kind, round_money(adjustment.amount, whole=whole),
+            adjustment.reason, "adjustment",
+        ))
+    earnings = sum((l[3] for l in lines if l[2] in ("basic", Kind.EARNING)), Decimal("0"))
+    deductions = sum((l[3] for l in lines if l[2] == Kind.DEDUCTION), Decimal("0"))
+    profile = staff.profile
+    payslip = Payslip.objects.create(
+        run=run, staff=staff, employee_id=staff.employee_id,
+        staff_name=f"{profile.first_name} {profile.last_name}".strip(), designation=staff.designation,
+        department=staff.department, basic_amount=structure.basic, gross_amount=earnings,
+        deductions_amount=deductions, net_amount=earnings - deductions, working_days=working,
+        unpaid_days=unpaid_days, unmarked_days=unmarked,
+    )
+    PayslipLine.objects.bulk_create([
+        PayslipLine(payslip=payslip, code=code, name=name, kind=kind, amount=amount, detail=detail[:255], sort_order=index)
+        for index, (code, name, kind, amount, detail, _source) in enumerate(lines)
+    ])
+    return payslip
+
+
+def calculate_run(run, *, user_id=None):
+    """(Re)build every payslip of the run from the current salaries, attendance, leave and adjustments.
+
+    Allowed until the run is approved; each call replaces the payslips of the previous one. Returns the
+    run with ``calculation_notes`` saying who was left out and why.
+    """
+    with transaction.atomic():
+        run = _locked_run(run)
+        _require_status(run, (RunStatus.DRAFT, RunStatus.CALCULATED), "calculated")
+        pay_settings = PayrollSettings.load()
+        from attendance.models import AttendanceSettings
+
+        work = working_dates(run.period_start, run.period_end)
+        if not work:
+            raise serializers.ValidationError(
+                {"month": "This month has no working days (every day is a weekly off day or a holiday)."}
+            )
+        work_set = set(work)
+        run.working_days = len(work)
+        run.weekly_off_days = sorted(AttendanceSettings.weekly_off())
+        run.round_to_whole_rupee = pay_settings.round_to_whole_rupee
+        leaves, attendance = _gather_month(run, work_set)
+
+        run.payslips.all().delete()  # allowed: the run is not locked
+        adjustments = {}
+        for adjustment in run.adjustments.all():
+            adjustments.setdefault(adjustment.staff_id, []).append(adjustment)
+
+        no_salary, inactive, made = [], 0, 0
+        for staff in StaffMember.objects.select_related("profile").order_by("employee_id"):
+            if not staff.is_active:
+                inactive += 1
+                continue
+            payslip = _build_payslip(run, staff, work_set, leaves.get(staff.pk, []), attendance, adjustments.get(staff.pk, []))
+            if payslip is None:
+                no_salary.append(staff.employee_id)
+            else:
+                made += 1
+        negative = run.payslips.filter(net_amount__lt=0).count()
+        run.calculation_notes = {
+            "payslips": made, "skipped_no_salary": no_salary, "skipped_inactive": inactive, "negative_net": negative,
+            "unmarked_staff": run.payslips.filter(unmarked_days__gt=0).count(),
+        }
+        run.status = RunStatus.CALCULATED
+        run.calculated_at = timezone.now()
+        run.prepared_by_user_id = user_id
+        run.save()
+    return run
+
+
+def add_adjustment(run, *, staff, kind, name, amount, reason, user_id=None):
+    """Add a one-off line for one person and refresh their payslip if the run is already calculated."""
+    name, reason = (name or "").strip(), (reason or "").strip()
+    if not name or not reason:
+        raise serializers.ValidationError({"reason": "Give the adjustment a name and a reason."})
+    if kind not in (Kind.EARNING, Kind.DEDUCTION):
+        raise serializers.ValidationError({"kind": "Choose earning or deduction."})
+    if amount is None or amount <= 0 or amount != amount.quantize(MONEY_STEP) or amount > MAX_MONEY:
+        raise serializers.ValidationError({"amount": "Use an amount above 0 with at most 2 decimal places."})
+    with transaction.atomic():
+        run = _locked_run(run)
+        _require_status(run, (RunStatus.DRAFT, RunStatus.CALCULATED), "adjusted")
+        if not staff.is_active:
+            raise serializers.ValidationError({"staff": "This staff member is not active."})
+        adjustment = PayrollAdjustment.objects.create(
+            run=run, staff=staff, kind=kind, name=name[:100], amount=amount, reason=reason[:255], created_by_user_id=user_id
+        )
+        if run.status == RunStatus.CALCULATED:
+            _refresh_payslip(run, staff)
+    return adjustment
+
+
+def remove_adjustment(adjustment, *, user_id=None):
+    with transaction.atomic():
+        run = _locked_run(adjustment.run)
+        _require_status(run, (RunStatus.DRAFT, RunStatus.CALCULATED), "adjusted")
+        staff = adjustment.staff
+        PayrollAdjustment.objects.get(pk=adjustment.pk).delete()
+        if run.status == RunStatus.CALCULATED:
+            _refresh_payslip(run, staff)
+
+
+def _refresh_payslip(run, staff):
+    """Rebuild one person's payslip after an adjustment (the rest of the run is left as it is)."""
+    work_set = set(working_dates(run.period_start, run.period_end))
+    leaves, attendance = _gather_month(run, work_set)
+    Payslip.objects.filter(run=run, staff=staff).delete()
+    adjustments = list(run.adjustments.filter(staff=staff))
+    _build_payslip(run, staff, work_set, [a for a in leaves.get(staff.pk, [])], attendance, adjustments)
+    negative = run.payslips.filter(net_amount__lt=0).count()
+    run.calculation_notes = {**run.calculation_notes, "negative_net": negative}
+    run.save(update_fields=["calculation_notes", "updated_at"])
+
+
+def approve_run(run, *, user_id):
+    """Lock a calculated run. Needs at least one payslip, no negative pay, a finished month and (by
+    default) someone other than whoever prepared it."""
+    with transaction.atomic():
+        run = _locked_run(run)
+        _require_status(run, (RunStatus.CALCULATED,), "approved")
+        if run.period_end >= timezone.localdate():
+            raise serializers.ValidationError({"month": "The month has not finished yet. Approve after its last day."})
+        if not run.payslips.exists():
+            raise serializers.ValidationError({"payslips": "There are no payslips to approve."})
+        if run.payslips.filter(net_amount__lt=0).exists():
+            raise serializers.ValidationError({"payslips": "Some pay is below zero. Fix it with adjustments or salary changes and calculate again."})
+        if PayrollSettings.load().require_separate_approver and user_id is not None and user_id == run.prepared_by_user_id:
+            raise serializers.ValidationError({"approver": "A different person must approve this run: you prepared it."})
+        run.status = RunStatus.APPROVED
+        run.approved_by_user_id = user_id
+        run.approved_at = timezone.now()
+        run.save(update_fields=["status", "approved_by_user_id", "approved_at", "updated_at"])
+        # Tell the staff once the approval is really saved; a failure to notify never undoes it.
+        transaction.on_commit(lambda: notify_payslips_ready(run))
+    return run
+
+
+def record_payment(run, *, user_id, paid_on, method, reference=""):
+    with transaction.atomic():
+        run = _locked_run(run)
+        _require_status(run, (RunStatus.APPROVED,), "marked paid")
+        if method not in PayrollRun.Method.values:
+            raise serializers.ValidationError({"method": "Choose a payment method."})
+        if paid_on > timezone.localdate():
+            raise serializers.ValidationError({"paid_on": "The payment date cannot be in the future."})
+        if paid_on < run.period_end:
+            raise serializers.ValidationError({"paid_on": "The payment date cannot be before the month ended."})
+        run.status = RunStatus.PAID
+        run.paid_on = paid_on
+        run.paid_by_user_id = user_id
+        run.payment_method = method
+        run.payment_reference = (reference or "")[:100]
+        run.save(update_fields=["status", "paid_on", "paid_by_user_id", "payment_method", "payment_reference", "updated_at"])
+    return run
+
+
+def cancel_run(run, *, reason, user_id=None):
+    """Cancel a run that has not been paid. Its payslips stay as a record; a new run can then be made."""
+    reason = (reason or "").strip()
+    if not reason:
+        raise serializers.ValidationError({"reason": "A reason is required."})
+    with transaction.atomic():
+        run = _locked_run(run)
+        _require_status(run, (RunStatus.DRAFT, RunStatus.CALCULATED, RunStatus.APPROVED), "cancelled")
+        run.status = RunStatus.CANCELLED
+        run.cancelled_at = timezone.now()
+        run.cancelled_by_user_id = user_id
+        run.cancellation_reason = reason[:255]
+        run.save(update_fields=["status", "cancelled_at", "cancelled_by_user_id", "cancellation_reason", "updated_at"])
+    return run
+
+
+def notify_payslips_ready(run):
+    """Tell each staff member in an approved run, in the app, that their payslip is ready. Best effort:
+    a failure here is logged and never undoes the approval."""
+    try:
+        from notifications.services import notify_many
+        from profiles.models import Profile
+
+        staff_ids = list(run.payslips.values_list("staff_id", flat=True))
+        user_ids = list(
+            Profile.objects.filter(staff_record__in=staff_ids, user_id__isnull=False).values_list("user_id", flat=True).distinct()
+        )
+        if user_ids:
+            from .run_serializers import MONTH_NAMES
+
+            notify_many(
+                recipient_user_ids=user_ids, title=f"Your payslip for {MONTH_NAMES[run.month]} {run.year} is ready",
+                body="Open My payslips to see it or download it as a PDF.", category="payroll",
+                link="/dashboard/payroll/my-payslips",
+            )
+    except Exception:
+        logger.exception("Could not send the payslip-ready notices for payroll run %s.", run.pk)
+
