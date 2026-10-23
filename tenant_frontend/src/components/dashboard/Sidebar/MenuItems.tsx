@@ -18,7 +18,8 @@ import {
     CalendarRange,
     Award,
     Megaphone,
-    Boxes
+    Boxes,
+    Wallet
 } from "lucide-react";
 import { SidebarItemType } from "@/components/dashboard/Sidebar/SidebarItem";
 
@@ -321,6 +322,24 @@ export const getMenuItems = (user: any, can: (permission: string) => boolean): S
             label: "Inventory",
             icon: Boxes,
             children: inventoryChildren
+        });
+    }
+
+    // 12. Payroll - managers see runs, salaries and setup; staff see only their own payslips.
+    const payrollChildren: SidebarItemType[] = [];
+    if (can("view_payroll")) {
+        payrollChildren.push({ label: "Payroll runs", href: "/dashboard/payroll" });
+        payrollChildren.push({ label: "Salaries", href: "/dashboard/payroll/salaries" });
+        payrollChildren.push({ label: "Setup", href: "/dashboard/payroll/setup" });
+    }
+    if (user?.active_role === "staff" || user?.active_role === "instructor" || user?.active_role === "owner") {
+        payrollChildren.push({ label: "My payslips", href: "/dashboard/payroll/my-payslips" });
+    }
+    if (payrollChildren.length > 0) {
+        menuItems.push({
+            label: "Payroll",
+            icon: Wallet,
+            children: payrollChildren
         });
     }
 
