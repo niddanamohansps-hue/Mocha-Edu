@@ -110,6 +110,7 @@ TENANT_APPS = (
     "payroll",
     "transport",
     "library",
+    "question_bank",
     "dashboard",
 )
 

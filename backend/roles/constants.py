@@ -812,4 +812,29 @@ SYSTEM_PERMISSIONS = [
         "module": "Library",
         "description": "Bill a student's library fine in Fees, record a staff member's payment, or waive a fine",
     },
+    # Question bank
+    {
+        "codename": "view_question_bank",
+        "name": "View Question Bank",
+        "module": "Question Bank",
+        "description": "Read approved questions of every subject, with their answers and marking schemes",
+    },
+    {
+        "codename": "create_questions",
+        "name": "Write Questions",
+        "module": "Question Bank",
+        "description": "Write, edit and submit questions for the subjects the teacher teaches",
+    },
+    {
+        "codename": "review_questions",
+        "name": "Review Questions",
+        "module": "Question Bank",
+        "description": "Approve, send back or reject submitted questions of the subjects the person is named reviewer for",
+    },
+    {
+        "codename": "manage_question_bank",
+        "name": "Manage Question Bank",
+        "module": "Question Bank",
+        "description": "Set up chapters, topics and subject reviewers, and see and manage every question",
+    },
 ]

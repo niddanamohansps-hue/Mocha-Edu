@@ -189,6 +189,13 @@ export const getMenuItems = (user: any, can: (permission: string) => boolean): S
         examinationChildren.push({ label: "Grading", href: "/dashboard/examinations/grading" });
     }
 
+    if (can("view_question_bank") || can("create_questions") || can("review_questions") || can("manage_question_bank")) {
+        examinationChildren.push({ label: "Question Bank", href: "/dashboard/question-bank" });
+    }
+    if (can("review_questions")) {
+        examinationChildren.push({ label: "Questions to Review", href: "/dashboard/question-bank/review" });
+    }
+
     if (examinationChildren.length > 0) {
         menuItems.push({
             label: "Examinations",
