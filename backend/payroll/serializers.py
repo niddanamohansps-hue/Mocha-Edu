@@ -117,7 +117,7 @@ class PayrollSettingsSerializer(serializers.Serializer):
     def to_representation(self, instance):
         data = instance.editable_values()
         data["is_default"] = instance._state.adding
-        data["currency"] = getattr(django_settings, "PAYROLL_CURRENCY", "NPR")
+        data["currency"] = getattr(django_settings, "PAYROLL_CURRENCY", "INR")
         return data
 
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { CURRENCY } from "@/lib/currency";
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -197,7 +198,7 @@ export function PaymentCallbackHandler({ returnPath, portalTitle }: PaymentCallb
                                     <div className="flex flex-wrap justify-between gap-2 items-center text-sm">
                                         <span className="text-slate-500">Amount Paid</span>
                                         <span className="font-mono font-bold text-base text-slate-900 dark:text-white">
-                                            NPR {Number(orderData.amount).toFixed(2)}
+                                            {CURRENCY} {Number(orderData.amount).toFixed(2)}
                                         </span>
                                     </div>
                                     {receiptNumber && (
@@ -273,7 +274,7 @@ export function PaymentCallbackHandler({ returnPath, portalTitle }: PaymentCallb
                                 </p>
                                 {orderData && (
                                     <div className="pt-2 border-t border-amber-200/60 dark:border-amber-900/60 text-xs font-mono text-amber-800 dark:text-amber-300 flex flex-wrap justify-between gap-2">
-                                        <span>Order Amount: NPR {Number(orderData.amount).toFixed(2)}</span>
+                                        <span>Order Amount: {CURRENCY} {Number(orderData.amount).toFixed(2)}</span>
                                         <span>Reference: {orderData.gateway_order_id.slice(0, 12)}...</span>
                                     </div>
                                 )}

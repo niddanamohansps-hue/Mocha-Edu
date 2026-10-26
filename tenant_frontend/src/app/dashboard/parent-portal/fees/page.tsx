@@ -1,5 +1,6 @@
 "use client";
 
+import { CURRENCY } from "@/lib/currency";
 import { useMemo, useState } from "react";
 import {
     LoaderCircle,
@@ -103,7 +104,7 @@ export default function ParentPortalFeesPage() {
                         className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-2 self-start sm:self-auto shadow-sm"
                     >
                         <CreditCard className="h-4 w-4" />
-                        Pay Selected ({selectedFeeIds.length}) — NPR {selectedTotal.toFixed(2)}
+                        Pay Selected ({selectedFeeIds.length}) — {CURRENCY} {selectedTotal.toFixed(2)}
                     </Button>
                 )}
             </div>
@@ -155,7 +156,7 @@ export default function ParentPortalFeesPage() {
                                     Total still to pay
                                 </p>
                                 <p className="text-3xl font-black font-mono text-slate-900 dark:text-white mt-1">
-                                    NPR {Number(feeData.total_outstanding).toFixed(2)}
+                                    {CURRENCY} {Number(feeData.total_outstanding).toFixed(2)}
                                 </p>
                                 <p className="text-xs text-slate-400 mt-1">
                                     {eligibleFees.length} fee{eligibleFees.length !== 1 ? "s" : ""} pending payment
@@ -193,7 +194,7 @@ export default function ParentPortalFeesPage() {
                                     Selected for Payment
                                 </p>
                                 <p className="text-3xl font-black font-mono text-indigo-600 dark:text-indigo-400 mt-1">
-                                    NPR {selectedTotal.toFixed(2)}
+                                    {CURRENCY} {selectedTotal.toFixed(2)}
                                 </p>
                                 <p className="text-xs text-slate-400 mt-1">
                                     {selectedFeeIds.length} item{selectedFeeIds.length !== 1 ? "s" : ""} selected
@@ -261,16 +262,16 @@ export default function ParentPortalFeesPage() {
                                     }
                                     columns={[
                                         { key: "head", header: "Fee", primary: true, cell: (f) => f.fee_head },
-                                        { key: "outstanding", header: "Still to pay", className: "font-mono font-bold", cell: (f) => `NPR ${Number(f.outstanding_balance).toFixed(2)}` },
+                                        { key: "outstanding", header: "Still to pay", className: "font-mono font-bold", cell: (f) => `${CURRENCY} ${Number(f.outstanding_balance).toFixed(2)}` },
                                         { key: "due", header: "Due date", className: "text-slate-500", cell: (f) => (f.due_date ? new Date(f.due_date).toLocaleDateString() : "—") },
-                                        { key: "amount", header: "Amount due", className: "font-mono", cell: (f) => `NPR ${Number(f.amount_due).toFixed(2)}` },
+                                        { key: "amount", header: "Amount due", className: "font-mono", cell: (f) => `${CURRENCY} ${Number(f.amount_due).toFixed(2)}` },
                                         {
                                             key: "discount",
                                             header: "Discount",
                                             className: "font-mono text-slate-400",
-                                            cell: (f) => (parseFloat(f.discount_amount) > 0 ? `NPR ${Number(f.discount_amount).toFixed(2)}` : "—"),
+                                            cell: (f) => (parseFloat(f.discount_amount) > 0 ? `${CURRENCY} ${Number(f.discount_amount).toFixed(2)}` : "—"),
                                         },
-                                        { key: "paid", header: "Paid", className: "font-mono text-emerald-600 font-medium", cell: (f) => `NPR ${Number(f.amount_paid).toFixed(2)}` },
+                                        { key: "paid", header: "Paid", className: "font-mono text-emerald-600 font-medium", cell: (f) => `${CURRENCY} ${Number(f.amount_paid).toFixed(2)}` },
                                         { key: "year", header: "Academic year", className: "text-slate-500 font-mono", cell: (f) => f.academic_year || "—" },
                                         {
                                             key: "status",
@@ -306,7 +307,7 @@ export default function ParentPortalFeesPage() {
                                         className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-2 px-6"
                                     >
                                         <CreditCard className="h-4 w-4" />
-                                        Pay NPR {selectedTotal.toFixed(2)}
+                                        Pay {CURRENCY} {selectedTotal.toFixed(2)}
                                     </Button>
                                 </div>
                             )}
@@ -324,7 +325,7 @@ export default function ParentPortalFeesPage() {
                                     rowKey={(p) => p.id}
                                     columns={[
                                         { key: "receipt", header: "Receipt", primary: true, className: "font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400", cell: (p) => p.receipt_number },
-                                        { key: "amount", header: "Amount", className: "font-mono font-medium", cell: (p) => `NPR ${Number(p.amount).toFixed(2)}` },
+                                        { key: "amount", header: "Amount", className: "font-mono font-medium", cell: (p) => `${CURRENCY} ${Number(p.amount).toFixed(2)}` },
                                         { key: "method", header: "Paid by", className: "capitalize", cell: (p) => p.method.replace("_", " ") },
                                         { key: "date", header: "Date", className: "text-slate-500", cell: (p) => new Date(p.created_at).toLocaleDateString() },
                                         {

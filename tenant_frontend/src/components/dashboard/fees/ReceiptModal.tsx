@@ -1,5 +1,6 @@
 "use client";
 
+import { CURRENCY } from "@/lib/currency";
 import { useRef } from "react";
 import { Loader2, Printer, X, CheckCircle2, AlertTriangle } from "lucide-react";
 import { usePaymentReceipt } from "@/hooks/useFees";
@@ -124,7 +125,7 @@ export function ReceiptModal({ paymentId, isOpen, onClose }: ReceiptModalProps) 
                                         <thead className="bg-slate-50 dark:bg-slate-900">
                                             <tr className="text-left text-xs font-semibold text-slate-500 uppercase">
                                                 <th className="px-4 py-2.5">Fee type</th>
-                                                <th className="px-4 py-2.5 text-right">Amount (NPR)</th>
+                                                <th className="px-4 py-2.5 text-right">Amount ({CURRENCY})</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -153,7 +154,7 @@ export function ReceiptModal({ paymentId, isOpen, onClose }: ReceiptModalProps) 
                                                     Total Paid
                                                 </th>
                                                 <th className="px-4 py-3 text-right font-mono font-black text-indigo-600 dark:text-indigo-400 text-base">
-                                                    NPR {Number(payment.amount).toFixed(2)}
+                                                    {CURRENCY} {Number(payment.amount).toFixed(2)}
                                                 </th>
                                             </tr>
                                         </tfoot>

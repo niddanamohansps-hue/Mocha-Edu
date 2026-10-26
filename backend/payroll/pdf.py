@@ -122,7 +122,7 @@ def render_payslip_pdf(payslip, lines, *, school_name):
     c.rect(MARGIN, y - 3 * mm, PAGE_W - 2 * MARGIN, 11 * mm, stroke=0, fill=1)
     c.setFillColor(HexColor("#ffffff"))
     c.setFont(FONT_BOLD, 12)
-    c.drawString(MARGIN + 3 * mm, y + 0.5 * mm, "Net pay (NPR)")
+    c.drawString(MARGIN + 3 * mm, y + 0.5 * mm, "Net pay (INR)")
     c.drawRightString(PAGE_W - MARGIN - 3 * mm, y + 0.5 * mm, money(payslip.net_amount))
 
     c.setFillColor(GREY)

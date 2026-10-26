@@ -1,5 +1,6 @@
 "use client";
 
+import { CURRENCY } from "@/lib/currency";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,7 +63,7 @@ function ComponentForm({ component, onClose }: { component: SalaryComponent | nu
                     <option value="percent_of_basic">A percentage of the basic salary</option>
                 </select>
             </Field>
-            <Field label={calculation === "percent_of_basic" ? "Usual percentage (%)" : "Usual amount (NPR)"} htmlFor="pc-value" hint="Each person can have their own value when you give them this item.">
+            <Field label={calculation === "percent_of_basic" ? "Usual percentage (%)" : `Usual amount (${CURRENCY})`} htmlFor="pc-value" hint="Each person can have their own value when you give them this item.">
                 <Input id="pc-value" inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} />
             </Field>
             <Field label="Description (optional)" htmlFor="pc-desc"><Input id="pc-desc" value={description} maxLength={255} onChange={(e) => setDescription(e.target.value)} /></Field>
@@ -136,7 +137,7 @@ export default function PayrollSetupPage() {
                                 <Pill className={c.kind === "deduction" ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"}>{c.kind === "deduction" ? "Deduction" : "Allowance"}</Pill>
                                 {!c.is_active && <Pill className="bg-slate-200 text-slate-600">Inactive</Pill>}
                                 <span className="text-xs text-slate-500">
-                                    {c.calculation === "percent_of_basic" ? `${Number(c.default_value)}% of basic` : `NPR ${Number(c.default_value).toLocaleString()}`} · given to {c.assigned_count}
+                                    {c.calculation === "percent_of_basic" ? `${Number(c.default_value)}% of basic` : `${CURRENCY} ${Number(c.default_value).toLocaleString()}`} · given to {c.assigned_count}
                                 </span>
                                 {canEdit && (
                                     <span className="ml-auto flex gap-1">

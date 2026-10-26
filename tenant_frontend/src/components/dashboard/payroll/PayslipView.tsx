@@ -1,5 +1,6 @@
 "use client";
 
+import { CURRENCY } from "@/lib/currency";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/components/dashboard/payroll/shared";
 import { PayslipDetail } from "@/types/Payroll";
@@ -60,7 +61,7 @@ export function PayslipView({ payslip, onPdf }: { payslip: PayslipDetail; onPdf:
             </section>
 
             <div className="rounded-2xl bg-slate-900 text-white px-5 py-4 flex items-center justify-between gap-3">
-                <span className="font-semibold">Net pay (NPR)</span>
+                <span className="font-semibold">Net pay ({CURRENCY})</span>
                 <span className={`text-2xl font-bold ${payslip.net_is_negative ? "text-red-300" : ""}`}>{formatMoney(payslip.net_amount)}</span>
             </div>
         </article>

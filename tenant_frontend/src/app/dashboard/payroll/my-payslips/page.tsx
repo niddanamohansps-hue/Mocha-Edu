@@ -1,5 +1,6 @@
 "use client";
 
+import { CURRENCY } from "@/lib/currency";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { EmptyHint } from "@/components/common/PageLayout";
@@ -58,7 +59,7 @@ export default function MyPayslipsPage() {
                             >
                                 <span className="font-semibold text-slate-900 dark:text-white">{slip.month_label}</span>
                                 <span className="text-xs text-slate-500">{slip.run_status === "paid" ? "Paid" : "Approved"}</span>
-                                <span className="font-bold">NPR {formatMoney(slip.net_amount)}</span>
+                                <span className="font-bold">{CURRENCY} {formatMoney(slip.net_amount)}</span>
                             </button>
                         </li>
                     ))}

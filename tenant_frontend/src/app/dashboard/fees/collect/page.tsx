@@ -1,5 +1,6 @@
 "use client";
 
+import { CURRENCY } from "@/lib/currency";
 import { useMemo, useState } from "react";
 import { LoaderCircle, Plus, Receipt as ReceiptIcon, XCircle } from "lucide-react";
 import {
@@ -183,7 +184,7 @@ export default function CollectPaymentPage() {
                                             ? [
                                                   {
                                                       key: "allocate",
-                                                      header: "Take payment (NPR)",
+                                                      header: `Take payment (${CURRENCY})`,
                                                       cell: (f: (typeof feesData.fees)[number]) =>
                                                           f.status === "active" && parseFloat(f.outstanding_balance) > 0 ? (
                                                               <Input

@@ -1,5 +1,6 @@
 "use client";
 
+import { CURRENCY } from "@/lib/currency";
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Field, FormDialog, SELECT_CLASS, formatMoney, isPositiveDecimal } from "@/components/dashboard/payroll/shared";
@@ -25,7 +26,7 @@ function PayForm({ run, onClose }: { run: PayrollRun; onClose: () => void }) {
             open
             onOpenChange={(open) => !open && onClose()}
             title={`Record payment for ${run.month_label}`}
-            description={`Total paid out: NPR ${formatMoney(run.total_net)} to ${run.payslip_count} people. After this the payroll is closed.`}
+            description={`Total paid out: ${CURRENCY} ${formatMoney(run.total_net)} to ${run.payslip_count} people. After this the payroll is closed.`}
             submitLabel="Mark as paid"
             pending={action.isPending}
             error={error}
@@ -149,7 +150,7 @@ function AdjustmentForm({ run, onClose }: { run: PayrollRun; onClose: () => void
             <Field label="Name" htmlFor="adj-name">
                 <Input id="adj-name" value={name} maxLength={100} onChange={(e) => setName(e.target.value)} />
             </Field>
-            <Field label="Amount (NPR)" htmlFor="adj-amount">
+            <Field label={`Amount (${CURRENCY})`} htmlFor="adj-amount">
                 <Input id="adj-amount" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
             </Field>
             <Field label="Reason" htmlFor="adj-reason">

@@ -1,5 +1,6 @@
 "use client";
 
+import { CURRENCY } from "@/lib/currency";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -61,7 +62,7 @@ function SetSalaryForm({ onClose, staffId, staffName }: { onClose: () => void; s
                     </div>
                 </Field>
             )}
-            <Field label="Basic salary per month (NPR)" htmlFor="sal-amount">
+            <Field label={`Basic salary per month (${CURRENCY})`} htmlFor="sal-amount">
                 <Input id="sal-amount" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
             </Field>
             <Field label="Starts from" htmlFor="sal-from" hint="The first day this salary applies. Use the 1st of a month for a clean change.">
@@ -159,7 +160,7 @@ function StructureBody({ staffId, staffName }: { staffId: string; staffName: str
                             <li key={a.id} className="px-4 py-2 flex flex-wrap items-center gap-2">
                                 <span className="font-medium">{a.component_name}</span>
                                 <span className="text-slate-500">
-                                    {a.kind === "deduction" ? "deduction" : "earning"} · {a.calculation === "percent_of_basic" ? `${Number(a.effective_value)}% of basic` : `NPR ${formatMoney(Number(a.effective_value).toFixed(2))}`}
+                                    {a.kind === "deduction" ? "deduction" : "earning"} · {a.calculation === "percent_of_basic" ? `${Number(a.effective_value)}% of basic` : `${CURRENCY} ${formatMoney(Number(a.effective_value).toFixed(2))}`}
                                     {a.value !== null ? " (set for this person)" : ""} · from {formatDate(a.effective_from)}
                                 </span>
                                 {canEdit && (

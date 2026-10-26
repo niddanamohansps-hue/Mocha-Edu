@@ -1,5 +1,6 @@
 "use client";
 
+import { CURRENCY } from "@/lib/currency";
 import { useEffect, useState } from "react";
 import { Loader2, ShieldCheck, ExternalLink, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
@@ -81,7 +82,7 @@ export function PaymentReviewModal({
         if (isNaN(val) || val <= 0) {
             errors[fee.id] = "Must be greater than 0";
         } else if (val > max) {
-            errors[fee.id] = `Cannot exceed outstanding NPR ${max.toFixed(2)}`;
+            errors[fee.id] = `Cannot exceed outstanding ${CURRENCY} ${max.toFixed(2)}`;
         } else {
             totalAmount += val;
         }
@@ -195,14 +196,14 @@ export function PaymentReviewModal({
                                                 <p className="text-xs text-slate-400 mt-0.5">
                                                     Outstanding Balance:{" "}
                                                     <span className="font-mono font-medium text-slate-700 dark:text-slate-300">
-                                                        NPR {Number(fee.outstanding_balance).toFixed(2)}
+                                                        {CURRENCY} {Number(fee.outstanding_balance).toFixed(2)}
                                                     </span>
                                                 </p>
                                             </div>
                                             <div className="w-full sm:w-44 flex flex-col items-end">
                                                 <div className="relative w-full">
                                                     <span className="absolute left-3 top-2.5 text-xs text-slate-400">
-                                                        NPR
+                                                        {CURRENCY}
                                                     </span>
                                                     <Input
                                                         type="number"
@@ -258,7 +259,7 @@ export function PaymentReviewModal({
                             </div>
                             <div className="text-right">
                                 <p className="text-2xl font-black font-mono text-indigo-700 dark:text-indigo-400">
-                                    NPR {totalAmount.toFixed(2)}
+                                    {CURRENCY} {totalAmount.toFixed(2)}
                                 </p>
                             </div>
                         </div>
@@ -291,7 +292,7 @@ export function PaymentReviewModal({
                                 </>
                             ) : (
                                 <>
-                                    Proceed to Pay NPR {totalAmount.toFixed(2)}
+                                    Proceed to Pay {CURRENCY} {totalAmount.toFixed(2)}
                                     <ExternalLink className="h-4 w-4" />
                                 </>
                             )}

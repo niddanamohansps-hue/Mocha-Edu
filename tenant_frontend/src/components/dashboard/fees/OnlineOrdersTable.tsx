@@ -1,5 +1,6 @@
 "use client";
 
+import { CURRENCY } from "@/lib/currency";
 import { useState } from "react";
 import { Loader2, Receipt, AlertCircle, RefreshCw, CheckCircle2, Clock, XCircle } from "lucide-react";
 import { OnlinePaymentOrder } from "@/types/Fees";
@@ -102,7 +103,7 @@ export function OnlineOrdersTable({ orders, isLoading, onRefresh }: OnlineOrders
                             key: "amount",
                             header: "Amount",
                             primary: true,
-                            cell: (o) => <span className="font-mono font-bold">NPR {Number(o.amount).toFixed(2)}</span>,
+                            cell: (o) => <span className="font-mono font-bold">{CURRENCY} {Number(o.amount).toFixed(2)}</span>,
                         },
                         {
                             key: "date",

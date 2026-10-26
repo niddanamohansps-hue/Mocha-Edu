@@ -151,7 +151,7 @@ class PdfTests(PayslipFixture):
             data = render_payslip_pdf(slip, list(slip.lines.all()), school_name="Green Valley School")
         self.assertTrue(data.startswith(b"%PDF-"))
         for needle in ("Green Valley School", "Payslip for February 2026", "Sita Karki", "E-P-1", "24,000.00", "2,400.00",
-                       "1,000.00", "3,400.00", "20,600.00", "Net pay (NPR)"):
+                       "1,000.00", "3,400.00", "20,600.00", "Net pay (INR)"):
             self.assertIn(needle, drawn, needle)
         self.assertTrue(any("Paid on 3 March 2026" in t for t in drawn))
         self.assertFalse(any("?" in t for t in drawn))     # nothing had to be replaced
