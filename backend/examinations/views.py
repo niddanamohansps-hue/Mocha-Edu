@@ -143,9 +143,13 @@ class ExamScheduleViewSet(viewsets.ModelViewSet):
         pairs = set(assignments)
         if not pairs:
             return qs.none()
-        section_ids = {p[0] for p in pairs}
-        subject_ids = {p[1] for p in pairs}
-        return qs.filter(section_id__in=section_ids, subject_id__in=subject_ids)
+        # Exact (section, subject) pairs: teaching Maths in A and Science in B must not show Science in A.
+        from django.db.models import Q
+
+        match = Q()
+        for section_id, subject_id in pairs:
+            match |= Q(section_id=section_id, subject_id=subject_id)
+        return qs.filter(match)
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -178,6 +182,17 @@ class ExamScheduleViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
+        instructor = get_instructor_for_user(request.user)
+        if instructor is not None and not is_owner(request):
+            from academics.models import SubjectAssignment
+
+            section = serializer.validated_data.get("section", instance.section)
+            subject = serializer.validated_data.get("subject", instance.subject)
+            if not SubjectAssignment.objects.filter(section=section, subject=subject, instructor=instructor).exists():
+                return Response(
+                    {"error": "You are not assigned to teach this subject for this section."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
         schedule = serializer.save()
         log_action(
             request, action="exam_schedule_updated", model_name="ExamSchedule", object_id=schedule.id,
@@ -231,6 +246,8 @@ class ExamScheduleViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def lock(self, request, pk=None):
         schedule = self.get_object()
+        if not user_can_access_schedule(request, schedule):
+            return Response({"error": "You are not authorized to lock this schedule."}, status=status.HTTP_403_FORBIDDEN)
         from django.utils import timezone
 
         lock_value = request.data.get("is_locked", True)
