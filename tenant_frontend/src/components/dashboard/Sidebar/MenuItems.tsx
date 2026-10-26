@@ -19,7 +19,8 @@ import {
     Award,
     Megaphone,
     Boxes,
-    Wallet
+    Wallet,
+    Library
 } from "lucide-react";
 import { SidebarItemType } from "@/components/dashboard/Sidebar/SidebarItem";
 
@@ -357,6 +358,20 @@ export const getMenuItems = (user: any, can: (permission: string) => boolean): S
                 { label: "Vehicles & drivers", href: "/dashboard/transport/fleet" },
                 { label: "Students", href: "/dashboard/transport/students" },
                 { label: "Billing", href: "/dashboard/transport/billing" },
+            ],
+        });
+    }
+
+    // 14. Library - everything sits behind view_library; each tab hides what the person cannot do.
+    if (can("view_library")) {
+        menuItems.push({
+            label: "Library",
+            icon: Library,
+            children: [
+                { label: "Books", href: "/dashboard/library" },
+                { label: "Loans", href: "/dashboard/library/loans" },
+                { label: "Fines", href: "/dashboard/library/fines" },
+                { label: "Setup", href: "/dashboard/library/setup" },
             ],
         });
     }

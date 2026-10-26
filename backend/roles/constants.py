@@ -787,4 +787,29 @@ SYSTEM_PERMISSIONS = [
         "module": "Transport",
         "description": "Run the monthly transport billing, which adds a Transport fee to each seated student",
     },
+    # Library
+    {
+        "codename": "view_library",
+        "name": "View Library",
+        "module": "Library",
+        "description": "View the catalogue, loans, fines and library settings",
+    },
+    {
+        "codename": "manage_library",
+        "name": "Manage Library",
+        "module": "Library",
+        "description": "Add and change books, copies and categories, and change the library rules",
+    },
+    {
+        "codename": "lend_library_books",
+        "name": "Lend Library Books",
+        "module": "Library",
+        "description": "Issue books to students and staff, take them back, renew them and report them lost",
+    },
+    {
+        "codename": "manage_library_fines",
+        "name": "Manage Library Fines",
+        "module": "Library",
+        "description": "Bill a student's library fine in Fees, record a staff member's payment, or waive a fine",
+    },
 ]
