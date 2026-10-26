@@ -66,6 +66,7 @@ class SeedConnectSchoolTests(TransactionTestCase):
             self.check_certificates()
             self.check_admissions()
             self.check_inventory()
+            self.check_question_bank()
         self.assertEqual(mail.outbox, [], "the seeder must never send real email")
         with tenant_context(self.org):
             from notifications.models import EmailOutboxEvent, Notification
@@ -110,7 +111,11 @@ class SeedConnectSchoolTests(TransactionTestCase):
         from students.models import AdmissionApplication, AdmissionEnquiry
         from timetable.models import TimetableEntry, TimetableSubstitution
 
+        from question_bank.models import PaperQuestion, Question, QuestionPaper
+
         return {
+            "questions": Question.objects.count(), "papers": QuestionPaper.objects.count(),
+            "paper_questions": PaperQuestion.objects.count(),
             "events": CalendarEvent.objects.count(), "leave": LeaveApplication.objects.count(),
             "timetable": TimetableEntry.objects.count(), "substitutions": TimetableSubstitution.objects.count(),
             "announcements": Announcement.objects.count(), "certificates": Certificate.objects.count(),
@@ -306,3 +311,40 @@ class SeedConnectSchoolTests(TransactionTestCase):
 
         self.assertGreater(Item.objects.count(), 0)
         self.assertGreater(Asset.objects.count(), 0)
+
+    def check_question_bank(self):
+        from collections import Counter as Tally
+
+        from question_bank import paper_services
+        from question_bank.models import PaperQuestion, Question, QuestionPaper, QuestionReview, QuestionVersion, SubjectReviewer
+        from roles.models import UserRole
+
+        states = Tally(Question.objects.values_list("status", flat=True))
+        for state in ("approved", "submitted", "changes_requested", "rejected", "draft", "archived"):
+            self.assertGreater(states[state], 0, f"there is a {state} question")
+        self.assertGreater(states["approved"], 60)
+        for question in Question.objects.exclude(status="draft"):
+            self.assertIsNotNone(question.submitted_at)
+        self.assertEqual(QuestionVersion.objects.filter(number__gt=1).count(), Question.objects.filter(version__gt=1).count())
+        for review in QuestionReview.objects.select_related("question"):
+            self.assertNotEqual(review.reviewer_user_id, review.question.created_by_user_id, "nobody reviews their own question")
+        for row in SubjectReviewer.objects.select_related("staff__profile"):
+            self.assertTrue(UserRole.objects.filter(user_id=row.staff.profile.user_id, role__slug="qb-question-reviewer").exists())
+
+        papers = {(p.examination.name.split(" ")[0], p.subject.name, p.set_label): p for p in QuestionPaper.objects.select_related("examination", "subject")}
+        statuses = Tally(p.status for p in papers.values())
+        self.assertEqual(statuses, Tally({"released": 1, "withdrawn": 1, "approved": 1, "submitted": 1, "draft": 1}))
+        for paper in papers.values():
+            if paper.status in ("approved", "released", "withdrawn"):
+                self.assertIsNotNone(paper.frozen_content)
+                self.assertNotEqual(paper.approved_by_user_id, paper.prepared_by_user_id)
+            if paper.status in ("submitted", "approved", "released"):
+                self.assertEqual(paper_services.problems(paper), [], f"{paper} is complete")
+        pre_a = papers[("Pre-Board", "Mathematics", "A")]
+        self.assertIsNotNone(pre_a.release_at)
+        self.assertFalse(paper_services.is_released(pre_a))
+        a_ids = set(PaperQuestion.objects.filter(paper=pre_a).values_list("question_id", flat=True))
+        b_ids = set(PaperQuestion.objects.filter(paper=papers[("Pre-Board", "Mathematics", "B")]).values_list("question_id", flat=True))
+        self.assertEqual(a_ids & b_ids, set(), "two live sets share no question")
+        self.assertTrue(papers[("Annual", "Mathematics", "A")].access_log.exists())
+        self.assertGreater(len(paper_services.problems(papers[("Pre-Board", "Science", "A")])), 0, "the Science draft is still in progress")

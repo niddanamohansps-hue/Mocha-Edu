@@ -18,6 +18,9 @@ adds, through the real services (so the data obeys the same rules as the screens
   library        books and copies, open and overdue loans, late returns with fines billed, waived or pending
   certificates   bonafide, character, transfer and experience certificates, and generated ID cards
   admissions     enquiries for next year, applications at every stage, and interviews
+  question_bank  question writers, a reviewer and an exam controller; chapters; questions in every review state;
+                 Class 10 Mathematics papers (released, withdrawn, approved for a December Pre-Board, waiting) and a
+                 Science draft
   inventory      stock, purchases and assets (runs seed_inventory_demo)
   alerts         absence alerts and payment receipts switched on (fee reminders stay off)
 
@@ -46,6 +49,7 @@ from django.utils import timezone
 from django_tenants.utils import tenant_context
 
 from ._seed_connect_more import MoreSteps
+from ._seed_exam_bank import ExamBankStep
 
 D = Decimal
 DEFAULT_SCHEMA = "sunrisevalley_school"
@@ -54,7 +58,7 @@ EMAIL_DOMAIN = "example.test"
 # In dependency order: the calendar before attendance, leave before payroll, accounts before announcements.
 STEPS = (
     "accounts", "staff_parents", "calendar", "staff_attendance", "leave", "payroll", "timetable", "announcements",
-    "transport", "library", "certificates", "admissions", "inventory", "alerts",
+    "transport", "library", "certificates", "admissions", "question_bank", "inventory", "alerts",
 )
 
 FIRST_NAMES = ["Ramesh", "Suresh", "Mahesh", "Dilip", "Anil", "Bhaskar", "Jitu", "Rafique", "Tarun", "Hemanta",
@@ -109,7 +113,7 @@ def _round_to(value, step):
     return int(round(value / step) * step)
 
 
-class Command(MoreSteps, BaseCommand):
+class Command(ExamBankStep, MoreSteps, BaseCommand):
     help = "Connects an existing seeded school: portal logins, staff who are parents, and data for every module."
 
     def add_arguments(self, parser):
