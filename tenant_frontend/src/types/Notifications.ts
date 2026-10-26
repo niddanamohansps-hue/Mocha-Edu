@@ -25,3 +25,13 @@ export type MarkReadResponse = Notification;
 export interface MarkAllReadResponse {
     updated_count: number;
 }
+
+export interface NotificationSettings {
+    fee_reminders_enabled: boolean;
+    absence_alerts_enabled: boolean;
+    payment_receipts_enabled: boolean;
+    low_stock_alerts_enabled: boolean;
+    fee_reminder_days_before: number;
+    overdue_reminder_interval_days: number;
+    max_overdue_reminders: number;
+}

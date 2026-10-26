@@ -229,6 +229,9 @@ def apply_attendance_records(session, records, recorded_by):
     for row in session.student_records.all():
         counts[row.status] = counts.get(row.status, 0) + 1
 
+    from .alerts import queue_absence_alerts
+
+    queue_absence_alerts(session.id)
     return {"counts": counts, "changed": changed}
 
 

@@ -6,6 +6,7 @@ import {
     MarkAllReadResponse,
     MarkReadResponse,
     NotificationListResponse,
+    NotificationSettings,
     UnreadCountResponse,
 } from "@/types/Notifications";
 
@@ -79,5 +80,27 @@ export const useMarkAllNotificationsRead = () => {
             }
         },
         onError: (error: unknown) => toast.error(errorMessage(error, "Failed to mark all as read")),
+    });
+};
+
+export const useNotificationSettings = () => {
+    const { data: user } = useMe();
+    return useQuery({
+        queryKey: ["notifications", "settings", user?.id],
+        queryFn: async () => (await axiosInstance.get("/notifications/settings/")).data as NotificationSettings,
+        enabled: !!user,
+    });
+};
+
+export const useUpdateNotificationSettings = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (input: Partial<NotificationSettings>) =>
+            (await axiosInstance.patch("/notifications/settings/", input)).data as NotificationSettings,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["notifications", "settings"] });
+            toast.success("Settings saved");
+        },
+        onError: (error: unknown) => toast.error(errorMessage(error, "Could not save the settings")),
     });
 };

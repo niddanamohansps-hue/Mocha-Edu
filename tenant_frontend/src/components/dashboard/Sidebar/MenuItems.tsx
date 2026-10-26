@@ -279,6 +279,10 @@ export const getMenuItems = (user: any, can: (permission: string) => boolean): S
         adminChildren.push({ label: "Audit Logs", href: "/dashboard/audit-logs" });
     }
 
+    if (can("manage_notification_settings") || can("view_notification_log")) {
+        adminChildren.push({ label: "Automatic Alerts", href: "/dashboard/notifications/settings" });
+    }
+
     if (adminChildren.length > 0) {
         menuItems.push({
             label: "Administration",

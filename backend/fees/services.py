@@ -471,6 +471,9 @@ def record_payment(*, student, amount, method, allocations, recorded_by, referen
             for entry in allocations
         ]
     )
+    from .receipts import queue_payment_receipt
+
+    queue_payment_receipt(payment.id)
     return payment
 
 
