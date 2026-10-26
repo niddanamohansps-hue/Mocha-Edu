@@ -171,3 +171,126 @@ class QuestionReview(models.Model):
 
     class Meta:
         ordering = ["question", "-created_at"]
+
+
+# --- Question papers (Stage Q3 and Q4) -------------------------------------------------------------------------
+
+
+class QuestionPaper(models.Model):
+    """One set (A, B, ...) of the paper for one subject in one examination.
+
+    Prepared from approved questions only, approved by someone other than its preparer, then frozen: on approval
+    the full content of every question is copied into ``frozen_content``, so editing or archiving a question later
+    never changes an approved paper. Before release only the preparer and approvers can open it; after release the
+    teachers of the subject can open it to print and mark. Students and parents never can.
+    """
+
+    class Status(models.TextChoices):
+        DRAFT = "draft", "Draft"
+        SUBMITTED = "submitted", "Waiting for approval"
+        APPROVED = "approved", "Approved"
+        RELEASED = "released", "Released"
+        WITHDRAWN = "withdrawn", "Withdrawn"
+
+    EDITABLE = (Status.DRAFT,)
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    examination = models.ForeignKey("examinations.Examination", on_delete=models.PROTECT, related_name="question_papers")
+    subject = models.ForeignKey("academics.Subject", on_delete=models.PROTECT, related_name="question_papers")
+    set_label = models.CharField(max_length=10, default="A")
+    title = models.CharField(max_length=200)
+    instructions = models.TextField(blank=True)
+    total_marks = models.DecimalField(max_digits=6, decimal_places=2, validators=[MinValueValidator(Decimal("1"))])
+    duration_minutes = models.PositiveSmallIntegerField(validators=[MinValueValidator(1)])
+    allow_shared_questions = models.BooleanField(
+        default=False, help_text="Allow questions also used in another set of the same paper."
+    )
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.DRAFT)
+    release_at = models.DateTimeField(null=True, blank=True, help_text="Released automatically from this time.")
+    frozen_content = models.JSONField(null=True, blank=True)
+    review_comment = models.TextField(blank=True)
+    withdraw_reason = models.CharField(max_length=255, blank=True)
+
+    prepared_by_user_id = models.UUIDField()
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    approved_by_user_id = models.UUIDField(null=True, blank=True)
+    approved_at = models.DateTimeField(null=True, blank=True)
+    released_at = models.DateTimeField(null=True, blank=True)
+    withdrawn_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            # A set label is used once per exam and subject, not counting withdrawn papers (a replacement may reuse it).
+            models.UniqueConstraint(
+                fields=["examination", "subject", "set_label"], condition=~Q(status="withdrawn"), name="qb_paper_unique_live_set"
+            ),
+            models.CheckConstraint(condition=Q(total_marks__gt=0), name="qb_paper_marks_positive"),
+        ]
+
+    def __str__(self):
+        return f"{self.title} (Set {self.set_label})"
+
+
+class PaperSection(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    paper = models.ForeignKey(QuestionPaper, on_delete=models.CASCADE, related_name="sections")
+    order = models.PositiveSmallIntegerField(default=1)
+    title = models.CharField(max_length=100)
+    instructions = models.CharField(max_length=500, blank=True)
+
+    class Meta:
+        ordering = ["paper", "order"]
+        constraints = [models.UniqueConstraint(fields=["paper", "order"], name="qb_section_unique_order")]
+
+    def __str__(self):
+        return self.title
+
+
+class BlueprintRule(models.Model):
+    """'This section needs N questions of this kind': any of chapter, difficulty and type may be left open."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    section = models.ForeignKey(PaperSection, on_delete=models.CASCADE, related_name="rules")
+    count = models.PositiveSmallIntegerField(validators=[MinValueValidator(1)])
+    question_type = models.CharField(max_length=20, choices=Question.Type.choices, blank=True)
+    difficulty = models.CharField(max_length=10, choices=Question.Difficulty.choices, blank=True)
+    chapter = models.ForeignKey(Chapter, null=True, blank=True, on_delete=models.PROTECT, related_name="blueprint_rules")
+
+    class Meta:
+        ordering = ["section", "id"]
+        constraints = [models.CheckConstraint(condition=Q(count__gte=1), name="qb_rule_count_positive")]
+
+
+class PaperQuestion(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    paper = models.ForeignKey(QuestionPaper, on_delete=models.CASCADE, related_name="items")
+    section = models.ForeignKey(PaperSection, on_delete=models.CASCADE, related_name="items")
+    question = models.ForeignKey(Question, on_delete=models.PROTECT, related_name="paper_items")
+    question_version = models.PositiveIntegerField()
+    order = models.PositiveSmallIntegerField(default=1)
+    marks = models.DecimalField(max_digits=5, decimal_places=2)
+
+    class Meta:
+        ordering = ["section__order", "order"]
+        constraints = [models.UniqueConstraint(fields=["paper", "question"], name="qb_paper_question_once")]
+
+
+class PaperAccessLog(models.Model):
+    """Who opened a paper or its answer key, and when. Written for every view and print."""
+
+    class Kind(models.TextChoices):
+        PAPER = "paper", "Opened the paper"
+        ANSWER_KEY = "answer_key", "Opened the answer key"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    paper = models.ForeignKey(QuestionPaper, on_delete=models.CASCADE, related_name="access_log")
+    user_id = models.UUIDField()
+    kind = models.CharField(max_length=12, choices=Kind.choices)
+    status_at_access = models.CharField(max_length=10)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]

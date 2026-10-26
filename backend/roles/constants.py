@@ -837,4 +837,16 @@ SYSTEM_PERMISSIONS = [
         "module": "Question Bank",
         "description": "Set up chapters, topics and subject reviewers, and see and manage every question",
     },
+    {
+        "codename": "prepare_papers",
+        "name": "Prepare Question Papers",
+        "module": "Question Bank",
+        "description": "Build examination papers and their blueprints from approved questions, and submit them for approval",
+    },
+    {
+        "codename": "approve_papers",
+        "name": "Approve Question Papers",
+        "module": "Question Bank",
+        "description": "Approve, send back, release and withdraw question papers prepared by someone else, and see who opened them",
+    },
 ]

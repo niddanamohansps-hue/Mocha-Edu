@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Pill } from "@/components/dashboard/inventory/shared";
 import { usePermissions } from "@/providers/PermissionProvider";
-import { QuestionStatus, STATUS_LABELS } from "@/types/QuestionBank";
+import { PAPER_STATUS_LABELS, PaperStatus, QuestionStatus, STATUS_LABELS } from "@/types/QuestionBank";
 
 export {
     Field,
@@ -21,6 +21,10 @@ export {
 const TABS = [
     { href: "/dashboard/question-bank", label: "Questions", exact: true, show: () => true },
     { href: "/dashboard/question-bank/review", label: "To review", show: (can: (p: string) => boolean) => can("review_questions") },
+    {
+        href: "/dashboard/question-bank/papers", label: "Papers",
+        show: (can: (p: string) => boolean) => can("prepare_papers") || can("approve_papers") || can("view_examinations"),
+    },
     { href: "/dashboard/question-bank/setup", label: "Chapters & reviewers", show: () => true },
 ];
 
@@ -67,4 +71,16 @@ export function StatusBadge({ status }: { status: QuestionStatus }) {
 export function useCanUseBank() {
     const { can } = usePermissions();
     return can("view_question_bank") || can("create_questions") || can("review_questions") || can("manage_question_bank");
+}
+
+const PAPER_STYLES: Record<PaperStatus, string> = {
+    draft: "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+    submitted: "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400",
+    approved: "bg-sky-100 text-sky-700 dark:bg-sky-500/10 dark:text-sky-400",
+    released: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400",
+    withdrawn: "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400",
+};
+
+export function PaperStatusBadge({ status }: { status: PaperStatus }) {
+    return <Pill className={PAPER_STYLES[status]}>{PAPER_STATUS_LABELS[status]}</Pill>;
 }

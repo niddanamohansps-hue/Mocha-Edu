@@ -195,6 +195,9 @@ export const getMenuItems = (user: any, can: (permission: string) => boolean): S
     if (can("review_questions")) {
         examinationChildren.push({ label: "Questions to Review", href: "/dashboard/question-bank/review" });
     }
+    if (can("prepare_papers") || can("approve_papers")) {
+        examinationChildren.push({ label: "Question Papers", href: "/dashboard/question-bank/papers" });
+    }
 
     if (examinationChildren.length > 0) {
         menuItems.push({

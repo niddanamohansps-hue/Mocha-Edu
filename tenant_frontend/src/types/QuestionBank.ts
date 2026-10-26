@@ -114,3 +114,123 @@ export interface QuestionHistory {
     versions: { id: string; number: number; content: Record<string, unknown>; created_at: string }[];
     reviews: { id: string; version: number; decision: ReviewDecision; comment: string; reviewer_name: string; created_at: string }[];
 }
+
+// --- Question papers -----------------------------------------------------------------------------
+
+export type PaperStatus = "draft" | "submitted" | "approved" | "released" | "withdrawn";
+
+export const PAPER_STATUS_LABELS: Record<PaperStatus, string> = {
+    draft: "Draft",
+    submitted: "Waiting for approval",
+    approved: "Approved",
+    released: "Released",
+    withdrawn: "Withdrawn",
+};
+
+export interface BlueprintRule {
+    id: string;
+    section: string;
+    count: number;
+    question_type: QuestionType | "";
+    difficulty: Difficulty | "";
+    chapter: string | null;
+    chapter_name: string;
+    description: string;
+}
+
+export interface PaperItem {
+    id: string;
+    section: string;
+    question: string;
+    question_version: number;
+    order: number;
+    marks: string;
+    body: string;
+    question_type: QuestionType;
+    difficulty: Difficulty;
+    chapter_name: string;
+    question_status: QuestionStatus;
+}
+
+export interface PaperSection {
+    id: string;
+    paper: string;
+    order: number;
+    title: string;
+    instructions: string;
+    rules: BlueprintRule[];
+    items: PaperItem[];
+}
+
+export interface QuestionPaper {
+    id: string;
+    examination: string;
+    examination_name: string;
+    subject: string;
+    subject_name: string;
+    level_name: string;
+    set_label: string;
+    title: string;
+    instructions: string;
+    total_marks: string;
+    duration_minutes: number;
+    allow_shared_questions: boolean;
+    status: PaperStatus;
+    release_at: string | null;
+    review_comment: string;
+    withdraw_reason: string;
+    marks_so_far: string;
+    question_count: number;
+    is_released: boolean;
+    is_mine: boolean;
+    submitted_at: string | null;
+    approved_at: string | null;
+    released_at: string | null;
+    sections?: PaperSection[];
+    problems?: string[];
+}
+
+export interface PaperInput {
+    examination: string;
+    subject: string;
+    set_label: string;
+    title: string;
+    instructions: string;
+    total_marks: string;
+    duration_minutes: number;
+    allow_shared_questions: boolean;
+}
+
+export interface PrintedQuestion {
+    number: number;
+    marks: string;
+    type: QuestionType;
+    body: string;
+    options: string[];
+    correct?: number[];
+    answer?: string;
+    explanation?: string;
+    marking_scheme?: string;
+    chapter: string;
+}
+
+export interface PrintablePaper {
+    title: string;
+    set_label: string;
+    instructions: string;
+    examination: string;
+    subject: string;
+    level: string;
+    total_marks: string;
+    duration_minutes: number;
+    status: PaperStatus;
+    is_frozen: boolean;
+    sections: { title: string; instructions: string; questions: PrintedQuestion[] }[];
+}
+
+export interface PaperAccessEntry {
+    user: string;
+    kind: "paper" | "answer_key";
+    status: PaperStatus;
+    at: string;
+}
