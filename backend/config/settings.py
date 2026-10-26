@@ -120,6 +120,14 @@ INSTALLED_APPS = list(SHARED_APPS) + [
 TENANT_MODEL = "organizations.Organization"
 TENANT_DOMAIN_MODEL = "organizations.Domain"
 
+# Faster tests (opt-in): create each test school by copying one migrated base schema instead of running
+# every migration again. Only while running tests and only with EDUSEKAI_TEST_CLONE_TENANTS=1; real schools
+# are always created by running the migrations. See config/test_runner.py.
+if _RUNNING_TESTS and config("EDUSEKAI_TEST_CLONE_TENANTS", default=False, cast=bool):
+    TEST_RUNNER = "config.test_runner.CloneBaseSchemaRunner"
+    TENANT_CREATION_FAKES_MIGRATIONS = True
+    TENANT_BASE_SCHEMA = "tenant_base"
+
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django_tenants.middleware.main.TenantMainMiddleware",
