@@ -347,6 +347,20 @@ export const getMenuItems = (user: any, can: (permission: string) => boolean): S
         });
     }
 
+    // 13. Transport - everything sits behind view_transport; each tab hides what the person cannot do.
+    if (can("view_transport")) {
+        menuItems.push({
+            label: "Transport",
+            icon: Bus,
+            children: [
+                { label: "Routes", href: "/dashboard/transport" },
+                { label: "Vehicles & drivers", href: "/dashboard/transport/fleet" },
+                { label: "Students", href: "/dashboard/transport/students" },
+                { label: "Billing", href: "/dashboard/transport/billing" },
+            ],
+        });
+    }
+
     // 9. Announcements - every signed-in user can read what was sent to them
     // (served by the recipient-scoped mine/ endpoints); managing is permission-gated.
     const announcementChildren: SidebarItemType[] = [

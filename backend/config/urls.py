@@ -25,6 +25,7 @@ urlpatterns = [
     path("api/certificates/", include("certificates.urls")),
     path("api/inventory/", include("inventory.urls")),
     path("api/payroll/", include("payroll.urls")),
+    path("api/transport/", include("transport.urls")),
     path("api/dashboard/", include("dashboard.urls")),
     path("api/audit-logs/", include("core.urls")),
     path("api/calendar-events/", include("academics.calendar_urls")),

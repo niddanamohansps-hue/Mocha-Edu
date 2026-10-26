@@ -762,4 +762,29 @@ SYSTEM_PERMISSIONS = [
         "module": "Payroll",
         "description": "Mark an approved payroll run as paid",
     },
+    # Transport
+    {
+        "codename": "view_transport",
+        "name": "View Transport",
+        "module": "Transport",
+        "description": "View vehicles, drivers, routes, stops, student seats and transport bills",
+    },
+    {
+        "codename": "manage_transport",
+        "name": "Manage Transport",
+        "module": "Transport",
+        "description": "Add and change vehicles, drivers, routes and stops",
+    },
+    {
+        "codename": "assign_transport",
+        "name": "Assign Transport Seats",
+        "module": "Transport",
+        "description": "Give students a seat on a route, move them and end their seat",
+    },
+    {
+        "codename": "bill_transport",
+        "name": "Bill Transport Fees",
+        "module": "Transport",
+        "description": "Run the monthly transport billing, which adds a Transport fee to each seated student",
+    },
 ]
