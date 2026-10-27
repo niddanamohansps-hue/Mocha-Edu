@@ -1,16 +1,12 @@
 import {
     LayoutDashboard,
     Users,
-    UserPlus,
     GraduationCap,
     BookOpen,
-    FileText,
-    Shield,
     Settings,
     Briefcase,
     School,
     Lock,
-    UserCog,
     Bus,
     Baby,
     Receipt,
@@ -24,7 +20,10 @@ import {
 } from "lucide-react";
 import { SidebarItemType } from "@/components/dashboard/Sidebar/SidebarItem";
 
-export const getMenuItems = (user: any, can: (permission: string) => boolean): SidebarItemType[] => {
+export const getMenuItems = (
+    user: { active_role?: string; [key: string]: unknown } | null | undefined,
+    can: (permission: string) => boolean
+): SidebarItemType[] => {
     // 1. Dashboard (Global)
     const menuItems: SidebarItemType[] = [
         {
@@ -38,6 +37,9 @@ export const getMenuItems = (user: any, can: (permission: string) => boolean): S
     const studentChildren: SidebarItemType[] = [];
     if (can("view_student")) {
         studentChildren.push({ label: "Student Directory", href: "/dashboard/students" });
+    }
+    if (can("view_family")) {
+        studentChildren.push({ label: "Parents & Guardians", href: "/dashboard/students/parents" });
     }
     if (can("add_student") || can("view_admissions")) {
         studentChildren.push({ label: "Admissions", href: "/dashboard/students/admissions" });
@@ -218,6 +220,9 @@ export const getMenuItems = (user: any, can: (permission: string) => boolean): S
     if (can("activate_staff_portal")) {
         accessChildren.push({ label: "Staff Portal", href: "/dashboard/portal-access/staff" });
     }
+    if (can("change_family") || can("view_family")) {
+        accessChildren.push({ label: "Parent Portal", href: "/dashboard/portal-access/parents" });
+    }
 
     if (accessChildren.length > 0) {
         menuItems.push({
@@ -295,6 +300,9 @@ export const getMenuItems = (user: any, can: (permission: string) => boolean): S
 
     if (can("manage_notification_settings") || can("view_notification_log")) {
         adminChildren.push({ label: "Automatic Alerts", href: "/dashboard/notifications/settings" });
+    }
+    if (can("view_notification_log")) {
+        adminChildren.push({ label: "Alert Log", href: "/dashboard/notifications/alert-log" });
     }
 
     if (adminChildren.length > 0) {

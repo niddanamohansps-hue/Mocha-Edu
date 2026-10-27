@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ErrorState } from "@/components/feedback/ErrorState";
@@ -61,6 +62,7 @@ function TimingForm({ data, canEdit }: { data: NotificationSettings; canEdit: bo
 }
 
 export default function NotificationSettingsPage() {
+    const router = useRouter();
     const { can } = usePermissions();
     const canEdit = can("manage_notification_settings");
     const { data, isLoading, isError, refetch } = useNotificationSettings();
@@ -73,6 +75,17 @@ export default function NotificationSettingsPage() {
             <PageHeader
                 title="Automatic alerts"
                 description="Choose which messages the school sends by itself. Each one is off until you switch it on, and nobody is ever sent the same message twice."
+                actions={
+                    can("view_notification_log") ? (
+                        <Button
+                            variant="outline"
+                            onClick={() => router.push("/dashboard/notifications/alert-log")}
+                            className="rounded-xl"
+                        >
+                            View Alert Log
+                        </Button>
+                    ) : undefined
+                }
             />
             {isLoading ? (
                 <LoadingState className="py-10" />
