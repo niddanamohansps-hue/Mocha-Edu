@@ -8,7 +8,10 @@ import {
     NotificationListResponse,
     NotificationSettings,
     UnreadCountResponse,
+    AlertLogItem,
+    AlertLogFilters,
 } from "@/types/Notifications";
+import type { PaginatedResponse } from "@/types/Pagination";
 
 function errorMessage(error: unknown, fallback: string) {
     const data = (error as { response?: { data?: Record<string, unknown> } })?.response?.data;
@@ -102,5 +105,29 @@ export const useUpdateNotificationSettings = () => {
             toast.success("Settings saved");
         },
         onError: (error: unknown) => toast.error(errorMessage(error, "Could not save the settings")),
+    });
+};
+
+
+export const useAlertLog = (filters: AlertLogFilters = {}) => {
+    const { page = 1, pageSize = 20, kind, created_after, created_before, enrollment_id } = filters;
+    return useQuery({
+        queryKey: ["notifications", "alert-log", { page, pageSize, kind, created_after, created_before, enrollment_id }],
+        queryFn: async () => {
+            const response = await axiosInstance.get("/notifications/alert-log/", {
+                params: {
+                    page,
+                    page_size: pageSize,
+                    ...(kind ? { kind } : {}),
+                    ...(created_after ? { created_after } : {}),
+                    ...(created_before ? { created_before } : {}),
+                    ...(enrollment_id ? { enrollment_id } : {}),
+                },
+            });
+            return response.data as PaginatedResponse<AlertLogItem>;
+        },
+
+
+
     });
 };

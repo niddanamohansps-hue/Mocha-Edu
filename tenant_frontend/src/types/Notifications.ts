@@ -35,3 +35,25 @@ export interface NotificationSettings {
     overdue_reminder_interval_days: number;
     max_overdue_reminders: number;
 }
+
+export type AlertKind = "fee_due_soon" | "fee_overdue" | "absence" | "payment_receipt";
+
+export type AlertDeliveryStatus = "pending" | "retrying" | "sent" | "failed" | "in_app_only";
+
+export interface AlertLogItem {
+    id: string;
+    kind: AlertKind | string;
+    created_at: string;
+    delivery_status: AlertDeliveryStatus | string;
+    enrollment_id: string;
+    recipient: string;
+}
+
+export interface AlertLogFilters {
+    kind?: string;
+    created_after?: string;
+    created_before?: string;
+    enrollment_id?: string;
+    page?: number;
+    pageSize?: number;
+}
