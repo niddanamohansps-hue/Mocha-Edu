@@ -197,12 +197,28 @@ def calculate_grade(percentage, academic_year):
     return None, None
 
 
+def effective_marks(mark, schedule):
+    """Marks that count for a result: obtained plus grace, capped at the maximum; None when not marked or not sat."""
+    if mark.marks_obtained is None or mark.is_absent or mark.attendance != "present":
+        return None
+    return min(mark.marks_obtained + (mark.grace_marks or 0), schedule.max_marks)
+
+
+def is_exempt(mark):
+    """An exempt student's subject counts for nothing: no marks, no maximum, no pass or fail."""
+    return mark is not None and mark.attendance == "exempt"
+
+
 def calculate_subject_result(exam_mark, exam_schedule):
     """
     Dynamic (pre-publication) per-subject result for one student, and also
     the shape snapshotted into ExamResult.subject_breakdown at publish time.
     """
     max_marks = exam_schedule.max_marks
+    extra = {
+        "attendance": exam_mark.attendance if exam_mark is not None else "absent",
+        "grace_marks": float(exam_mark.grace_marks or 0) if exam_mark is not None else 0.0,
+    }
     if exam_mark is None or exam_mark.is_absent:
         return {
             "subject": str(exam_schedule.subject_id),
@@ -213,9 +229,11 @@ def calculate_subject_result(exam_mark, exam_schedule):
             "grade": None,
             "is_absent": True,
             "is_pass": False,
+            **extra,
         }
 
-    if exam_mark.marks_obtained is None:
+    obtained = effective_marks(exam_mark, exam_schedule)
+    if obtained is None:
         return {
             "subject": str(exam_schedule.subject_id),
             "subject_name": exam_schedule.subject.name,
@@ -225,19 +243,21 @@ def calculate_subject_result(exam_mark, exam_schedule):
             "grade": None,
             "is_absent": False,
             "is_pass": False,
+            **extra,
         }
 
-    percentage = round(float(exam_mark.marks_obtained / max_marks) * 100, 2)
+    percentage = round(float(obtained / max_marks) * 100, 2)
     grade_label, _ = calculate_grade(percentage, exam_schedule.academic_year)
     return {
         "subject": str(exam_schedule.subject_id),
         "subject_name": exam_schedule.subject.name,
-        "marks_obtained": float(exam_mark.marks_obtained),
+        "marks_obtained": float(obtained),
         "max_marks": float(max_marks),
         "percentage": percentage,
         "grade": grade_label,
         "is_absent": False,
-        "is_pass": exam_mark.marks_obtained >= exam_schedule.pass_marks,
+        "is_pass": obtained >= exam_schedule.pass_marks,
+        **extra,
     }
 
 
@@ -264,7 +284,7 @@ def calculate_student_examination_result(examination, student):
 
     for schedule in schedules:
         mark = marks_by_schedule.get(schedule.id)
-        if mark is None:
+        if mark is None or is_exempt(mark):
             continue
         participated = True
         subject_result = calculate_subject_result(mark, schedule)
@@ -275,7 +295,7 @@ def calculate_student_examination_result(examination, student):
             total_max += schedule.max_marks
             continue
 
-        total_obtained += mark.marks_obtained
+        total_obtained += effective_marks(mark, schedule)
         total_max += schedule.max_marks
         if not subject_result["is_pass"]:
             any_fail = True
@@ -369,12 +389,14 @@ def calculate_examination_results_bulk(examination, students):
 
         for schedule in schedules:
             mark = marks_by_schedule.get(schedule.id)
-            if mark is None:
+            if mark is None or is_exempt(mark):
                 continue
             participated = True
             max_marks = schedule.max_marks
+            obtained = effective_marks(mark, schedule)
+            extra = {"attendance": mark.attendance, "grace_marks": float(mark.grace_marks or 0)}
 
-            if mark.is_absent or mark.marks_obtained is None:
+            if obtained is None:
                 breakdown.append(
                     {
                         "subject": str(schedule.subject_id),
@@ -385,28 +407,30 @@ def calculate_examination_results_bulk(examination, students):
                         "grade": None,
                         "is_absent": mark.is_absent,
                         "is_pass": False,
+                        **extra,
                     }
                 )
                 any_fail = True
                 total_max += max_marks
                 continue
 
-            subject_percentage = round(float(mark.marks_obtained / max_marks) * 100, 2)
+            subject_percentage = round(float(obtained / max_marks) * 100, 2)
             grade_label = grade_for(subject_percentage)
-            is_pass = mark.marks_obtained >= schedule.pass_marks
+            is_pass = obtained >= schedule.pass_marks
             breakdown.append(
                 {
                     "subject": str(schedule.subject_id),
                     "subject_name": schedule.subject.name,
-                    "marks_obtained": float(mark.marks_obtained),
+                    "marks_obtained": float(obtained),
                     "max_marks": float(max_marks),
                     "percentage": subject_percentage,
                     "grade": grade_label,
                     "is_absent": False,
                     "is_pass": is_pass,
+                    **extra,
                 }
             )
-            total_obtained += mark.marks_obtained
+            total_obtained += obtained
             total_max += max_marks
             if not is_pass:
                 any_fail = True

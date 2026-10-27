@@ -1142,7 +1142,7 @@ class Command(BaseCommand):
                             continue  # Annual Examination: some subjects not yet marked (in progress)
                         for student in roster:
                             if self.rng.random() < 0.025:
-                                all_marks.append(ExamMark(exam_schedule=schedule, student=student, is_absent=True))
+                                all_marks.append(ExamMark(exam_schedule=schedule, student=student, is_absent=True, attendance="absent"))
                                 continue
                             ability = self.student_ability.get(student.id, 0.6)
                             pct = max(0.05, min(0.99, ability + self.rng.uniform(-0.15, 0.15)))

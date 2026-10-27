@@ -1,6 +1,7 @@
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError
 from rest_framework import serializers
 
+from .models import ExamMarkChange, RecheckRequest
 from .models import (
     ExamMark,
     ExamResult,
@@ -117,12 +118,14 @@ class ExamMarkRecordInputSerializer(serializers.Serializer):
     student = serializers.UUIDField()
     marks_obtained = serializers.DecimalField(max_digits=6, decimal_places=2, required=False, allow_null=True)
     is_absent = serializers.BooleanField(default=False)
+    # Optional; older clients send only is_absent. See marks.normalise_record.
+    attendance = serializers.ChoiceField(choices=ExamMark.Attendance.choices, required=False)
     remarks = serializers.CharField(max_length=255, required=False, allow_blank=True, default="")
 
     def validate(self, attrs):
-        if attrs.get("is_absent"):
-            attrs["marks_obtained"] = None
-        return attrs
+        from .marks import normalise_record
+
+        return normalise_record(attrs)
 
 
 class ExamMarkSerializer(serializers.ModelSerializer):
@@ -133,9 +136,9 @@ class ExamMarkSerializer(serializers.ModelSerializer):
         model = ExamMark
         fields = [
             "id", "student", "student_name", "enrollment_id", "marks_obtained",
-            "is_absent", "remarks", "entered_by", "created_at", "updated_at",
+            "is_absent", "attendance", "grace_marks", "remarks", "entered_by", "created_at", "updated_at",
         ]
-        read_only_fields = ["id", "entered_by", "created_at", "updated_at"]
+        read_only_fields = ["id", "entered_by", "grace_marks", "created_at", "updated_at"]
 
     def get_student_name(self, obj):
         profile = obj.student.profile
@@ -151,6 +154,8 @@ class ExamMarkBulkSerializer(serializers.Serializer):
     """
 
     records = ExamMarkRecordInputSerializer(many=True)
+    # Why marks changed; required when changing entered marks on a locked schedule.
+    reason = serializers.CharField(max_length=500, required=False, allow_blank=True, default="")
 
     def __init__(self, *args, exam_schedule=None, **kwargs):
         self._exam_schedule = exam_schedule
@@ -190,49 +195,56 @@ class ExamMarkBulkSerializer(serializers.Serializer):
             )
         return records
 
-    @transaction.atomic
-    def save(self, entered_by):
-        records = self.validated_data["records"]
-        existing = {
-            str(m.student_id): m for m in ExamMark.objects.filter(exam_schedule=self._exam_schedule)
-        }
+    def save(self, entered_by, user_id=None, require_reason=False):
+        from .marks import record_marks
 
-        to_create, to_update = [], []
-        for record in records:
-            student_id = str(record["student"])
-            if student_id in existing:
-                row = existing[student_id]
-                row.marks_obtained = record.get("marks_obtained")
-                row.is_absent = record["is_absent"]
-                row.remarks = record.get("remarks", "")
-                row.entered_by = entered_by
-                to_update.append(row)
-            else:
-                to_create.append(
-                    ExamMark(
-                        exam_schedule=self._exam_schedule,
-                        student_id=student_id,
-                        marks_obtained=record.get("marks_obtained"),
-                        is_absent=record["is_absent"],
-                        remarks=record.get("remarks", ""),
-                        entered_by=entered_by,
-                    )
-                )
+        return record_marks(
+            self._exam_schedule, self.validated_data["records"], entered_by=entered_by, user_id=user_id,
+            reason=self.validated_data.get("reason", ""), require_reason=require_reason,
+        )
 
-        if to_create:
-            ExamMark.objects.bulk_create(to_create)
-        if to_update:
-            ExamMark.objects.bulk_update(
-                to_update, ["marks_obtained", "is_absent", "remarks", "entered_by", "updated_at"]
-            )
 
-        absent_count = sum(1 for r in records if r["is_absent"])
-        return {
-            "created": len(to_create),
-            "updated": len(to_update),
-            "absent": absent_count,
-            "total": len(records),
-        }
+class ExamMarkChangeSerializer(serializers.ModelSerializer):
+    student_name = serializers.SerializerMethodField()
+    enrollment_id = serializers.CharField(source="mark.student.enrollment_id", read_only=True)
+    changed_by = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ExamMarkChange
+        fields = [
+            "id", "mark", "kind", "student_name", "enrollment_id", "old_marks", "new_marks", "old_attendance",
+            "new_attendance", "old_grace", "new_grace", "reason", "changed_by", "created_at",
+        ]
+
+    def get_student_name(self, obj):
+        profile = obj.mark.student.profile
+        return f"{profile.first_name} {profile.last_name}"
+
+    def get_changed_by(self, obj):
+        return self.context.get("names", {}).get(str(obj.changed_by_user_id), "")
+
+
+class RecheckRequestSerializer(serializers.ModelSerializer):
+    student = serializers.UUIDField(source="mark.student_id", read_only=True)
+    student_name = serializers.SerializerMethodField()
+    enrollment_id = serializers.CharField(source="mark.student.enrollment_id", read_only=True)
+    subject_name = serializers.CharField(source="mark.exam_schedule.subject.name", read_only=True)
+    examination_name = serializers.CharField(source="mark.exam_schedule.examination.name", read_only=True)
+    max_marks = serializers.DecimalField(source="mark.exam_schedule.max_marks", max_digits=6, decimal_places=2, read_only=True)
+    current_marks = serializers.DecimalField(source="mark.marks_obtained", max_digits=6, decimal_places=2, read_only=True)
+
+    class Meta:
+        model = RecheckRequest
+        fields = [
+            "id", "mark", "student", "student_name", "enrollment_id", "subject_name", "examination_name", "max_marks",
+            "current_marks", "status", "reason", "original_marks", "revised_marks", "decision_comment",
+            "created_at", "decided_at",
+        ]
+        read_only_fields = fields
+
+    def get_student_name(self, obj):
+        profile = obj.mark.student.profile
+        return f"{profile.first_name} {profile.last_name}"
 
 
 class ExamResultSerializer(serializers.ModelSerializer):

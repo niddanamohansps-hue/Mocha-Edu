@@ -188,6 +188,9 @@ export const getMenuItems = (user: any, can: (permission: string) => boolean): S
     if (can("manage_grading")) {
         examinationChildren.push({ label: "Grading", href: "/dashboard/examinations/grading" });
     }
+    if (can("manage_marks") || can("view_results") || user?.active_role === "student") {
+        examinationChildren.push({ label: "Rechecks", href: "/dashboard/examinations/rechecks" });
+    }
 
     if (can("view_question_bank") || can("create_questions") || can("review_questions") || can("manage_question_bank")) {
         examinationChildren.push({ label: "Question Bank", href: "/dashboard/question-bank" });

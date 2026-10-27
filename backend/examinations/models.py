@@ -140,8 +140,22 @@ class ExamMark(models.Model):
     student = models.ForeignKey(
         "students.Student", on_delete=models.CASCADE, related_name="exam_marks"
     )
+    class Attendance(models.TextChoices):
+        PRESENT = "present", "Present"
+        ABSENT = "absent", "Absent"
+        MEDICAL = "medical", "Absent (medical)"
+        MALPRACTICE = "malpractice", "Malpractice"
+        EXEMPT = "exempt", "Exempt"
+
+    # Attendance values that count as "did not sit": no marks, and the subject is failed.
+    NOT_SAT = ("absent", "medical", "malpractice")
+
     marks_obtained = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    # is_absent is kept in step with attendance (absent, medical and malpractice) for older readers.
     is_absent = models.BooleanField(default=False)
+    attendance = models.CharField(max_length=12, choices=Attendance.choices, default=Attendance.PRESENT)
+    # Grace marks are added on top of marks_obtained, never beyond the schedule's maximum.
+    grace_marks = models.DecimalField(max_digits=6, decimal_places=2, default=0)
     remarks = models.CharField(max_length=255, blank=True)
 
     entered_by = models.ForeignKey(
@@ -159,6 +173,72 @@ class ExamMark(models.Model):
 
     def __str__(self):
         return f"{self.student} - {self.exam_schedule} - {self.marks_obtained}"
+
+    @property
+    def effective_marks(self):
+        """Marks that count: obtained plus grace, capped at the maximum. None when not marked or not sat."""
+        if self.marks_obtained is None or self.attendance != self.Attendance.PRESENT:
+            return None
+        total = self.marks_obtained + (self.grace_marks or 0)
+        return min(total, self.exam_schedule.max_marks)
+
+
+class ExamMarkChange(models.Model):
+    """Append-only history of one mark: every first entry and every change, with who, when and why."""
+
+    class Kind(models.TextChoices):
+        ENTRY = "entry", "Entered"
+        CORRECTION = "correction", "Corrected"
+        IMPORT = "import", "Imported"
+        GRACE = "grace", "Grace marks"
+        RECHECK = "recheck", "Recheck"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    mark = models.ForeignKey(ExamMark, on_delete=models.CASCADE, related_name="changes")
+    kind = models.CharField(max_length=12, choices=Kind.choices)
+    old_marks = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    new_marks = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    old_attendance = models.CharField(max_length=12, blank=True)
+    new_attendance = models.CharField(max_length=12, blank=True)
+    old_grace = models.DecimalField(max_digits=6, decimal_places=2, default=0)
+    new_grace = models.DecimalField(max_digits=6, decimal_places=2, default=0)
+    reason = models.CharField(max_length=500, blank=True)
+    changed_by_user_id = models.UUIDField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["mark", "-created_at"], name="exammarkchange_mark_idx")]
+
+
+class RecheckRequest(models.Model):
+    """A request to re-check one published mark. Someone with manage_marks accepts (with the revised marks)
+    or rejects it; accepting updates the mark and that student's published result, both on record."""
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Waiting"
+        ACCEPTED = "accepted", "Accepted"
+        REJECTED = "rejected", "Rejected"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    mark = models.ForeignKey(ExamMark, on_delete=models.CASCADE, related_name="rechecks")
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
+    reason = models.CharField(max_length=1000)
+    original_marks = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    revised_marks = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    decision_comment = models.CharField(max_length=1000, blank=True)
+    requested_by_user_id = models.UUIDField(null=True, blank=True)
+    decided_by_user_id = models.UUIDField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    decided_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["mark"], condition=models.Q(status="pending"), name="exam_recheck_one_pending_per_mark"
+            ),
+        ]
 
 
 class ExamResult(models.Model):

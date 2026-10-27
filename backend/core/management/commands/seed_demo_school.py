@@ -939,7 +939,7 @@ class Command(BaseCommand):
                     marks_to_create = []
                     for student in roster:
                         if self.rng.random() < 0.03:
-                            marks_to_create.append(ExamMark(exam_schedule=schedule, student=student, is_absent=True, entered_by=self.demo_teacher_instructor.staff_member))
+                            marks_to_create.append(ExamMark(exam_schedule=schedule, student=student, is_absent=True, attendance="absent", entered_by=self.demo_teacher_instructor.staff_member))
                             continue
                         band = self.PERFORMANCE_BANDS[self.student_performance[student.id]]
                         pct = self.rng.uniform(*band)

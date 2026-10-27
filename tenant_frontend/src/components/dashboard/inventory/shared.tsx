@@ -153,7 +153,7 @@ export function FormDialog({
                     </DialogHeader>
                     {children}
                     {error && (
-                        <p role="alert" className="text-sm text-red-600">
+                        <p role="alert" className="text-sm text-red-600 whitespace-pre-line">
                             {error}
                         </p>
                     )}

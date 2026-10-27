@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
@@ -131,6 +132,28 @@ class ExaminationViewSet(viewsets.ModelViewSet):
         return Response(ExaminationSerializer(examination).data)
 
 
+def _marks_blocked(request, schedule):
+    """Marks of a published examination change only through a recheck or grace marks; a locked schedule only by
+    someone with manage_marks."""
+    if schedule.examination.is_published:
+        return Response({"error": "Results of this examination are published. Change a mark through a recheck or grace marks."},
+                        status=status.HTTP_423_LOCKED)
+    if schedule.is_locked and not HasPermission("manage_marks").has_permission(request, None):
+        return Response({"error": "This exam schedule is locked."}, status=status.HTTP_423_LOCKED)
+    return None
+
+
+def _user_names(user_ids):
+    """{user id: display name} from the tenant's profiles; blank for anyone without a profile."""
+    from profiles.models import Profile
+
+    ids = {i for i in user_ids if i}
+    return {
+        str(p.user_id): f"{p.first_name} {p.last_name}".strip()
+        for p in Profile.objects.filter(user_id__in=ids)
+    }
+
+
 def _tell_publishers(examination, exclude=None):
     """In-app notice to everyone who may publish results (except the requester), after the request commits."""
     from django.db import transaction
@@ -201,8 +224,10 @@ class ExamScheduleViewSet(viewsets.ModelViewSet):
         # explicitly here rather than assumed to come from the decorator.
         if self.action in ("list", "retrieve"):
             perm = HasPermission("view_examinations")
-        elif self.action == "marks":
+        elif self.action in ("marks", "marks_import"):
             perm = HasPermission("enter_marks")
+        elif self.action == "history":
+            perm = HasPermission("view_examinations")
         elif self.action == "lock":
             perm = HasPermission("manage_marks")
         else:
@@ -303,21 +328,32 @@ class ExamScheduleViewSet(viewsets.ModelViewSet):
         )
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-    @action(detail=True, methods=["post"])
+    @action(detail=True, methods=["get", "post"])
     def marks(self, request, pk=None):
-        schedule = get_object_or_404(ExamSchedule, pk=pk)
+        schedule = get_object_or_404(ExamSchedule.objects.select_related("examination"), pk=pk)
 
         if not user_can_access_schedule(request, schedule):
             return Response({"error": "You are not authorized to enter marks for this schedule."}, status=status.HTTP_403_FORBIDDEN)
 
-        if schedule.is_locked and not HasPermission("manage_marks").has_permission(request, None):
-            return Response({"error": "This exam schedule is locked."}, status=status.HTTP_423_LOCKED)
+        if request.method == "GET":
+            from .models import ExamMark
+            from .serializers import ExamMarkSerializer
+
+            rows = ExamMark.objects.filter(exam_schedule=schedule).select_related("student__profile")
+            return Response({
+                "is_published": schedule.examination.is_published,
+                "marks": ExamMarkSerializer(rows, many=True).data,
+            })
+
+        blocked = _marks_blocked(request, schedule)
+        if blocked:
+            return blocked
 
         serializer = ExamMarkBulkSerializer(data=request.data, exam_schedule=schedule)
         serializer.is_valid(raise_exception=True)
 
         entered_by = get_staff_member_for_user(request.user)
-        summary = serializer.save(entered_by=entered_by)
+        summary = serializer.save(entered_by=entered_by, user_id=request.user.id, require_reason=schedule.is_locked)
 
         log_action(
             request, action="marks_submitted", model_name="ExamSchedule", object_id=schedule.id,
@@ -328,6 +364,53 @@ class ExamScheduleViewSet(viewsets.ModelViewSet):
             },
         )
         return Response(ExamScheduleSerializer(schedule).data)
+
+    @action(detail=True, methods=["post"], url_path="marks-import")
+    def marks_import(self, request, pk=None):
+        """Marks from a CSV file (enrollment_id, marks, optional attendance and remarks). With dry_run=true it only
+        checks the file and returns a preview; otherwise it saves all rows, or none if any row is wrong."""
+        from .marks import parse_marks_csv, record_marks
+        from .models import ExamMarkChange
+
+        schedule = get_object_or_404(ExamSchedule.objects.select_related("examination"), pk=pk)
+        if not user_can_access_schedule(request, schedule):
+            return Response({"error": "You are not authorized to enter marks for this schedule."}, status=status.HTTP_403_FORBIDDEN)
+        blocked = _marks_blocked(request, schedule)
+        if blocked:
+            return blocked
+        upload = request.FILES.get("file")
+        if upload is None:
+            return Response({"error": "Choose a CSV file."}, status=status.HTTP_400_BAD_REQUEST)
+        records, rows, errors = parse_marks_csv(schedule, upload)
+        if errors:
+            return Response({"errors": errors, "rows": rows}, status=status.HTTP_400_BAD_REQUEST)
+        dry_run = str(request.data.get("dry_run", "")).lower() in ("1", "true", "yes")
+        if dry_run:
+            return Response({"dry_run": True, "rows": rows, "total": len(rows)})
+        summary = record_marks(
+            schedule, records, entered_by=get_staff_member_for_user(request.user), user_id=request.user.id,
+            kind=ExamMarkChange.Kind.IMPORT, reason=str(request.data.get("reason", ""))[:500],
+            require_reason=schedule.is_locked,
+        )
+        log_action(
+            request, action="marks_imported", model_name="ExamSchedule", object_id=schedule.id,
+            changes={"examination": str(schedule.examination_id), **summary},
+        )
+        return Response({"dry_run": False, **summary})
+
+    @action(detail=True, methods=["get"])
+    def history(self, request, pk=None):
+        """Every entry and change of this schedule's marks, newest first."""
+        from .models import ExamMarkChange
+        from .serializers import ExamMarkChangeSerializer
+
+        schedule = get_object_or_404(ExamSchedule, pk=pk)
+        if not user_can_access_schedule(request, schedule):
+            return Response({"error": "You are not authorized to see this schedule's marks."}, status=status.HTTP_403_FORBIDDEN)
+        changes = list(
+            ExamMarkChange.objects.filter(mark__exam_schedule=schedule).select_related("mark__student__profile")[:500]
+        )
+        return Response(ExamMarkChangeSerializer(changes, many=True, context={"names": _user_names(c.changed_by_user_id for c in changes)}).data)
 
     @action(detail=True, methods=["post"])
     def lock(self, request, pk=None):
@@ -481,3 +564,158 @@ class BelowPassingReportView(APIView):
                 ],
             }
         )
+
+
+class ExamMarkGraceView(APIView):
+    """POST /api/examinations/marks/<id>/grace/ {grace_marks, reason} - sets grace marks on one mark."""
+
+    permission_classes = [IsAuthenticated, HasPermission("manage_marks")]
+
+    def post(self, request, mark_id):
+        from decimal import Decimal, InvalidOperation
+
+        from .marks import apply_grace
+        from .models import ExamMark
+        from .serializers import ExamMarkSerializer
+
+        mark = get_object_or_404(ExamMark.objects.select_related("exam_schedule"), pk=mark_id)
+        if not user_can_access_schedule(request, mark.exam_schedule):
+            return Response({"error": "You are not authorized to change this mark."}, status=status.HTTP_403_FORBIDDEN)
+        try:
+            grace = Decimal(str(request.data.get("grace_marks", ""))).quantize(Decimal("0.01"))
+        except (InvalidOperation, ValueError):
+            return Response({"grace_marks": ["Enter grace marks as a number."]}, status=status.HTTP_400_BAD_REQUEST)
+        before = mark.grace_marks
+        mark = apply_grace(mark, grace, request.data.get("reason", ""), request.user.id)
+        log_action(
+            request, action="grace_marks_set", model_name="ExamMark", object_id=mark.id,
+            changes={"from": str(before), "to": str(mark.grace_marks)},
+        )
+        return Response(ExamMarkSerializer(mark).data)
+
+
+class RecheckViewSet(viewsets.GenericViewSet):
+    """Recheck requests. A student asks about their own mark; staff with view_results or manage_marks ask for any
+    mark they can see. Only manage_marks decides. Lists show everything to manage_marks, and otherwise only the
+    requests the person made."""
+
+    permission_classes = [IsAuthenticated]
+    pagination_class = StandardResultsPagination
+
+    def get_queryset(self):
+        from .models import RecheckRequest
+
+        qs = RecheckRequest.objects.select_related(
+            "mark__student__profile", "mark__exam_schedule__subject", "mark__exam_schedule__examination"
+        )
+        if not HasPermission("manage_marks").has_permission(self.request, None):
+            qs = qs.filter(requested_by_user_id=self.request.user.id)
+        status_filter = self.request.query_params.get("status")
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+        return qs
+
+    def list(self, request):
+        from .serializers import RecheckRequestSerializer
+
+        page = self.paginate_queryset(self.get_queryset())
+        return self.get_paginated_response(RecheckRequestSerializer(page, many=True).data)
+
+    def create(self, request):
+        from .marks import request_recheck
+        from .models import ExamMark
+        from .serializers import RecheckRequestSerializer
+
+        own = get_student_for_user(request.user)
+        marks = ExamMark.objects.select_related("student", "exam_schedule")
+        try:
+            if request.data.get("mark"):
+                mark = marks.get(pk=request.data["mark"])
+            else:
+                # From a result page: examination + subject, and the student (staff) or oneself (a student).
+                mark = marks.get(
+                    exam_schedule__examination_id=request.data.get("examination"),
+                    exam_schedule__subject_id=request.data.get("subject"),
+                    student_id=own.id if own is not None else request.data.get("student"),
+                )
+        except (ExamMark.DoesNotExist, ExamMark.MultipleObjectsReturned, ValueError, DjangoValidationError):
+            return Response({"error": "That mark was not found."}, status=status.HTTP_404_NOT_FOUND)
+        if own is not None:
+            if own.id != mark.student_id:
+                return Response({"error": "You can ask for a recheck of your own marks only."}, status=status.HTTP_403_FORBIDDEN)
+        elif not (HasPermission("view_results").has_permission(request, None) or HasPermission("manage_marks").has_permission(request, None)):
+            return Response({"error": "You do not have permission to ask for a recheck."}, status=status.HTTP_403_FORBIDDEN)
+        elif not user_can_access_student_result(request, mark.student):
+            return Response({"error": "You are not authorized to see this student's marks."}, status=status.HTTP_403_FORBIDDEN)
+        recheck = request_recheck(mark, request.data.get("reason", ""), request.user.id)
+        log_action(request, action="recheck_requested", model_name="RecheckRequest", object_id=recheck.id,
+                   changes={"mark": str(mark.id)})
+        _tell_markers(recheck)
+        return Response(RecheckRequestSerializer(recheck).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["post"])
+    def decide(self, request, pk=None):
+        from decimal import Decimal, InvalidOperation
+
+        from .marks import decide_recheck
+        from .models import RecheckRequest
+        from .serializers import RecheckRequestSerializer
+
+        if not HasPermission("manage_marks").has_permission(request, None):
+            return Response({"error": "You do not have permission to decide rechecks."}, status=status.HTTP_403_FORBIDDEN)
+        recheck = get_object_or_404(RecheckRequest.objects.select_related("mark__exam_schedule"), pk=pk)
+        if not user_can_access_schedule(request, recheck.mark.exam_schedule):
+            return Response({"error": "You are not authorized to change this mark."}, status=status.HTTP_403_FORBIDDEN)
+        decision = request.data.get("decision")
+        if decision not in ("accept", "reject"):
+            return Response({"decision": ["Choose accept or reject."]}, status=status.HTTP_400_BAD_REQUEST)
+        revised = request.data.get("revised_marks")
+        if decision == "accept" and revised not in (None, ""):
+            try:
+                revised = Decimal(str(revised)).quantize(Decimal("0.01"))
+            except (InvalidOperation, ValueError):
+                return Response({"revised_marks": ["Enter the marks as a number."]}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            revised = None
+        recheck = decide_recheck(recheck, accept=decision == "accept", revised_marks=revised,
+                                 comment=request.data.get("decision_comment", ""), user_id=request.user.id)
+        log_action(request, action=f"recheck_{recheck.status}", model_name="RecheckRequest", object_id=recheck.id,
+                   changes={"original": str(recheck.original_marks), "revised": str(recheck.revised_marks)})
+        _tell_requester(recheck)
+        return Response(RecheckRequestSerializer(RecheckRequest.objects.get(pk=recheck.pk)).data)
+
+
+def _notify_after_commit(user_ids, title, body, link):
+    from django.db import transaction
+
+    ids = [i for i in set(user_ids) if i]
+    if not ids:
+        return
+
+    def send():
+        from notifications.services import notify_many
+
+        try:
+            notify_many(recipient_user_ids=ids, title=title[:200], body=body[:500], category="examinations", link=link)
+        except Exception:  # pragma: no cover - best effort
+            pass
+
+    transaction.on_commit(send)
+
+
+def _tell_markers(recheck):
+    from django.db.models import Q
+
+    from roles.models import UserRole
+
+    ids = set(UserRole.objects.filter(Q(role__slug="owner") | Q(role__permissions__codename="manage_marks"))
+              .values_list("user_id", flat=True)) - {recheck.requested_by_user_id}
+    schedule = recheck.mark.exam_schedule
+    _notify_after_commit(ids, f"Recheck asked: {schedule.subject.name}",
+                         f"{recheck.mark.student.enrollment_id}: {recheck.reason}", "/dashboard/examinations/rechecks")
+
+
+def _tell_requester(recheck):
+    word = "accepted" if recheck.status == "accepted" else "rejected"
+    _notify_after_commit([recheck.requested_by_user_id], f"Your recheck was {word}",
+                         recheck.decision_comment or f"Marks: {recheck.revised_marks}", "/dashboard/examinations/rechecks")

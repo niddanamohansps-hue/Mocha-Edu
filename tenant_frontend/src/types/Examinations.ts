@@ -64,6 +64,7 @@ export interface ExamMarkRecordInput {
     student: string;
     marks_obtained: number | null;
     is_absent: boolean;
+    attendance?: MarkAttendance;
     remarks?: string;
 }
 
@@ -86,6 +87,8 @@ export interface SubjectResultBreakdown {
     grade: string | null;
     is_absent: boolean;
     is_pass: boolean;
+    attendance?: MarkAttendance;
+    grace_marks?: number;
 }
 
 export interface ExamResult {
@@ -261,4 +264,80 @@ export interface GradeBoundary {
 export interface BelowPassingReport {
     examination: string;
     students: { student: string; full_name: string; enrollment_id: string; percentage: number }[];
+}
+
+// --- Marks integrity -------------------------------------------------------------------------------
+
+export type MarkAttendance = "present" | "absent" | "medical" | "malpractice" | "exempt";
+
+export const ATTENDANCE_LABELS: Record<MarkAttendance, string> = {
+    present: "Present",
+    absent: "Absent",
+    medical: "Absent (medical)",
+    malpractice: "Malpractice",
+    exempt: "Exempt",
+};
+
+export interface SavedMark {
+    id: string;
+    student: string;
+    student_name: string;
+    enrollment_id: string;
+    marks_obtained: string | null;
+    is_absent: boolean;
+    attendance: MarkAttendance;
+    grace_marks: string;
+    remarks: string;
+}
+
+export interface ScheduleMarks {
+    is_published: boolean;
+    marks: SavedMark[];
+}
+
+export interface MarkChange {
+    id: string;
+    mark: string;
+    kind: "entry" | "correction" | "import" | "grace" | "recheck";
+    student_name: string;
+    enrollment_id: string;
+    old_marks: string | null;
+    new_marks: string | null;
+    old_attendance: string;
+    new_attendance: string;
+    old_grace: string;
+    new_grace: string;
+    reason: string;
+    changed_by: string;
+    created_at: string;
+}
+
+export interface MarksImportResult {
+    dry_run: boolean;
+    rows?: { line: number; enrollment_id: string; student_name: string; marks: string | null; attendance: MarkAttendance }[];
+    total?: number;
+    created?: number;
+    updated?: number;
+    changed?: number;
+}
+
+export type RecheckStatus = "pending" | "accepted" | "rejected";
+
+export interface RecheckRequest {
+    id: string;
+    mark: string;
+    student: string;
+    student_name: string;
+    enrollment_id: string;
+    subject_name: string;
+    examination_name: string;
+    max_marks: string;
+    current_marks: string | null;
+    status: RecheckStatus;
+    reason: string;
+    original_marks: string | null;
+    revised_marks: string | null;
+    decision_comment: string;
+    created_at: string;
+    decided_at: string | null;
 }
