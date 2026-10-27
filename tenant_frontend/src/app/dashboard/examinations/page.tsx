@@ -13,8 +13,12 @@ import {
     useExamTypes,
     useLockExamSchedule,
     usePublishExamination,
+    useExaminationSettings,
+    useRequestPublication,
+    useUpdateExaminationSettings,
 } from "@/hooks/useExaminations";
 import { usePermissions } from "@/providers/PermissionProvider";
+import { useMe } from "@/hooks/useAuth";
 import { useAcademicYear } from "@/providers/AcademicYearProvider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,6 +54,11 @@ export default function ExaminationsPage() {
     const { mutate: createSchedule, isPending: isCreatingSchedule } = useCreateExamSchedule();
     const { mutate: lockSchedule } = useLockExamSchedule();
     const { mutate: publish, isPending: isPublishing } = usePublishExamination();
+    const examSettings = useExaminationSettings();
+    const updateSettings = useUpdateExaminationSettings();
+    const requestPublication = useRequestPublication();
+    const twoPerson = !!examSettings.data?.require_separate_publisher;
+    const { data: me } = useMe();
 
     const [examDialogOpen, setExamDialogOpen] = useState(false);
     const [examForm, setExamForm] = useState({ name: "", exam_type: "", start_date: "", end_date: "" });
@@ -158,6 +167,14 @@ export default function ExaminationsPage() {
                 </div>
             )}
 
+            {canManage && examSettings.data && (
+                <label className="flex items-start gap-2 text-sm">
+                    <input type="checkbox" className="mt-1" checked={twoPerson} disabled={updateSettings.isPending}
+                        onChange={(e) => updateSettings.mutate(e.target.checked)} />
+                    <span>A different person must publish results<span className="block text-xs text-slate-500">One person requests publication, someone else publishes. Recommended.</span></span>
+                </label>
+            )}
+
             {selectedExam && (
                 <div className="space-y-4">
                     <div className="flex flex-wrap justify-between gap-2 items-center">
@@ -168,11 +185,19 @@ export default function ExaminationsPage() {
                                     <Plus className="h-4 w-4" /> Add Schedule
                                 </Button>
                             )}
-                            {canPublish && !selectedExam.is_published && (
+                            {twoPerson && canManage && !selectedExam.is_published && !selectedExam.publication_requested_by_user_id && (
+                                <Button variant="outline" onClick={() => requestPublication.mutate(selectedExam.id)} disabled={requestPublication.isPending}>
+                                    Request publication
+                                </Button>
+                            )}
+                            {canPublish && !selectedExam.is_published && (!twoPerson || (selectedExam.publication_requested_by_user_id && selectedExam.publication_requested_by_user_id !== me?.id)) && (
                                 <Button onClick={() => publish(selectedExam.id)} disabled={isPublishing} className="gap-2">
                                     {isPublishing && <LoaderCircle className="h-4 w-4 animate-spin" />}
                                     <Send className="h-4 w-4" /> Publish Results
                                 </Button>
+                            )}
+                            {twoPerson && !selectedExam.is_published && selectedExam.publication_requested_by_user_id === me?.id && (
+                                <span className="text-sm text-slate-500 self-center">You requested publication; someone else publishes.</span>
                             )}
                         </div>
                     </div>

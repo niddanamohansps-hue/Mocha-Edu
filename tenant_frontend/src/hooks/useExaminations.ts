@@ -13,6 +13,7 @@ import {
     GradeBoundary,
     OfficialTranscript,
     ReportCard,
+    ExaminationSettings,
 } from "@/types/Examinations";
 
 function errorMessage(error: any, fallback: string) {
@@ -79,6 +80,37 @@ export const useCreateExamination = () => {
             toast.success("Examination created");
         },
         onError: (error: any) => toast.error(errorMessage(error, "Failed to create examination")),
+    });
+};
+
+export const useExaminationSettings = () =>
+    useQuery({
+        queryKey: ["examinations", "settings"],
+        queryFn: async () => (await axiosInstance.get("/examinations/settings/")).data as ExaminationSettings,
+    });
+
+export const useUpdateExaminationSettings = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (require_separate_publisher: boolean) =>
+            (await axiosInstance.patch("/examinations/settings/", { require_separate_publisher })).data as ExaminationSettings,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["examinations", "settings"] });
+            toast.success("Setting saved");
+        },
+        onError: (error: unknown) => toast.error(errorMessage(error, "Could not save the setting")),
+    });
+};
+
+export const useRequestPublication = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (id: string) => (await axiosInstance.post(`/examinations/examinations/${id}/request-publication/`)).data as Examination,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["examinations"] });
+            toast.success("Publication requested. Someone else can now publish the results.");
+        },
+        onError: (error: unknown) => toast.error(errorMessage(error, "Could not request publication")),
     });
 };
 

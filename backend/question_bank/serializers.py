@@ -81,13 +81,15 @@ class QuestionSerializer(serializers.ModelSerializer):
     topic_name = serializers.CharField(source="topic.name", read_only=True, default="")
     author_name = serializers.SerializerMethodField()
     is_mine = serializers.SerializerMethodField()
+    times_used = serializers.SerializerMethodField()
+    last_used_in = serializers.SerializerMethodField()
 
     class Meta:
         model = Question
         fields = ("id", "subject", "subject_name", "level_name", "chapter", "chapter_name", "topic", "topic_name",
                   "question_type", "difficulty", "marks", "body", "options", "answer", "explanation", "marking_scheme",
-                  "learning_outcome", "status", "version", "author_name", "is_mine", "submitted_at", "decided_at",
-                  "created_at", "updated_at")
+                  "learning_outcome", "status", "version", "author_name", "is_mine", "times_used", "last_used_in",
+                  "submitted_at", "decided_at", "created_at", "updated_at")
         read_only_fields = fields
 
     def get_author_name(self, question):
@@ -96,6 +98,17 @@ class QuestionSerializer(serializers.ModelSerializer):
     def get_is_mine(self, question):
         request = self.context.get("request")
         return bool(request and question.created_by_user_id == request.user.id)
+
+    def _uses(self, question):
+        """Papers that used the question and were approved (withdrawn ones still count: they may have been seen)."""
+        return question.paper_items.filter(paper__status__in=["approved", "released", "withdrawn"]).select_related("paper__examination")
+
+    def get_times_used(self, question):
+        return self._uses(question).count()
+
+    def get_last_used_in(self, question):
+        item = self._uses(question).order_by("-paper__approved_at").first()
+        return f"{item.paper.examination.name} (Set {item.paper.set_label})" if item else ""
 
 
 class QuestionInputSerializer(serializers.Serializer):

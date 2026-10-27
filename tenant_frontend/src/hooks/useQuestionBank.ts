@@ -148,7 +148,7 @@ export const usePapers = (filters: { page: number; search: string; status: Paper
 
 export const usePaper = (id: string) => useScopedQuery<QuestionPaper>(["paper", id], `/question-bank/papers/${id}/`, {}, !!id);
 
-export const usePaperCandidates = (id: string, filters: { search: string; question_type: string; difficulty: string; chapter: string }) =>
+export const usePaperCandidates = (id: string, filters: { search: string; question_type: string; difficulty: string; chapter: string; unused?: string }) =>
     useScopedQuery<PaginatedResponse<Question>>(["paper-candidates", id], `/question-bank/papers/${id}/candidates/`, { ...filters, page_size: 50 }, !!id);
 
 export const usePrintablePaper = (id: string, withAnswers: boolean) =>
@@ -206,7 +206,7 @@ export const useDeleteSection = () =>
 
 export const useAddRule = () =>
     useMutate(
-        async (input: { section: string; count: number; question_type: string; difficulty: string; chapter: string | null }) =>
+        async (input: { section: string; count: number; question_type: string; difficulty: string; chapter: string | null; marks: string | null }) =>
             (await axiosInstance.post("/question-bank/blueprint-rules/", input)).data as BlueprintRule,
         "Blueprint rule added",
         "Could not add the rule"

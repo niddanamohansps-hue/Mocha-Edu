@@ -10,7 +10,7 @@ class BlueprintRuleSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = BlueprintRule
-        fields = ("id", "section", "count", "question_type", "difficulty", "chapter", "chapter_name", "description")
+        fields = ("id", "section", "count", "question_type", "difficulty", "chapter", "marks", "chapter_name", "description")
         read_only_fields = ("id",)
 
     def get_description(self, rule):

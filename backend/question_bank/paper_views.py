@@ -81,6 +81,7 @@ class PaperViewSet(TenantOnlyMixin, viewsets.ModelViewSet):
             sections = paper.sections.prefetch_related("rules__chapter", "items__question__chapter")
             data["sections"] = PaperSectionSerializer(sections, many=True).data
             data["problems"] = svc.problems(paper)
+            data["blueprint"] = svc.blueprint_summary(paper)
         return Response(data)
 
     def _done(self, request, paper, action_name, changes=None):
@@ -109,6 +110,10 @@ class PaperViewSet(TenantOnlyMixin, viewsets.ModelViewSet):
         for field in ("question_type", "difficulty", "chapter"):
             if params.get(field):
                 qs = qs.filter(**{field: params[field]})
+        if params.get("marks"):
+            qs = qs.filter(marks=params["marks"])
+        if params.get("unused") == "true":
+            qs = qs.exclude(paper_items__paper__status__in=["approved", "released", "withdrawn"])
         if params.get("search"):
             qs = qs.filter(body__icontains=params["search"])
         page = self.paginate_queryset(qs.order_by("chapter__order", "difficulty"))

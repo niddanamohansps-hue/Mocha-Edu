@@ -258,10 +258,17 @@ class BlueprintRule(models.Model):
     question_type = models.CharField(max_length=20, choices=Question.Type.choices, blank=True)
     difficulty = models.CharField(max_length=10, choices=Question.Difficulty.choices, blank=True)
     chapter = models.ForeignKey(Chapter, null=True, blank=True, on_delete=models.PROTECT, related_name="blueprint_rules")
+    marks = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True, validators=[MinValueValidator(Decimal("0.5"))],
+        help_text="Marks of each question this rule picks. Empty means any marks.",
+    )
 
     class Meta:
         ordering = ["section", "id"]
-        constraints = [models.CheckConstraint(condition=Q(count__gte=1), name="qb_rule_count_positive")]
+        constraints = [
+            models.CheckConstraint(condition=Q(count__gte=1), name="qb_rule_count_positive"),
+            models.CheckConstraint(condition=Q(marks__isnull=True) | Q(marks__gt=0), name="qb_rule_marks_positive"),
+        ]
 
 
 class PaperQuestion(models.Model):

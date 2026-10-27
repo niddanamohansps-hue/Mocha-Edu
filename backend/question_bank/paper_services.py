@@ -61,8 +61,17 @@ def taught_subject_ids(request):
     return set(SubjectAssignment.objects.filter(instructor=instructor).values_list("subject_id", flat=True))
 
 
+def promote_due_releases(now=None):
+    """Approved papers whose release time has passed become released (dated at their release time)."""
+    from django.db.models import F
+
+    return QuestionPaper.objects.filter(status=Status.APPROVED, release_at__isnull=False, release_at__lte=now or timezone.now()) \
+        .update(status=Status.RELEASED, released_at=F("release_at"))
+
+
 def visible_papers(request):
     """The exam office sees every paper; a teacher sees released papers of subjects they teach; nobody else any."""
+    promote_due_releases()
     qs = QuestionPaper.objects.select_related("examination", "subject__level")
     if can_prepare(request) or can_approve(request):
         return qs
@@ -143,11 +152,12 @@ def _matches(rule, question):
         (not rule.question_type or question.question_type == rule.question_type)
         and (not rule.difficulty or question.difficulty == rule.difficulty)
         and (rule.chapter_id is None or question.chapter_id == rule.chapter_id)
+        and (rule.marks is None or question.marks == rule.marks)
     )
 
 
 def _specificity(rule):
-    return -(bool(rule.question_type) + bool(rule.difficulty) + (rule.chapter_id is not None))
+    return -(bool(rule.question_type) + bool(rule.difficulty) + (rule.chapter_id is not None) + (rule.marks is not None))
 
 
 def unmet_rules(section, items=None):
@@ -167,17 +177,42 @@ def unmet_rules(section, items=None):
 def describe_rule(rule):
     parts = [rule.get_difficulty_display().lower() if rule.difficulty else "", rule.get_question_type_display().lower() if rule.question_type else "question"]
     text = " ".join(p for p in parts if p)
+    if rule.marks is not None:
+        text += f" of {_marks(rule.marks)} mark{'' if rule.marks == 1 else 's'}"
     if rule.chapter_id:
         text += f" from {rule.chapter.name}"
     return text
 
 
+def blueprint_marks(paper):
+    """The marks the blueprint plans for, or None while any rule leaves its marks open (or there are no rules)."""
+    rules = [r for s in paper.sections.prefetch_related("rules") for r in s.rules.all()]
+    if not rules or any(r.marks is None for r in rules):
+        return None
+    return sum((r.marks * r.count for r in rules), Decimal("0"))
+
+
+def blueprint_summary(paper):
+    """Per rule: how many approved questions match it now, so a shortage shows before anything is picked."""
+    pool = list(eligible_questions(paper).only("question_type", "difficulty", "chapter_id", "marks"))
+    planned = blueprint_marks(paper)
+    rows = []
+    for section in paper.sections.prefetch_related("rules__chapter"):
+        for rule in section.rules.all():
+            rows.append({"rule": str(rule.id), "section": section.title, "needed": rule.count,
+                         "available": sum(1 for q in pool if _matches(rule, q))})
+    return {"planned_marks": f"{planned:.2f}" if planned is not None else None, "rules": rows}
+
+
 def problems(paper):
     """Everything that stops this paper being submitted or approved, as plain sentences. Empty means it is ready."""
     found = []
+    planned = blueprint_marks(paper)
+    if planned is not None and planned != paper.total_marks:
+        found.append(f"The blueprint plans {_marks(planned)} marks; the paper is for {_marks(paper.total_marks)}.")
     items = list(paper.items.select_related("question", "section"))
     if not items:
-        return ["The paper has no questions."]
+        return found + ["The paper has no questions."]
     total = sum((i.marks for i in items), Decimal("0"))
     if total != paper.total_marks:
         found.append(f"The questions add up to {_marks(total)} marks; the paper is for {_marks(paper.total_marks)}.")
@@ -288,6 +323,8 @@ def submit(*, request, paper):
             raise serializers.ValidationError({"paper": found})
         paper.status, paper.submitted_at, paper.review_comment = Status.SUBMITTED, timezone.now(), ""
         paper.save(update_fields=["status", "submitted_at", "review_comment", "updated_at"])
+        tell(holders_of("approve_papers", exclude=paper.prepared_by_user_id), f"Paper waiting for approval: {paper.title} (Set {paper.set_label})",
+             f"{paper.subject.name}, {paper.examination.name}.", paper)
     return paper
 
 
@@ -300,6 +337,7 @@ def send_back(*, request, paper, comment):
         _require_status(paper, (Status.SUBMITTED,), "sent back")
         paper.status, paper.review_comment = Status.DRAFT, comment[:2000]
         paper.save(update_fields=["status", "review_comment", "updated_at"])
+        tell([paper.prepared_by_user_id], f"Paper sent back: {paper.title} (Set {paper.set_label})", comment[:300], paper)
     return paper
 
 
@@ -341,6 +379,7 @@ def approve(*, request, paper):
         paper.frozen_content = freeze(paper)
         paper.status, paper.approved_by_user_id, paper.approved_at = Status.APPROVED, request.user.id, timezone.now()
         paper.save(update_fields=["frozen_content", "status", "approved_by_user_id", "approved_at", "updated_at"])
+        tell([paper.prepared_by_user_id], f"Paper approved: {paper.title} (Set {paper.set_label})", "It is now frozen.", paper)
     return paper
 
 
@@ -361,6 +400,8 @@ def release(*, paper):
         _require_status(paper, (Status.APPROVED,), "released")
         paper.status, paper.released_at = Status.RELEASED, timezone.now()
         paper.save(update_fields=["status", "released_at", "updated_at"])
+        tell(subject_teacher_user_ids(paper.subject_id), f"Question paper released: {paper.subject.name} (Set {paper.set_label})",
+             f"{paper.examination.name}. You can now open the paper and its answer key.", paper)
     return paper
 
 
@@ -374,6 +415,43 @@ def withdraw(*, paper, reason):
         paper.status, paper.withdraw_reason, paper.withdrawn_at = Status.WITHDRAWN, reason[:255], timezone.now()
         paper.save(update_fields=["status", "withdraw_reason", "withdrawn_at", "updated_at"])
     return paper
+
+
+def holders_of(codename, exclude=None):
+    """Users of this school whose roles grant ``codename`` (the owner always does)."""
+    from roles.models import UserRole
+
+    ids = set(UserRole.objects.filter(Q(role__slug="owner") | Q(role__permissions__codename=codename)).values_list("user_id", flat=True))
+    ids.discard(exclude)
+    return ids
+
+
+def subject_teacher_user_ids(subject_id):
+    from academics.models import SubjectAssignment
+
+    return set(
+        SubjectAssignment.objects.filter(subject_id=subject_id, instructor__isnull=False)
+        .exclude(instructor__staff_member__profile__user_id__isnull=True)
+        .values_list("instructor__staff_member__profile__user_id", flat=True)
+    )
+
+
+def tell(user_ids, title, body, paper):
+    """In-app notices once the change has committed; a notice that fails never undoes the change."""
+    user_ids = [u for u in set(user_ids) if u]
+    if not user_ids:
+        return
+    link = f"/dashboard/question-bank/papers/{paper.id}"
+
+    def send():
+        from notifications.services import notify_many
+
+        try:
+            notify_many(recipient_user_ids=user_ids, title=title[:200], body=body[:500], category="question_bank", link=link)
+        except Exception:  # pragma: no cover - best effort
+            pass
+
+    transaction.on_commit(send)
 
 
 def log_access(request, paper, kind):

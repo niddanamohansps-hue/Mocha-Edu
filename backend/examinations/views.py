@@ -51,6 +51,8 @@ class ExaminationViewSet(viewsets.ModelViewSet):
             perm = HasPermission("view_examinations")
         elif self.action == "publish":
             perm = HasPermission("publish_results")
+        elif self.action == "request_publication":
+            perm = HasPermission("manage_examinations")
         else:
             perm = HasPermission("manage_examinations")
         return [IsAuthenticated(), perm]
@@ -83,9 +85,34 @@ class ExaminationViewSet(viewsets.ModelViewSet):
         instance.delete()
         log_action(self.request, action="examination_deleted", model_name="Examination", object_id=exam_id, changes={"name": name})
 
+    @action(detail=True, methods=["post"], url_path="request-publication")
+    def request_publication(self, request, pk=None):
+        """Ask for the results to be published. With two-person publishing on, someone else then publishes."""
+        from django.utils import timezone
+
+        examination = self.get_object()
+        if examination.is_published:
+            return Response({"error": "This examination is already published."}, status=status.HTTP_400_BAD_REQUEST)
+        examination.publication_requested_by_user_id = request.user.id
+        examination.publication_requested_at = timezone.now()
+        examination.save(update_fields=["publication_requested_by_user_id", "publication_requested_at", "updated_at"])
+        log_action(request, action="results_publication_requested", model_name="Examination", object_id=examination.id)
+        _tell_publishers(examination, exclude=request.user.id)
+        return Response(ExaminationSerializer(examination).data)
+
     @action(detail=True, methods=["post"])
     def publish(self, request, pk=None):
         examination = self.get_object()
+        from .models import ExaminationSettings
+
+        if ExaminationSettings.load().require_separate_publisher:
+            requester = examination.publication_requested_by_user_id
+            if requester is None:
+                return Response({"error": "Ask for publication first; a different person then publishes the results."},
+                                status=status.HTTP_400_BAD_REQUEST)
+            if requester == request.user.id:
+                return Response({"error": "You asked for these results to be published, so someone else must publish them."},
+                                status=status.HTTP_400_BAD_REQUEST)
         try:
             publish_examination(examination)
         except Exception as exc:
@@ -95,11 +122,70 @@ class ExaminationViewSet(viewsets.ModelViewSet):
                 raise
             raise ValidationError({"non_field_errors": [str(exc)]})
 
+        Examination.objects.filter(pk=examination.pk).update(published_by_user_id=request.user.id)
+        examination.refresh_from_db()
         log_action(
             request, action="results_published", model_name="Examination", object_id=examination.id,
             changes={"name": examination.name, "result_count": ExamResult.objects.filter(examination=examination).count()},
         )
         return Response(ExaminationSerializer(examination).data)
+
+
+def _tell_publishers(examination, exclude=None):
+    """In-app notice to everyone who may publish results (except the requester), after the request commits."""
+    from django.db import transaction
+    from django.db.models import Q
+
+    from roles.models import UserRole
+
+    ids = set(UserRole.objects.filter(Q(role__slug="owner") | Q(role__permissions__codename="publish_results"))
+              .values_list("user_id", flat=True)) - {exclude}
+    if not ids:
+        return
+
+    def send():
+        from notifications.services import notify_many
+
+        try:
+            notify_many(recipient_user_ids=list(ids), title=f"Results ready to publish: {examination.name}",
+                        body="Marks are in and publication has been requested.", category="examinations",
+                        link="/dashboard/examinations")
+        except Exception:  # pragma: no cover - best effort
+            pass
+
+    transaction.on_commit(send)
+
+
+class ExaminationSettingsView(APIView):
+    """GET/PATCH /api/examinations/settings/ - the school's examination rules."""
+
+    http_method_names = ["get", "patch", "head", "options"]
+
+    def get_permissions(self):
+        perm = HasPermission("view_examinations" if self.request.method in ("GET", "HEAD", "OPTIONS") else "manage_examinations")
+        return [IsAuthenticated(), perm]
+
+    def get(self, request):
+        from .models import ExaminationSettings
+
+        row = ExaminationSettings.load()
+        return Response({"require_separate_publisher": row.require_separate_publisher, "is_default": row._state.adding})
+
+    def patch(self, request):
+        from rest_framework.exceptions import ValidationError
+
+        from .models import ExaminationSettings
+
+        value = request.data.get("require_separate_publisher")
+        if set(request.data) != {"require_separate_publisher"} or not isinstance(value, bool):
+            raise ValidationError({"require_separate_publisher": "Send true or false."})
+        row, _ = ExaminationSettings.objects.get_or_create(singleton=True)
+        previous = row.require_separate_publisher
+        row.require_separate_publisher, row.updated_by_user_id = value, request.user.id
+        row.save()
+        log_action(request, action="examination_settings_changed", model_name="ExaminationSettings", object_id=row.id,
+                   changes={"require_separate_publisher": [previous, value]})
+        return Response({"require_separate_publisher": row.require_separate_publisher, "is_default": False})
 
 
 class ExamScheduleViewSet(viewsets.ModelViewSet):

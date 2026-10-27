@@ -90,6 +90,8 @@ export interface Question {
     version: number;
     author_name: string;
     is_mine: boolean;
+    times_used: number;
+    last_used_in: string;
     submitted_at: string | null;
     decided_at: string | null;
     updated_at: string;
@@ -134,6 +136,7 @@ export interface BlueprintRule {
     question_type: QuestionType | "";
     difficulty: Difficulty | "";
     chapter: string | null;
+    marks: string | null;
     chapter_name: string;
     description: string;
 }
@@ -188,6 +191,7 @@ export interface QuestionPaper {
     released_at: string | null;
     sections?: PaperSection[];
     problems?: string[];
+    blueprint?: { planned_marks: string | null; rules: { rule: string; section: string; needed: number; available: number }[] };
 }
 
 export interface PaperInput {

@@ -275,6 +275,7 @@ def submit_question(*, request, question):
         question.status = Status.SUBMITTED
         question.submitted_at = timezone.now()
         question.save(update_fields=["status", "submitted_at", "updated_at"])
+        _notify_reviewers(question)
     return question
 
 
@@ -314,6 +315,27 @@ def archive_question(*, request, question):
         question.status = Status.ARCHIVED
         question.save(update_fields=["status", "updated_at"])
     return question
+
+
+def _notify_reviewers(question):
+    """Tell the subject's named reviewers (never the author) that a question is waiting, once it has committed."""
+    from notifications.services import notify_many
+
+    reviewers = set(
+        SubjectReviewer.objects.filter(subject_id=question.subject_id).exclude(staff__profile__user_id__isnull=True)
+        .values_list("staff__profile__user_id", flat=True)
+    ) - {question.created_by_user_id}
+    if not reviewers:
+        return
+
+    def send():
+        try:
+            notify_many(recipient_user_ids=list(reviewers), title=f"Question waiting for review: {question.subject.name}",
+                        body=question.body[:300], category="question_bank", link=f"/dashboard/question-bank/{question.id}")
+        except Exception:  # pragma: no cover - best effort
+            pass
+
+    transaction.on_commit(send)
 
 
 def _notify_author(question, decision, comment):

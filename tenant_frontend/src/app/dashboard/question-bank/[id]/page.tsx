@@ -107,6 +107,7 @@ export default function QuestionPage() {
                 <StatusBadge status={question.status} />
                 <span className="text-slate-500">by {question.is_mine ? "you" : question.author_name || "unknown"}</span>
                 {question.chapter_name && <span className="text-slate-500">· {question.chapter_name}{question.topic_name ? ` › ${question.topic_name}` : ""}</span>}
+                {question.status === "approved" && <span className="text-slate-500">· {question.times_used ? `used in ${question.times_used} paper${question.times_used === 1 ? "" : "s"}, last in ${question.last_used_in}` : "not used in a paper yet"}</span>}
                 <Link href="/dashboard/question-bank" className="ml-auto text-sky-700 hover:underline">Back to the bank</Link>
             </div>
 

@@ -27,16 +27,19 @@ function RuleForm({ paper, section }: { paper: QuestionPaper; section: PaperSect
     const [type, setType] = useState("");
     const [difficulty, setDifficulty] = useState("");
     const [chapter, setChapter] = useState("");
+    const [marks, setMarks] = useState("");
     return (
         <form
             className="flex flex-wrap items-end gap-2"
             onSubmit={(e) => {
                 e.preventDefault();
                 if (!/^\d+$/.test(count) || Number(count) < 1) return;
-                add.mutate({ section: section.id, count: Number(count), question_type: type, difficulty, chapter: chapter || null });
+                if (marks.trim() && !/^\d+(\.5)?$/.test(marks.trim())) return;
+                add.mutate({ section: section.id, count: Number(count), question_type: type, difficulty, chapter: chapter || null, marks: marks.trim() || null });
             }}
         >
             <Input aria-label="How many" className="w-20" inputMode="numeric" value={count} onChange={(e) => setCount(e.target.value)} />
+            <Input aria-label="Marks each" placeholder="Marks each" className="w-28" inputMode="decimal" value={marks} onChange={(e) => setMarks(e.target.value)} />
             <select aria-label="Type" className={FILTER_SELECT_CLASS} value={type} onChange={(e) => setType(e.target.value)}>
                 <option value="">Any type</option>
                 {(Object.keys(TYPE_LABELS) as QuestionType[]).map((t) => <option key={t} value={t}>{TYPE_LABELS[t]}</option>)}
@@ -58,7 +61,8 @@ function PickerDialog({ paper, section, onClose }: { paper: QuestionPaper; secti
     const [search, setSearch] = useState("");
     const [type, setType] = useState("");
     const [difficulty, setDifficulty] = useState("");
-    const candidates = usePaperCandidates(section ? paper.id : "", { search, question_type: type, difficulty, chapter: "" });
+    const [unused, setUnused] = useState(false);
+    const candidates = usePaperCandidates(section ? paper.id : "", { search, question_type: type, difficulty, chapter: "", unused: unused ? "true" : "" });
     const add = useAddPaperQuestion();
     if (!section) return null;
     return (
@@ -75,6 +79,7 @@ function PickerDialog({ paper, section, onClose }: { paper: QuestionPaper; secti
                     <option value="">Any difficulty</option>
                     {(Object.keys(DIFFICULTY_LABELS) as Difficulty[]).map((d) => <option key={d} value={d}>{DIFFICULTY_LABELS[d]}</option>)}
                 </select>
+                <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={unused} onChange={(e) => setUnused(e.target.checked)} /> Never used</label>
             </div>
             {candidates.isLoading ? <LoadingState className="py-6" /> : (candidates.data?.results ?? []).length === 0 ? (
                 <p className="text-sm text-slate-500">No approved question matches. Approve more questions in the bank first.</p>
@@ -82,7 +87,7 @@ function PickerDialog({ paper, section, onClose }: { paper: QuestionPaper; secti
                 <ul className="divide-y divide-slate-100 dark:divide-slate-800 max-h-[50vh] overflow-y-auto">
                     {(candidates.data?.results ?? []).map((q) => (
                         <li key={q.id} className="py-2 flex items-start gap-3 text-sm">
-                            <span className="flex-1">{q.body}<span className="block text-xs text-slate-500">{TYPE_LABELS[q.question_type]} · {DIFFICULTY_LABELS[q.difficulty]} · {Number(q.marks)} marks{q.chapter_name ? ` · ${q.chapter_name}` : ""}</span></span>
+                            <span className="flex-1">{q.body}<span className="block text-xs text-slate-500">{TYPE_LABELS[q.question_type]} · {DIFFICULTY_LABELS[q.difficulty]} · {Number(q.marks)} marks{q.chapter_name ? ` · ${q.chapter_name}` : ""} · {q.times_used ? `used ${q.times_used}×, last in ${q.last_used_in}` : "never used"}</span></span>
                             <Button type="button" size="sm" variant="outline" disabled={add.isPending}
                                 onClick={() => add.mutate({ id: paper.id, body: { section: section.id, question: q.id } })}>Add</Button>
                         </li>
@@ -107,7 +112,7 @@ function SectionCard({ paper, section, editable, onPick }: { paper: QuestionPape
                 {editable && (
                     <span className="ml-auto flex flex-wrap gap-1">
                         {section.rules.length > 0 && (
-                            <Button size="sm" variant="outline" disabled={autofill.isPending} onClick={() => autofill.mutate({ id: paper.id, body: { section: section.id } })}>Fill from blueprint</Button>
+                            <Button size="sm" variant="outline" disabled={autofill.isPending} onClick={() => autofill.mutate({ id: paper.id, body: { section: section.id } })}>Generate questions from blueprint</Button>
                         )}
                         <Button size="sm" variant="outline" onClick={onPick}>Add questions</Button>
                         <Button size="sm" variant="ghost" className="text-red-600" disabled={removeSection.isPending} onClick={() => removeSection.mutate(section.id)}>Delete section</Button>
@@ -228,6 +233,19 @@ export default function PaperPage() {
                 </section>
             )}
             {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
+
+            {paper.blueprint && paper.blueprint.rules.length > 0 && (
+                <section className="rounded-2xl border border-slate-200 dark:border-slate-800 p-4 text-sm space-y-1">
+                    <p className="font-semibold">
+                        Blueprint: {paper.blueprint.planned_marks === null ? "set marks on every rule to see the planned total" : `${Number(paper.blueprint.planned_marks)} of ${Number(paper.total_marks)} marks planned`}
+                    </p>
+                    <ul>
+                        {paper.blueprint.rules.filter((r) => r.available < r.needed).map((r) => (
+                            <li key={r.rule} className="text-amber-700">{r.section}: a rule needs {r.needed} questions but only {r.available} approved ones match.</li>
+                        ))}
+                    </ul>
+                </section>
+            )}
 
             {sections.map((section) => (
                 <SectionCard key={section.id} paper={paper} section={section} editable={editable} onPick={() => setPicking(section)} />

@@ -153,14 +153,18 @@ class MeView(APIView):
                 )
 
                 if active_user_role:
-                    if active_user_role.role.slug == "owner":
+                    # The server grants what ANY of the user's roles grants (roles.permissions.HasPermission
+                    # checks every role when no role is named, and API calls name none), so the screens get the
+                    # same union. Reporting only the active role's permissions hid buttons the server allows.
+                    if any(ur.role.slug == "owner" for ur in role_objects):
                         data["permissions"] = ["*"]  # Superuser wildcard
                     else:
-                        data["permissions"] = list(
-                            active_user_role.role.permissions.values_list(
-                                "codename", flat=True
-                            )
-                        )
+                        from roles.models import Permission
+
+                        data["permissions"] = sorted(set(
+                            Permission.objects.filter(roles__in=[ur.role_id for ur in role_objects])
+                            .values_list("codename", flat=True)
+                        ))
 
             # Fetch Unified Profile
             from profiles.models import Profile

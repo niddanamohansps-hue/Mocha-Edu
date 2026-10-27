@@ -26,10 +26,11 @@ class ExaminationSerializer(serializers.ModelSerializer):
         model = Examination
         fields = [
             "id", "academic_year", "name", "exam_type", "exam_type_name",
-            "start_date", "end_date", "is_published", "published_at",
-            "created_at", "updated_at",
+            "start_date", "end_date", "is_published", "published_at", "publication_requested_by_user_id",
+            "publication_requested_at", "published_by_user_id", "created_at", "updated_at",
         ]
-        read_only_fields = ["id", "is_published", "published_at", "created_at", "updated_at"]
+        read_only_fields = ["id", "is_published", "published_at", "publication_requested_by_user_id",
+                            "publication_requested_at", "published_by_user_id", "created_at", "updated_at"]
 
     def validate(self, attrs):
         start_date = attrs.get("start_date", getattr(self.instance, "start_date", None))

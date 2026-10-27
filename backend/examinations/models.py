@@ -54,6 +54,10 @@ class Examination(models.Model):
 
     is_published = models.BooleanField(default=False)
     published_at = models.DateTimeField(null=True, blank=True)
+    # Two-person publishing (see ExaminationSettings): who asked for the results to be published, and when.
+    publication_requested_by_user_id = models.UUIDField(null=True, blank=True)
+    publication_requested_at = models.DateTimeField(null=True, blank=True)
+    published_by_user_id = models.UUIDField(null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -254,3 +258,25 @@ class GradeBoundary(models.Model):
 
     def __str__(self):
         return f"{self.grade_label} ({self.min_percentage}-{self.max_percentage}%, {self.academic_year})"
+
+
+class ExaminationSettings(models.Model):
+    """The school's examination rules: exactly one row per school. Reading never writes: with no row, ``load()``
+    returns the defaults. Two-person publishing is off by default, so nothing changes until a school turns it on."""
+
+    EDITABLE_FIELDS = ("require_separate_publisher",)
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    singleton = models.BooleanField(default=True, unique=True, editable=False)
+    # When on, one person requests publication of an examination's results and a different person publishes them.
+    require_separate_publisher = models.BooleanField(default=False)
+    updated_by_user_id = models.UUIDField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name_plural = "Examination settings"
+        constraints = [models.CheckConstraint(condition=models.Q(singleton=True), name="exam_settings_singleton_true")]
+
+    @classmethod
+    def load(cls):
+        return cls.objects.filter(singleton=True).first() or cls()

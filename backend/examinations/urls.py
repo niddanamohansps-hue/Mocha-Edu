@@ -4,6 +4,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     BelowPassingReportView,
     ExamScheduleViewSet,
+    ExaminationSettingsView,
     ExaminationViewSet,
     ExamTypeViewSet,
     GradeBoundaryViewSet,
@@ -32,6 +33,7 @@ urlpatterns = [
         StudentTranscriptView.as_view(),
         name="student-transcript",
     ),
+    path("settings/", ExaminationSettingsView.as_view(), name="examination-settings"),
     path("reports/below-passing/", BelowPassingReportView.as_view(), name="below-passing-report"),
     path("", include(router.urls)),
 ]

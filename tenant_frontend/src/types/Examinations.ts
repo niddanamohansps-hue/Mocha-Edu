@@ -14,6 +14,14 @@ export interface Examination {
     end_date: string;
     is_published: boolean;
     published_at: string | null;
+    publication_requested_by_user_id: string | null;
+    publication_requested_at: string | null;
+    published_by_user_id: string | null;
+}
+
+export interface ExaminationSettings {
+    require_separate_publisher: boolean;
+    is_default: boolean;
 }
 
 export interface ExamSchedule {

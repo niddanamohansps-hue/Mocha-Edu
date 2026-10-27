@@ -41,7 +41,7 @@ function NewPaperForm({ onClose }: { onClose: () => void }) {
         <FormDialog
             open
             onOpenChange={(o) => !o && onClose()}
-            title="New question paper"
+            title="Generate a question paper"
             description="One set (A, B, ...) of the paper for a subject in an examination. Add sections and questions next."
             submitLabel="Create paper"
             pending={save.isPending}
@@ -115,7 +115,7 @@ export default function PapersPage() {
             <PageHeader
                 title="Question papers"
                 description="Papers are built from approved questions, approved by someone other than their preparer, then frozen. Teachers of the subject can open a paper once it is released."
-                actions={canPrepare && <Button onClick={() => setCreating(true)}>New paper</Button>}
+                actions={canPrepare && <Button onClick={() => setCreating(true)}>Generate question paper</Button>}
             />
             <FilterBar onSubmit={() => { setPage(1); setSearch(searchText.trim()); }}>
                 <Input type="text" placeholder="Search title, subject or examination" aria-label="Search papers" value={searchText} onChange={(e) => setSearchText(e.target.value)} />
