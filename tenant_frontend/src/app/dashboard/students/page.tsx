@@ -14,7 +14,8 @@ import {
     GraduationCap,
     Lock,
     Pencil,
-    Trash2
+    Trash2,
+    Users
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -96,6 +97,16 @@ export default function StudentsPage() {
                 </div>
 
                 <div className="flex items-center gap-3">
+                    {(isOwner || can("view_family")) && (
+                        <Button
+                            onClick={() => router.push("/dashboard/students/parents")}
+                            variant="outline"
+                            size="xl"
+                        >
+                            <Users className="h-4 w-4 mr-2" />
+                            Parents Directory
+                        </Button>
+                    )}
                     {(isOwner || can("add_student")) && (
                         <>
                             <Button
