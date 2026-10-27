@@ -1,3 +1,4 @@
+from django.db.models import Q
 from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -34,9 +35,30 @@ class ParentViewSet(viewsets.ModelViewSet):
             return [permissions.IsAuthenticated(), HasPermission("delete_family")]
         return [permissions.IsAuthenticated(), HasPermission("view_family")]
 
+    def get_queryset(self):
+        qs = super().get_queryset()
+
+        student_id = self.request.query_params.get("student")
+        if student_id:
+            qs = qs.filter(student_links__student_id=student_id)
+
+        search = (self.request.query_params.get("search") or "").strip()
+        if search:
+            terms = search.split()[:5]
+            for term in terms:
+                qs = qs.filter(
+                    Q(profile__first_name__icontains=term)
+                    | Q(profile__middle_name__icontains=term)
+                    | Q(profile__last_name__icontains=term)
+                    | Q(profile__phone__icontains=term)
+                )
+        return qs.distinct()
+
 
 class StudentParentRelationViewSet(viewsets.ModelViewSet):
-    queryset = StudentParentRelation.objects.all().order_by("-id")
+    queryset = StudentParentRelation.objects.all().select_related(
+        "student__profile", "parent__profile"
+    ).order_by("-id")
     serializer_class = StudentParentRelationSerializer
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = StandardResultsPagination
@@ -51,6 +73,16 @@ class StudentParentRelationViewSet(viewsets.ModelViewSet):
         if self.action == "destroy":
             return [permissions.IsAuthenticated(), HasPermission("delete_family")]
         return [permissions.IsAuthenticated(), HasPermission("view_family")]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        student_id = self.request.query_params.get("student")
+        if student_id:
+            qs = qs.filter(student_id=student_id)
+        parent_id = self.request.query_params.get("parent")
+        if parent_id:
+            qs = qs.filter(parent_id=parent_id)
+        return qs
 
 
 class ParentPortalActivationView(APIView):

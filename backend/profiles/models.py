@@ -32,6 +32,7 @@ class Profile(models.Model):
     # Contact Information
     phone = models.CharField(max_length=20, blank=True)
     alt_phone = models.CharField(max_length=20, blank=True)
+    email = models.EmailField(blank=True, null=True)
     address = models.TextField(blank=True)
 
     profile_image = models.ImageField(

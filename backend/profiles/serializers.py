@@ -4,7 +4,7 @@ from django.db import connection
 
 
 class ProfileSerializer(serializers.ModelSerializer):
-    email = serializers.EmailField(source="user.email", read_only=True)
+    email = serializers.SerializerMethodField()
     username = serializers.CharField(source="user.username", read_only=True)
     student_id = serializers.SerializerMethodField()
     staff_id = serializers.SerializerMethodField()
@@ -33,6 +33,11 @@ class ProfileSerializer(serializers.ModelSerializer):
             "updated_at",
         )
         read_only_fields = ("id", "user_id", "email", "username", "student_id", "staff_id")
+
+    def get_email(self, obj):
+        if obj.user and getattr(obj.user, "email", None):
+            return obj.user.email
+        return getattr(obj, "email", None) or None
 
     def get_student_id(self, obj):
         student = getattr(obj, "student_record", None)
