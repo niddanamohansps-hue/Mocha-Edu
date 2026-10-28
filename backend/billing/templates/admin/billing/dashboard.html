@@ -1,0 +1,87 @@
+{% extends "admin/base_site.html" %}
+{% load humanize %}
+
+{% block content %}
+<div class="container-fluid">
+  <p class="text-muted">Prices and revenue in ₹. MRR is before GST; revenue is what was received, with GST before it.</p>
+
+  <div class="row">
+    {% with c=counts %}
+    <div class="col-6 col-lg-2 mb-3"><div class="card card-body"><small class="text-muted">Schools</small><h3 class="mb-0">{{ school_count }}</h3></div></div>
+    <div class="col-6 col-lg-2 mb-3"><div class="card card-body"><small class="text-muted">Paying</small><h3 class="mb-0 text-success">{{ c.active }}</h3></div></div>
+    <div class="col-6 col-lg-2 mb-3"><div class="card card-body"><small class="text-muted">On trial</small><h3 class="mb-0 text-info">{{ c.trial }}</h3></div></div>
+    <div class="col-6 col-lg-2 mb-3"><div class="card card-body"><small class="text-muted">Overdue (grace)</small><h3 class="mb-0 text-warning">{{ c.past_due }}</h3></div></div>
+    <div class="col-6 col-lg-2 mb-3"><div class="card card-body"><small class="text-muted">Read-only</small><h3 class="mb-0 text-danger">{{ c.read_only }}</h3></div></div>
+    <div class="col-6 col-lg-2 mb-3"><div class="card card-body"><small class="text-muted">Legacy (not billed)</small><h3 class="mb-0">{{ c.legacy }}</h3></div></div>
+    {% endwith %}
+  </div>
+
+  <div class="row">
+    <div class="col-md-4 mb-3"><div class="card card-body"><small class="text-muted">Monthly recurring revenue</small><h3 class="mb-0">₹{{ mrr|floatformat:2|intcomma }}</h3><small class="text-muted">Monthly plans + yearly ÷ 12, before GST</small></div></div>
+    <div class="col-md-4 mb-3"><div class="card card-body"><small class="text-muted">Received this month</small><h3 class="mb-0">₹{{ month.0|floatformat:2|intcomma }}</h3><small class="text-muted">₹{{ month.1|floatformat:2|intcomma }} before GST</small></div></div>
+    <div class="col-md-4 mb-3"><div class="card card-body"><small class="text-muted">Received in FY {{ financial_year }}</small><h3 class="mb-0">₹{{ year.0|floatformat:2|intcomma }}</h3><small class="text-muted">₹{{ year.1|floatformat:2|intcomma }} before GST</small></div></div>
+  </div>
+
+  {% if overdue %}
+  <div class="card mb-3"><div class="card-header bg-warning"><strong>Overdue ({{ overdue|length }})</strong></div>
+    <div class="card-body p-0"><table class="table table-sm mb-0">
+      <thead><tr><th>School</th><th>Status</th><th>Days overdue</th><th>Email</th><th>Phone</th></tr></thead>
+      <tbody>{% for r in overdue %}<tr>
+        <td>{{ r.sub.organization.name }}</td><td>{{ r.sub.get_status_display }}</td><td>{{ r.days_overdue }}</td>
+        <td>{{ r.sub.organization.email|default:"-" }}</td><td>{{ r.sub.organization.phone|default:"-" }}</td>
+      </tr>{% endfor %}</tbody>
+    </table></div></div>
+  {% endif %}
+
+  {% if trials_ending %}
+  <div class="card mb-3"><div class="card-header bg-info text-white"><strong>Trials ending within 7 days ({{ trials_ending|length }})</strong></div>
+    <div class="card-body p-0"><table class="table table-sm mb-0">
+      <thead><tr><th>School</th><th>Plan</th><th>Trial ends</th><th>Email</th></tr></thead>
+      <tbody>{% for r in trials_ending %}<tr>
+        <td>{{ r.sub.organization.name }}</td><td>{{ r.sub.plan.name }}</td><td>{{ r.sub.trial_ends_at|date:"d M Y" }}</td><td>{{ r.sub.organization.email|default:"-" }}</td>
+      </tr>{% endfor %}</tbody>
+    </table></div></div>
+  {% endif %}
+
+  <div class="card mb-3"><div class="card-header"><strong>All schools</strong></div>
+    <div class="card-body p-0 table-responsive"><table class="table table-sm table-hover mb-0">
+      <thead><tr><th>School</th><th>Plan</th><th>Status</th><th>Paid until</th><th>Students</th><th>MRR</th><th style="min-width:330px">Actions</th></tr></thead>
+      <tbody>{% for r in rows %}<tr>
+        <td><a href="{% url 'admin:billing_subscription_change' r.sub.pk %}">{{ r.sub.organization.name }}</a><br><small class="text-muted">{{ r.sub.organization.schema_name }}</small></td>
+        <td>{{ r.sub.plan.name }}<br><small class="text-muted">{{ r.sub.get_cycle_display }}{% if r.sub.razorpay_subscription_id and not r.sub.cancel_at_period_end %} · autopay{% endif %}</small></td>
+        <td>{% if r.sub.is_legacy %}<span class="badge badge-secondary">Legacy</span>{% else %}<span class="badge {% if r.sub.status == 'active' %}badge-success{% elif r.sub.status == 'trial' %}badge-info{% elif r.sub.status == 'past_due' %}badge-warning{% else %}badge-danger{% endif %}">{{ r.sub.get_status_display }}</span>{% endif %}</td>
+        <td>{% if r.sub.status == 'trial' %}Trial to {{ r.sub.trial_ends_at|date:"d M Y" }}{% elif r.sub.paid_until %}{{ r.sub.paid_until|date:"d M Y" }}{% elif r.sub.is_legacy or r.sub.status == 'active' %}No end{% else %}-{% endif %}</td>
+        <td>{% if r.students is None %}?{% else %}<span class="{% if r.over_limit %}text-danger font-weight-bold{% endif %}">{{ r.students|intcomma }}</span>{% endif %}{% if r.limit %} / {{ r.limit|intcomma }}{% endif %}</td>
+        <td>₹{{ r.mrr|floatformat:2|intcomma }}</td>
+        <td>
+          <form method="post" class="form-inline mb-1">{% csrf_token %}
+            <input type="hidden" name="subscription" value="{{ r.sub.pk }}"><input type="hidden" name="action" value="extend_trial">
+            <input type="number" name="days" value="7" min="1" max="90" class="form-control form-control-sm mr-1" style="width:70px">
+            <button class="btn btn-sm btn-outline-info">Extend trial</button>
+          </form>
+          <form method="post" class="form-inline mb-1">{% csrf_token %}
+            <input type="hidden" name="subscription" value="{{ r.sub.pk }}"><input type="hidden" name="action" value="change_plan">
+            <select name="plan" class="form-control form-control-sm mr-1">{% for p in plans %}<option value="{{ p.pk }}" {% if p.pk == r.sub.plan_id %}selected{% endif %}>{{ p.name }}</option>{% endfor %}</select>
+            <select name="cycle" class="form-control form-control-sm mr-1">{% for value, label in cycles %}<option value="{{ value }}" {% if value == r.sub.cycle %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+            <button class="btn btn-sm btn-outline-primary">Change plan</button>
+          </form>
+          {% if not r.sub.is_legacy %}
+          <form method="post" class="d-inline" onsubmit="return confirm('Give {{ r.sub.organization.name|escapejs }} full access without billing?');">{% csrf_token %}
+            <input type="hidden" name="subscription" value="{{ r.sub.pk }}"><input type="hidden" name="action" value="mark_legacy">
+            <button class="btn btn-sm btn-outline-secondary">Full access, not billed</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>{% empty %}<tr><td colspan="7" class="text-muted">No schools yet.</td></tr>{% endfor %}</tbody>
+    </table></div></div>
+
+  <div class="card mb-3"><div class="card-header"><strong>Latest payments</strong></div>
+    <div class="card-body p-0"><table class="table table-sm mb-0">
+      <thead><tr><th>Invoice</th><th>School</th><th>Plan</th><th>Total</th><th>Paid</th></tr></thead>
+      <tbody>{% for i in recent_payments %}<tr>
+        <td><a href="{% url 'admin:billing_invoice_change' i.pk %}">{{ i.number }}</a></td><td>{{ i.billed_name }}</td>
+        <td>{{ i.plan_name }} ({{ i.get_cycle_display }})</td><td>₹{{ i.total|floatformat:2|intcomma }}</td><td>{{ i.paid_at|date:"d M Y H:i" }}</td>
+      </tr>{% empty %}<tr><td colspan="5" class="text-muted">No payments yet.</td></tr>{% endfor %}</tbody>
+    </table></div></div>
+</div>
+{% endblock %}

@@ -80,6 +80,7 @@ SHARED_APPS = (
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django.contrib.humanize",
     "rest_framework",
     "rest_framework_simplejwt.token_blacklist",
     "corsheaders",
@@ -638,8 +639,11 @@ JAZZMIN_SETTINGS = {
         "roles.Role": "fas fa-user-shield",
         "roles.UserRole": "fas fa-user-tag",
     },
+    # The platform owner's billing overview (billing/admin_dashboard.py).
+    "topmenu_links": [{"name": "Billing dashboard", "url": "/admin/billing/dashboard/", "permissions": ["billing.view_subscription"]}],
     "order_with_respect_to": [
         "organizations",
+        "billing",
         "accounts",
         "profiles",
         "payments",
