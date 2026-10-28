@@ -1,5 +1,6 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework.authentication import BaseAuthentication
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework import status
@@ -46,10 +47,23 @@ def _blacklist_all_refresh_tokens_for_user(user):
         BlacklistedToken.objects.get_or_create(token=outstanding)
 
 
+class CredentialsOnly(BaseAuthentication):
+    """Reads no cookie or header (the request's own credentials decide), but keeps failures as 401."""
+
+    def authenticate(self, request):
+        return None
+
+    def authenticate_header(self, request):
+        return "Bearer"
+
+
 class LoginView(APIView):
     permission_classes = [AllowAny]
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = "login"
+    # The credentials (or refresh cookie) in this request are what count: an old, invalid access cookie
+    # in the browser (e.g. for a user that no longer exists) must not block signing in.
+    authentication_classes = [CredentialsOnly]
 
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
@@ -82,6 +96,9 @@ class TokenRefreshView(APIView):
     permission_classes = [AllowAny]
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = "token_refresh"
+    # The credentials (or refresh cookie) in this request are what count: an old, invalid access cookie
+    # in the browser (e.g. for a user that no longer exists) must not block signing in.
+    authentication_classes = [CredentialsOnly]
 
     def post(self, request):
         refresh_token = request.COOKIES.get("refresh_token")
