@@ -307,6 +307,9 @@ export const getMenuItems = (
     if (can("view_notification_log")) {
         adminChildren.push({ label: "Alert Log", href: "/dashboard/notifications/alert-log" });
     }
+    if (can("add_student") || can("add_staff") || can("manage_fee_structures")) {
+        adminChildren.push({ label: "Import data", href: "/dashboard/import" });
+    }
     if (can("manage_billing")) {
         adminChildren.push({ label: "Billing", href: "/dashboard/billing" });
     }
