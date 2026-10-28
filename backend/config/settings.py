@@ -87,6 +87,7 @@ SHARED_APPS = (
     "accounts",
     "organizations",
     "payments",
+    "billing",  # schools paying the platform (plans, subscriptions, invoices)
 )
 
 TENANT_APPS = (
@@ -139,6 +140,8 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    # Times /api/ requests for the System Health page (counters only, kept in Redis for 26 hours).
+    "core.request_metrics.RequestMetricsMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -198,6 +201,10 @@ DATABASES = {
         # Shown in pg_stat_activity and (with %a in log_line_prefix) in the
         # PostgreSQL log, so a session can be traced to this project.
         "OPTIONS": {"application_name": build_application_name(EDUSEKAI_ENV)},
+        # Reuse a connection across requests (seconds) instead of opening one per request.
+        # 0 restores the old behaviour. Health checks replace a connection the server dropped.
+        "CONN_MAX_AGE": config("DB_CONN_MAX_AGE", default=60, cast=int),
+        "CONN_HEALTH_CHECKS": True,
     }
 }
 
@@ -378,6 +385,10 @@ CELERY_TASK_EAGER_PROPAGATES = True
 # counters and cached states via Redis DB 4 (isolated from Celery DB 3).
 # During automated test runs (`manage.py test`), LocMemCache is used so test isolation
 # is maintained without requiring an external running Redis instance.
+# How long a user's role permissions stay cached (seconds); 0 turns the shared cache off. Tests read the
+# database every time unless a test enables it, because the in-memory test cache outlives each test.
+PERMISSION_CACHE_SECONDS = 0 if _RUNNING_TESTS else config("PERMISSION_CACHE_SECONDS", default=300, cast=int)
+
 REDIS_CACHE_URL = config("REDIS_CACHE_URL", default=config("CACHE_URL", default="redis://localhost:6379/4"))
 
 if _RUNNING_TESTS:
@@ -424,6 +435,11 @@ else:
 # process (one instance per environment), separate from, and in addition
 # to, the `celery -A config worker` process(es) that actually execute tasks.
 CELERY_BEAT_SCHEDULE = {
+    # Proves the scheduler and a worker are alive (shown on the System Health page).
+    "system-heartbeat": {
+        "task": "core.tasks.heartbeat",
+        "schedule": timedelta(minutes=1),
+    },
     "recover-stale-outbox-events": {
         "task": "notifications.tasks.recover_stale_outbox_events",
         "schedule": timedelta(minutes=10),
@@ -563,6 +579,15 @@ ESEWA_URL = config(
 ESEWA_STATUS_URL = config(
     "ESEWA_STATUS_URL", default="https://rc.esewa.com.np/api/epay/transaction/status/"
 )
+# The platform's own Razorpay account: schools pay their EduSekai subscription here (school fees go to
+# each school's own account instead, see fees/gateway_views.py). Test keys start rzp_test_.
+PLATFORM_RAZORPAY_KEY_ID = config("PLATFORM_RAZORPAY_KEY_ID", default="")
+PLATFORM_RAZORPAY_KEY_SECRET = config("PLATFORM_RAZORPAY_KEY_SECRET", default="")
+PLATFORM_RAZORPAY_WEBHOOK_SECRET = config("PLATFORM_RAZORPAY_WEBHOOK_SECRET", default="")
+PLATFORM_NAME = config("PLATFORM_NAME", default="EduSekai")
+BILLING_INVOICE_PREFIX = config("BILLING_INVOICE_PREFIX", default="ES")
+BILLING_GRACE_DAYS = config("BILLING_GRACE_DAYS", default=7, cast=int)
+
 FEES_ALLOW_GLOBAL_GATEWAY_FALLBACK = config(
     "FEES_ALLOW_GLOBAL_GATEWAY_FALLBACK", default=True, cast=bool
 )
@@ -626,3 +651,16 @@ JAZZMIN_UI_TWEAKS = {
 # Media Files (User Uploads)
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
+
+# Error and performance reporting (config/monitoring.py). Off unless SENTRY_DSN is set; never in tests.
+# SENTRY_TRACES_SAMPLE_RATE is the share of requests timed (0.05 = 5%): enough to see slow endpoints.
+SENTRY_DSN = "" if _RUNNING_TESTS else config("SENTRY_DSN", default="")
+if SENTRY_DSN:
+    from config.monitoring import init_sentry
+
+    init_sentry(
+        SENTRY_DSN,
+        environment=EDUSEKAI_ENV,
+        traces_sample_rate=config("SENTRY_TRACES_SAMPLE_RATE", default=0.05, cast=float),
+        release=config("SENTRY_RELEASE", default=""),
+    )

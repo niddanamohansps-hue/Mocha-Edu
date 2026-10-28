@@ -5,6 +5,7 @@ django-cors-headers==4.9.0
 django-tenants==3.9.0
 djangorestframework==3.16.1
 djangorestframework_simplejwt==5.5.1
+gunicorn==23.0.0
 Faker==33.3.0
 pillow==12.0.0
 psycopg2-binary==2.9.13
@@ -20,3 +21,4 @@ redis==6.4.0
 
 reportlab==5.0.1
 segno==1.6.6
+sentry-sdk[django,celery]==2.19.2

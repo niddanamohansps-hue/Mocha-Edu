@@ -32,45 +32,21 @@ class HasPermission(permissions.BasePermission):
 
         requested_active_role = request.query_params.get("active_role")
 
-        from roles.models import UserRole
+        from roles.cache import OWNER, role_permissions
 
-        # Get all roles for this user in this tenant
-        # UserRole is now in the tenant schema, so we don't need to filter by organization
-        # The connection.tenant is already active
-        user_roles = UserRole.objects.filter(user=user).select_related("role")
-
-        if not user_roles.exists():
+        # {role_slug: codenames} for every role the user holds in this school, computed once per
+        # request and cached across requests (invalidated whenever roles or grants change).
+        granted = role_permissions(request)
+        if not granted:
             return False
 
-        # Determine which role is "Active"
-        active_role_obj = None
+        # A role named in the request is checked alone; owner passes everything.
+        if requested_active_role in granted:
+            if requested_active_role == OWNER:
+                return True
+            return self.required_permission in granted[requested_active_role]
 
-        # 1. If explicit request
-        if requested_active_role:
-            active_role_obj = next(
-                (ur.role for ur in user_roles if ur.role.slug == requested_active_role),
-                None,
-            )
-
-        # 2. If no explicit request, we default to the "Highest Privilege" role
-        # that actually HAS the permission we are looking for.
-        # This is a user-friendly "Auto-Switch" for permission checks.
-        if not active_role_obj:
-            # Check if ANY of their roles has the permission
-            for ur in user_roles:
-                if ur.role.slug == "owner":
-                    return True  # Owner bypass
-                if ur.role.permissions.filter(
-                    codename=self.required_permission
-                ).exists():
-                    return True
-
-            return False  # None of their roles have it
-
-        # If we found a specific active role object
-        if active_role_obj.slug == "owner":
+        # Otherwise any of the user's roles may grant it.
+        if OWNER in granted:
             return True
-
-        return active_role_obj.permissions.filter(
-            codename=self.required_permission
-        ).exists()
+        return any(self.required_permission in codes for codes in granted.values())

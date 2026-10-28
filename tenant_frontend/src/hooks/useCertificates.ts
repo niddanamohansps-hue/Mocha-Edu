@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiBaseUrl } from "@/lib/apiBase";
 import axios from "axios";
 import axiosInstance from "@/lib/axios";
 import { toast } from "sonner";
@@ -149,11 +150,7 @@ export const useIdCard = (kind: "student" | "staff", id: string | undefined) => 
 // Public verification: no session. A plain axios call keeps the auth
 // interceptor (token refresh / login redirect) out of the way.
 function publicBaseUrl() {
-    if (typeof window !== "undefined") {
-        const hostname = window.location.hostname;
-        if (hostname.includes(".localhost")) return `http://${hostname.split(".")[0]}.localhost:8000/api`;
-    }
-    return "http://localhost:8000/api";
+    return apiBaseUrl();
 }
 
 export const usePublicCertificateVerification = (verificationId: string) =>

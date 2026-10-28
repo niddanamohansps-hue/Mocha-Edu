@@ -1,0 +1,59 @@
+# Production-style stack: gunicorn instead of runserver, plus the Celery worker and scheduler that send
+# alerts, reminders and queued email. The development file (docker-compose.yml) is unchanged.
+#
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Settings come from .env (DEBUG=False, SECRET_KEY, DB_*, FIELD_ENCRYPTION_KEY, ...). Inside this stack
+# Redis is reached at redis:6379, so set CELERY_BROKER_URL / REDIS_CACHE_URL to redis://redis:6379/<db>.
+# Migrations are never run automatically; apply them deliberately (see README "Migration safety").
+
+x-app: &app
+  build: .
+  env_file:
+    - .env
+  environment:
+    - DEBUG=False
+    - RUN_MIGRATIONS_ON_START=false
+  depends_on:
+    - db
+    - redis
+  restart: unless-stopped
+
+services:
+  db:
+    image: postgres:15-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    env_file:
+      - .env
+    environment:
+      - POSTGRES_DB=${DB_NAME}
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+  backend:
+    <<: *app
+    command: gunicorn config.wsgi -c gunicorn.conf.py
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/health/', timeout=5).status == 200 else 1)\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  worker:
+    <<: *app
+    command: celery -A config worker --loglevel=info --concurrency=${CELERY_CONCURRENCY:-4}
+
+  beat:
+    <<: *app
+    command: celery -A config beat --loglevel=info
+
+volumes:
+  postgres_data:

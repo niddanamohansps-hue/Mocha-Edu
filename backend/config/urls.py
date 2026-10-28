@@ -1,9 +1,14 @@
 from django.contrib import admin
 from django.urls import path, include
+
+from .health import health
+from core.system_health import SystemHealthView
 from django.conf import settings
 from django.conf.urls.static import static
 
 urlpatterns = [
+    path("api/health/", health, name="health"),
+    path("api/system-health/", SystemHealthView.as_view(), name="system-health"),
     path("admin/", admin.site.urls),
     path("api/auth/", include("accounts.urls")),
     path("api/payments/", include("payments.urls")),

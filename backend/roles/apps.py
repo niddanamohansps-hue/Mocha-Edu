@@ -6,3 +6,4 @@ class RolesConfig(AppConfig):
 
     def ready(self):
         import roles.signals
+        import roles.cache  # noqa: F401  (connects the cache-invalidation signals)
