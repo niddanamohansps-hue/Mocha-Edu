@@ -262,3 +262,21 @@ class AutopayTests(TransactionTestCase):
         self.assertEqual((ok.data["billing_state"], ok.data["state_name"]), ("27", "Maharashtra"))
         self.sub.refresh_from_db()
         self.assertEqual(self.sub.billing_gstin, "27ABCDE1234F1Z5")
+
+    def test_a_price_change_keeps_existing_mandates_and_makes_a_new_plan(self):
+        self._start()  # mandate at ₹1,000 + GST = 118000 paise
+        self.plan.monthly_price = Decimal("1500.00")
+        self.plan.save()
+        # Razorpay still charges the agreed amount: it renews, and the invoice is for what was charged.
+        self.assertEqual(self._webhook("subscription.charged", self._charge(amount=118000)).data["status"], "renewed")
+        invoice = Invoice.objects.get(subscription=self.sub)
+        self.assertEqual((invoice.total, invoice.amount + invoice.gst_amount), (Decimal("1180.00"), Decimal("1180.00")))
+        # A new mandate is created on a new Razorpay plan at the new price.
+        self.sub.refresh_from_db()
+        self.sub.razorpay_subscription_id = ""
+        self.sub.save()
+        self._start()
+        plan_calls = [c for c in self.fake.calls if c[1] == "/plans"]
+        self.assertEqual([c[2]["item"]["amount"] for c in plan_calls], [118000, 177000])
+        self.sub.refresh_from_db()
+        self.assertEqual(self.sub.autopay_amount_paise, 177000)

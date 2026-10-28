@@ -1,7 +1,13 @@
 import axios from 'axios';
 
+/** The backend's API root. NEXT_PUBLIC_API_URL may be given with or without the trailing /api. */
+function apiBaseUrl(): string {
+    const configured = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/+$/, '');
+    return configured.endsWith('/api') ? configured : `${configured}/api`;
+}
+
 const axiosInstance = axios.create({
-    baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api',
+    baseURL: apiBaseUrl(),
     withCredentials: true,
 });
 

@@ -42,13 +42,15 @@ def period_total(plan, cycle):
 
 def razorpay_plan_id(plan, cycle):
     field = "razorpay_monthly_plan_id" if cycle == MONTHLY else "razorpay_yearly_plan_id"
+    amount_field = "razorpay_monthly_amount" if cycle == MONTHLY else "razorpay_yearly_amount"
+    amount = to_paise(period_total(plan, cycle))
     existing = getattr(plan, field)
-    if existing:
+    if existing and getattr(plan, amount_field) == amount:
         return existing
     key_id, secret = platform_keys()
     created = api_request("POST", "/plans", key_id=key_id, key_secret=secret, body={
         "period": PERIOD[cycle], "interval": 1,
-        "item": {"name": f"{plan.name} ({PERIOD[cycle]})", "amount": to_paise(period_total(plan, cycle)),
+        "item": {"name": f"{plan.name} ({PERIOD[cycle]})", "amount": amount,
                  "currency": "INR"},
         "notes": {"plan": plan.code},
     })
@@ -56,7 +58,8 @@ def razorpay_plan_id(plan, cycle):
     if not plan_id.startswith("plan_"):
         raise BillingError("Razorpay did not create the plan.")
     setattr(plan, field, plan_id)
-    plan.save(update_fields=[field, "updated_at"])
+    setattr(plan, amount_field, amount)
+    plan.save(update_fields=[field, amount_field, "updated_at"])
     return plan_id
 
 
@@ -81,8 +84,10 @@ def start_autopay(subscription):
     if not rz_id.startswith("sub_"):
         raise BillingError("Razorpay did not create the subscription.")
     subscription.razorpay_subscription_id = rz_id
+    subscription.autopay_amount_paise = to_paise(period_total(subscription.plan, subscription.cycle))
     subscription.cancel_at_period_end = False
-    subscription.save(update_fields=["razorpay_subscription_id", "cancel_at_period_end", "updated_at"])
+    subscription.save(update_fields=["razorpay_subscription_id", "autopay_amount_paise", "cancel_at_period_end",
+                                     "updated_at"])
     return {
         "key": key_id,
         "subscription_id": rz_id,
@@ -130,7 +135,8 @@ def handle_webhook(event):
     if name == "subscription.charged":
         payment = (payload.get("payment") or {}).get("entity") or {}
         payment_id = str(payment.get("id") or "")
-        expected = to_paise(period_total(subscription.plan, subscription.cycle))
+        # The mandate's own amount, so a later price change does not reject what the school agreed to pay.
+        expected = subscription.autopay_amount_paise or to_paise(period_total(subscription.plan, subscription.cycle))
         if not payment_id or payment.get("status") != "captured" or payment.get("currency") != "INR" \
                 or payment.get("amount") != expected:
             logger.warning("Ignored a renewal charge for %s that does not match its plan.", subscription.pk)
@@ -140,7 +146,7 @@ def handle_webhook(event):
         if Invoice.objects.filter(razorpay_payment_id=payment_id).exists():
             return "already_recorded"
         with transaction.atomic():
-            invoice = issue_invoice(subscription)
+            invoice = issue_invoice(subscription, amount_paise=expected)
             mark_invoice_paid(invoice.id, payment_id=payment_id, paid_amount_paise=payment["amount"])
         return "renewed"
 

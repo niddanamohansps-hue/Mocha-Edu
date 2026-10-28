@@ -72,7 +72,7 @@ def start_subscription(organization, plan, cycle, *, now=None):
     return subscription
 
 
-def issue_invoice(subscription, *, now=None, cycle=None, plan=None):
+def issue_invoice(subscription, *, now=None, cycle=None, plan=None, amount_paise=None):
     """A draft invoice for the period that starts when the current one ends (or now, if that is later)."""
     now = now or timezone.now()
     plan = plan or subscription.plan
@@ -80,10 +80,16 @@ def issue_invoice(subscription, *, now=None, cycle=None, plan=None):
     amount = plan.price_for(cycle)
     if amount is None:
         raise BillingError("This plan is not offered on that billing cycle.")
+    gst = gst_for(amount, plan.gst_percent)
+    if amount_paise is not None:
+        # A charge already agreed (an autopay mandate): its GST-inclusive total decides the invoice. The
+        # taxable value is worked back at the plan's rate; GST is the rest, so the total is exact.
+        gross = (Decimal(amount_paise) / 100).quantize(CENT)
+        amount = (gross * 100 / (100 + plan.gst_percent)).quantize(CENT, rounding=ROUND_HALF_UP)
+        gst = gross - amount
     start = max(now, subscription.paid_until) if subscription.paid_until else now
     length = period_length(cycle, plan)
     org = subscription.organization
-    gst = gst_for(amount, plan.gst_percent)
     from .gst import split
 
     cgst, sgst, igst, pos = split(gst, subscription.billing_state)

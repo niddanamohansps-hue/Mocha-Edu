@@ -44,6 +44,9 @@ class Plan(models.Model):
     # a price change makes a new Razorpay plan, and existing subscriptions keep theirs).
     razorpay_monthly_plan_id = models.CharField(max_length=60, blank=True)
     razorpay_yearly_plan_id = models.CharField(max_length=60, blank=True)
+    # The paise amount each stored Razorpay plan was created with: a new price makes a new Razorpay plan.
+    razorpay_monthly_amount = models.PositiveIntegerField(null=True, blank=True)
+    razorpay_yearly_amount = models.PositiveIntegerField(null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -91,6 +94,9 @@ class Subscription(models.Model):
     is_legacy = models.BooleanField(default=False)
 
     razorpay_subscription_id = models.CharField(max_length=60, blank=True, db_index=True)
+    # What the school's autopay mandate charges each period (paise, GST included). Kept even if the plan's
+    # price changes later: the school keeps paying what it agreed to until it renews on the new price.
+    autopay_amount_paise = models.PositiveIntegerField(null=True, blank=True)
     # GST details the school gives on its Billing page (state = GST state code, e.g. "29").
     billing_state = models.CharField(max_length=2, blank=True)
     billing_gstin = models.CharField(max_length=15, blank=True)
