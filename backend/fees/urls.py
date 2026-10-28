@@ -1,6 +1,14 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
+from .gateway_views import (
+    GatewayDetailView,
+    GatewayListView,
+    GatewayTestView,
+    PayableGatewaysView,
+    RazorpayWebhookView,
+)
+
 from .views import (
     AssignStudentFeeView,
     CancelStudentFeeView,
@@ -25,7 +33,13 @@ router = DefaultRouter()
 router.register(r"heads", FeeHeadViewSet, basename="fee-head")
 router.register(r"structures", FeeStructureViewSet, basename="fee-structure")
 
+
 urlpatterns = [
+    path("gateways/", GatewayListView.as_view(), name="payment-gateway-list"),
+    path("gateways/<str:gateway>/", GatewayDetailView.as_view(), name="payment-gateway-detail"),
+    path("gateways/<str:gateway>/test/", GatewayTestView.as_view(), name="payment-gateway-test"),
+    path("online/gateways/", PayableGatewaysView.as_view(), name="online-payment-gateways"),
+    path("online/webhook/razorpay/", RazorpayWebhookView.as_view(), name="online-payment-webhook-razorpay"),
     path("online/initiate/", OnlinePaymentInitiateView.as_view(), name="online-payment-initiate"),
     path("online/verify/", OnlinePaymentVerifyView.as_view(), name="online-payment-verify"),
     path("online/callback/", OnlinePaymentCallbackView.as_view(), name="online-payment-callback"),

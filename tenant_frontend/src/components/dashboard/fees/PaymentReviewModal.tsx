@@ -2,13 +2,16 @@
 
 import { CURRENCY } from "@/lib/currency";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Loader2, ShieldCheck, ExternalLink, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import {
     useInitiateOnlinePayment,
     useInitiateParentChildPayment,
+    usePayableGateways,
 } from "@/hooks/useFees";
-import { submitGatewayForm } from "@/lib/payments";
+import { openRazorpayCheckout, submitGatewayForm } from "@/lib/payments";
+import { GatewayPayload } from "@/types/Fees";
 import {
     Dialog,
     DialogContent,
@@ -48,8 +51,12 @@ export function PaymentReviewModal({
     const [allocations, setAllocations] = useState<Record<string, string>>({});
     const [isRedirecting, setIsRedirecting] = useState(false);
 
+    const router = useRouter();
     const initiateOnlinePayment = useInitiateOnlinePayment();
     const initiateParentPayment = useInitiateParentChildPayment();
+    const { data: gateways = [], isLoading: loadingGateways } = usePayableGateways(isOpen);
+    const [chosenGateway, setChosenGateway] = useState<string>("");
+    const gateway = gateways.find((g) => g.gateway === chosenGateway) ?? gateways[0];
 
     // Initialize allocations with outstanding amounts
     useEffect(() => {
@@ -92,6 +99,29 @@ export function PaymentReviewModal({
     const isSubmitting =
         initiateOnlinePayment.isPending || initiateParentPayment.isPending || isRedirecting;
 
+    const startGateway = async (payload: GatewayPayload, returnPath: string) => {
+        setIsRedirecting(true);
+        if (payload.method === "CHECKOUT") {
+            // This dialog must be closed first: while it is open, everything outside it (including the
+            // Razorpay window) cannot be clicked or typed into. Wait for its close animation to finish.
+            setIsRedirecting(false);
+            onClose();
+            await new Promise((resolve) => setTimeout(resolve, 300));
+            try {
+                await openRazorpayCheckout(payload, {
+                    onPaid: (query) => router.push(`${returnPath}?${query}`),
+                    description: studentName ? `School fees for ${studentName}` : "School fees",
+                    onDismiss: () => toast.info("Payment cancelled. Nothing was charged."),
+                });
+            } catch (error) {
+                toast.error(error instanceof Error ? error.message : "The payment window could not be opened.");
+            }
+            return;
+        }
+        toast.info(`Taking you to ${gateway?.label ?? "the payment gateway"}...`);
+        submitGatewayForm(payload);
+    };
+
     const handleProceedToPayment = async () => {
         if (hasErrors || selectedFees.length === 0) return;
 
@@ -109,44 +139,36 @@ export function PaymentReviewModal({
         const returnUrl = `${baseUrl}${callbackPath}`;
         const failureUrl = `${baseUrl}${callbackPath}?status=failed`;
 
+        if (!gateway) return;
         try {
-            if (isParent) {
-                const res = await initiateParentPayment.mutateAsync({
+            const res = isParent
+                ? await initiateParentPayment.mutateAsync({
                     student_id: studentId,
                     amount: totalFormatted,
                     allocations: allocationPayload,
-                    gateway: "esewa",
+                    gateway: gateway.gateway,
                     return_url: returnUrl,
                     failure_url: failureUrl,
-                });
-
-                setIsRedirecting(true);
-                toast.info("Order initiated. Redirecting to eSewa payment portal...");
-                submitGatewayForm(res.gateway_payload);
-            } else {
-                const res = await initiateOnlinePayment.mutateAsync({
+                })
+                : await initiateOnlinePayment.mutateAsync({
                     student: studentId,
                     amount: totalFormatted,
                     allocations: allocationPayload,
-                    gateway: "esewa",
+                    gateway: gateway.gateway,
                     return_url: returnUrl,
                     failure_url: failureUrl,
                 });
-
-                setIsRedirecting(true);
-                toast.info("Order initiated. Redirecting to eSewa payment portal...");
-                submitGatewayForm(res.gateway_payload);
-            }
-        } catch (err: any) {
+            await startGateway(res.gateway_payload, callbackPath);
+        } catch {
             setIsRedirecting(false);
-            // Error is toasted automatically by the mutation hooks
+            // Initiation errors are toasted by the mutation hooks
         }
     };
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && !isSubmitting && onClose()}>
-            <DialogContent className="max-w-xl p-0 overflow-hidden sm:rounded-2xl">
-                <DialogHeader className="p-6 pb-2 border-b border-slate-100 dark:border-slate-800">
+            <DialogContent className="max-w-xl p-0 overflow-hidden sm:rounded-2xl flex flex-col gap-0">
+                <DialogHeader className="shrink-0 p-6 pb-2 border-b border-slate-100 dark:border-slate-800">
                     <DialogTitle className="text-xl font-bold flex items-center gap-2">
                         <ShieldCheck className="h-5 w-5 text-emerald-600" />
                         Review Online Fee Payment
@@ -166,15 +188,15 @@ export function PaymentReviewModal({
                             </div>
                         </div>
                         <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                            Redirecting to eSewa Portal
+                            {gateway?.checkout === "popup" ? `Opening ${gateway.label}` : `Taking you to ${gateway?.label ?? "the payment gateway"}`}
                         </h3>
                         <p className="text-sm text-slate-500 max-w-sm">
-                            Please do not refresh this page or click back. You will be redirected to complete
-                            the payment securely.
+                            Please do not refresh this page or click back. Complete the payment in the
+                            {gateway?.checkout === "popup" ? " payment window." : " gateway page."}
                         </p>
                     </div>
                 ) : (
-                    <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+                    <div className="flex-1 min-h-0 p-6 space-y-6 overflow-y-auto">
                         {/* Selected Fee Heads List */}
                         <div className="space-y-3">
                             <Label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
@@ -234,16 +256,38 @@ export function PaymentReviewModal({
 
                         {/* Gateway selection info */}
                         <div className="bg-slate-50 dark:bg-slate-900/60 p-4 rounded-xl border border-slate-100 dark:border-slate-800 space-y-3">
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                                <Label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
-                                    Payment Method
-                                </Label>
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                                    eSewa ePay Gateway
-                                </span>
-                            </div>
+                            <Label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
+                                Pay with
+                            </Label>
+                            {loadingGateways ? (
+                                <p className="text-xs text-slate-500">Loading payment options...</p>
+                            ) : gateways.length === 0 ? (
+                                <p className="text-xs text-amber-700 dark:text-amber-400">
+                                    Online payment is not set up for this school yet. Please pay at the school office.
+                                </p>
+                            ) : (
+                                <div className="grid gap-2">
+                                    {gateways.map((g) => (
+                                        <label
+                                            key={g.gateway}
+                                            className={`flex items-center gap-3 rounded-lg border px-3 py-2 cursor-pointer ${gateway?.gateway === g.gateway ? "border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/40" : "border-slate-200 dark:border-slate-800"}`}
+                                        >
+                                            <input
+                                                type="radio"
+                                                name="gateway"
+                                                value={g.gateway}
+                                                checked={gateway?.gateway === g.gateway}
+                                                onChange={() => setChosenGateway(g.gateway)}
+                                                disabled={isSubmitting}
+                                            />
+                                            <span className="text-sm font-semibold text-slate-900 dark:text-white">{g.label}</span>
+                                            <span className="text-xs text-slate-500">{g.methods}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            )}
                             <p className="text-xs text-slate-500">
-                                Transactions are encrypted and authenticated via SHA-256 HMAC cryptographic signatures.
+                                Your payment is confirmed with the gateway before the fee is marked paid.
                             </p>
                         </div>
 
@@ -276,13 +320,13 @@ export function PaymentReviewModal({
                 )}
 
                 {!isRedirecting && (
-                    <div className="p-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-3">
+                    <div className="shrink-0 p-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-3">
                         <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
                             Cancel
                         </Button>
                         <Button
                             onClick={handleProceedToPayment}
-                            disabled={hasErrors || isSubmitting || selectedFees.length === 0}
+                            disabled={hasErrors || isSubmitting || selectedFees.length === 0 || !gateway}
                             className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 font-bold px-6 shadow-sm"
                         >
                             {isSubmitting ? (

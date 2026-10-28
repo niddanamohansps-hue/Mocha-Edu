@@ -60,6 +60,12 @@ class Payment(models.Model):
     gateway_checked_at = models.DateTimeField(null=True, blank=True)
     attention_notified_at = models.DateTimeField(null=True, blank=True)
     failure_code = models.CharField(max_length=50, blank=True)
+    # What the school chose at signup (empty for signups made before plans existed).
+    plan = models.ForeignKey("billing.Plan", on_delete=models.PROTECT, null=True, blank=True, related_name="+")
+    cycle = models.CharField(max_length=10, blank=True)
+    gateway = models.CharField(max_length=20, default="esewa")
+    # The gateway's own order id (Razorpay order_...), to match its confirmation.
+    gateway_order_id = models.CharField(max_length=60, blank=True, db_index=True)
     organization = models.OneToOneField(
         "organizations.Organization",
         null=True,

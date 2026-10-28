@@ -11,7 +11,7 @@ import {
     ShieldAlert,
 } from "lucide-react";
 import { useChildFees, useLinkedChildren } from "@/hooks/useParentPortal";
-import { useOnlinePaymentOrders } from "@/hooks/useFees";
+import { useOnlinePaymentOrders, usePayableGateways } from "@/hooks/useFees";
 import { usePermissions } from "@/providers/PermissionProvider";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,7 @@ import { ChildFee } from "@/types/ParentPortal";
 
 export default function ParentPortalFeesPage() {
     const { can, isOwner } = usePermissions();
+    const { data: payableGateways = [] } = usePayableGateways();
     const canView = isOwner || can("view_child_fees");
     const canPay = isOwner || can("pay_child_fees");
 
@@ -170,10 +171,15 @@ export default function ParentPortalFeesPage() {
                                     Online Payment Access
                                 </p>
                                 <div className="mt-1 flex items-center gap-2">
-                                    {canPay ? (
+                                    {canPay && payableGateways.length > 0 ? (
                                         <span className="inline-flex items-center gap-1.5 text-sm font-bold text-emerald-600 dark:text-emerald-400">
                                             <CheckCircle2 className="h-4 w-4" />
-                                            Enabled (eSewa Gateway)
+                                            Enabled
+                                        </span>
+                                    ) : canPay ? (
+                                        <span className="inline-flex items-center gap-1.5 text-sm font-bold text-amber-600 dark:text-amber-400">
+                                            <AlertCircle className="h-4 w-4" />
+                                            Not set up by the school yet
                                         </span>
                                     ) : (
                                         <span className="inline-flex items-center gap-1.5 text-sm font-bold text-amber-600 dark:text-amber-400">
@@ -183,7 +189,7 @@ export default function ParentPortalFeesPage() {
                                     )}
                                 </div>
                                 <p className="text-xs text-slate-400 mt-1">
-                                    Cryptographic HMAC verification
+                                    {payableGateways.length > 0 ? payableGateways.map((g) => g.label).join(", ") : "Pay at the school office"}
                                 </p>
                             </CardContent>
                         </Card>
@@ -299,7 +305,7 @@ export default function ParentPortalFeesPage() {
                                             {selectedFeeIds.length} fee{selectedFeeIds.length > 1 ? "s" : ""} selected for {selectedChild?.full_name}
                                         </p>
                                         <p className="text-xs text-indigo-700 dark:text-indigo-300">
-                                            Ready to proceed to eSewa payment gateway.
+                                            Ready to pay online.
                                         </p>
                                     </div>
                                     <Button

@@ -10,8 +10,11 @@ import {
     OnlinePaymentOrder,
     OnlinePaymentOrdersResponse,
     OutstandingReportResponse,
+    PayableGateway,
     Payment,
     PaymentAllocationInput,
+    PaymentGatewayInput,
+    PaymentGatewaySetup,
     PaymentMethod,
     StudentFeesResponse,
     VerifyOnlinePaymentResponse,
@@ -260,7 +263,15 @@ export const useInitiateParentChildPayment = () => {
 export const useVerifyOnlinePayment = () => {
     const queryClient = useQueryClient();
     return useMutation({
-        mutationFn: async (data: { data?: string; encoded_data?: string; order_id?: string; transaction_uuid?: string }) => {
+        mutationFn: async (data: {
+            data?: string;
+            encoded_data?: string;
+            order_id?: string;
+            transaction_uuid?: string;
+            razorpay_order_id?: string;
+            razorpay_payment_id?: string;
+            razorpay_signature?: string;
+        }) => {
             const response = await axiosInstance.post("/fees/online/verify/", data);
             return response.data as VerifyOnlinePaymentResponse;
         },
@@ -316,3 +327,39 @@ export const useOnlinePaymentOrders = (params?: { student?: string; status?: str
         },
     });
 };
+
+// === PAYMENT GATEWAYS (per school) ===
+
+export const usePaymentGateways = () =>
+    useQuery({
+        queryKey: ["fees", "gateways"],
+        queryFn: async () => (await axiosInstance.get("/fees/gateways/")).data as PaymentGatewaySetup[],
+    });
+
+export const useSavePaymentGateway = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async ({ gateway, ...body }: PaymentGatewayInput & { gateway: string }) =>
+            (await axiosInstance.put(`/fees/gateways/${gateway}/`, body)).data as PaymentGatewaySetup,
+        onSuccess: (data) => {
+            queryClient.invalidateQueries({ queryKey: ["fees", "gateways"] });
+            queryClient.invalidateQueries({ queryKey: ["fees", "payable-gateways"] });
+            toast.success(`${data.label} saved`);
+        },
+    });
+};
+
+export const useTestPaymentGateway = () =>
+    useMutation({
+        mutationFn: async (gateway: string) =>
+            (await axiosInstance.post(`/fees/gateways/${gateway}/test/`)).data as { ok: boolean; message: string },
+        onError: (error: unknown) => toast.error(errorMessage(error, "Could not check the keys")),
+    });
+
+/** The gateways a parent or student can pay with in this school. */
+export const usePayableGateways = (enabled = true) =>
+    useQuery({
+        queryKey: ["fees", "payable-gateways"],
+        queryFn: async () => (await axiosInstance.get("/fees/online/gateways/")).data as PayableGateway[],
+        enabled,
+    });

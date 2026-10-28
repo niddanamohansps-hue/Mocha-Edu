@@ -271,6 +271,9 @@ export const getMenuItems = (
     if (can("view_financial_reports")) {
         feesChildren.push({ label: "Outstanding Report", href: "/dashboard/fees/reports" });
     }
+    if (can("manage_payment_gateways")) {
+        feesChildren.push({ label: "Payment Gateways", href: "/dashboard/fees/payment-gateways" });
+    }
     if (can("view_own_fees") || can("pay_own_fees")) {
         feesChildren.push({ label: "My Fees", href: "/dashboard/fees/my-fees" });
     }
@@ -303,6 +306,9 @@ export const getMenuItems = (
     }
     if (can("view_notification_log")) {
         adminChildren.push({ label: "Alert Log", href: "/dashboard/notifications/alert-log" });
+    }
+    if (can("view_system_health")) {
+        adminChildren.push({ label: "System Health", href: "/dashboard/system-health" });
     }
 
     if (adminChildren.length > 0) {

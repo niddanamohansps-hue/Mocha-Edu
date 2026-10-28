@@ -32,6 +32,12 @@ STUDENT_FEE_STATUS_CHOICES = [
 GATEWAY_CHOICES = [
     ("esewa", "eSewa"),
     ("khalti", "Khalti"),
+    ("razorpay", "Razorpay"),
+]
+
+GATEWAY_MODE_CHOICES = [
+    ("test", "Test"),
+    ("live", "Live"),
 ]
 
 ONLINE_ORDER_STATUS_CHOICES = [
@@ -277,8 +283,12 @@ class TenantPaymentGatewayConfig(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     gateway = models.CharField(max_length=20, choices=GATEWAY_CHOICES, unique=True)
+    # The gateway's public identifier: eSewa product code, Razorpay key id (rzp_test_... / rzp_live_...).
     merchant_code = models.CharField(max_length=100)
     encrypted_secret = models.CharField(max_length=512)
+    # Signs the gateway's server-to-server notices (Razorpay webhooks). Empty for gateways without them.
+    encrypted_webhook_secret = models.CharField(max_length=512, blank=True, default="")
+    mode = models.CharField(max_length=10, choices=GATEWAY_MODE_CHOICES, default="test")
     is_active = models.BooleanField(default=True)
     allow_global_fallback = models.BooleanField(
         default=False,
@@ -301,6 +311,14 @@ class TenantPaymentGatewayConfig(models.Model):
     def get_secret(self) -> str:
         from accounts.utils.crypto import decrypt_secret
         return decrypt_secret(self.encrypted_secret)
+
+    def set_webhook_secret(self, raw_secret: str) -> None:
+        from accounts.utils.crypto import encrypt_secret
+        self.encrypted_webhook_secret = encrypt_secret(raw_secret) if raw_secret else ""
+
+    def get_webhook_secret(self) -> str:
+        from accounts.utils.crypto import decrypt_secret
+        return decrypt_secret(self.encrypted_webhook_secret) if self.encrypted_webhook_secret else ""
 
 
 class OnlinePaymentOrder(models.Model):
@@ -344,6 +362,8 @@ class OnlinePaymentOrder(models.Model):
         max_length=255, blank=True,
         help_text="Gateway's transaction reference code upon confirmation (e.g. ref_id in eSewa)."
     )
+    # The gateway's own id for this checkout (Razorpay order_...), used to match its webhooks.
+    gateway_session_id = models.CharField(max_length=255, blank=True, default="", db_index=True)
     gateway_response = models.JSONField(
         default=dict, blank=True,
         help_text="Raw verified payload returned by the gateway callback or status inquiry."

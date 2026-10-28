@@ -12,11 +12,7 @@ import {
     ShieldAlert,
 } from "lucide-react";
 import { useMe } from "@/hooks/useAuth";
-import {
-    useStudentFees,
-    useStudentPayments,
-    useOnlinePaymentOrders,
-} from "@/hooks/useFees";
+import { useStudentFees, useStudentPayments, useOnlinePaymentOrders, usePayableGateways } from "@/hooks/useFees";
 import { usePermissions } from "@/providers/PermissionProvider";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,6 +28,7 @@ import { StudentFee } from "@/types/Fees";
 
 export default function MyFeesPage() {
     const { can, isOwner } = usePermissions();
+    const { data: payableGateways = [] } = usePayableGateways();
     const canView = isOwner || can("view_own_fees");
     const canPay = isOwner || can("pay_own_fees");
 
@@ -151,10 +148,15 @@ export default function MyFeesPage() {
                                     Online Payment Status
                                 </p>
                                 <div className="mt-1 flex items-center gap-2">
-                                    {canPay ? (
+                                    {canPay && payableGateways.length > 0 ? (
                                         <span className="inline-flex items-center gap-1.5 text-sm font-bold text-emerald-600 dark:text-emerald-400">
                                             <CheckCircle2 className="h-4 w-4" />
-                                            Enabled (eSewa Gateway)
+                                            Enabled
+                                        </span>
+                                    ) : canPay ? (
+                                        <span className="inline-flex items-center gap-1.5 text-sm font-bold text-amber-600 dark:text-amber-400">
+                                            <AlertCircle className="h-4 w-4" />
+                                            Not set up by the school yet
                                         </span>
                                     ) : (
                                         <span className="inline-flex items-center gap-1.5 text-sm font-bold text-amber-600 dark:text-amber-400">
@@ -164,7 +166,7 @@ export default function MyFeesPage() {
                                     )}
                                 </div>
                                 <p className="text-xs text-slate-400 mt-1">
-                                    Direct gateway settlement
+                                    {payableGateways.length > 0 ? payableGateways.map((g) => g.label).join(", ") : "Pay at the school office"}
                                 </p>
                             </CardContent>
                         </Card>
@@ -280,7 +282,7 @@ export default function MyFeesPage() {
                                             {selectedFeeIds.length} fee{selectedFeeIds.length > 1 ? "s" : ""} selected
                                         </p>
                                         <p className="text-xs text-indigo-700 dark:text-indigo-300">
-                                            Ready to proceed to eSewa payment gateway.
+                                            Ready to pay online.
                                         </p>
                                     </div>
                                     <Button

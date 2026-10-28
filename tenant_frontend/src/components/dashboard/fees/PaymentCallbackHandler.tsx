@@ -114,6 +114,10 @@ export function PaymentCallbackHandler({ returnPath, portalTitle }: PaymentCallb
                 const res = await verifyMutation.mutateAsync({
                     data: dataParam || undefined,
                     order_id: orderIdParam || undefined,
+                    // Razorpay Checkout's signed answer (checked by the server with Razorpay itself).
+                    razorpay_order_id: searchParams.get("razorpay_order_id") || undefined,
+                    razorpay_payment_id: searchParams.get("razorpay_payment_id") || undefined,
+                    razorpay_signature: searchParams.get("razorpay_signature") || undefined,
                 });
 
                 if (res.order) {
@@ -130,7 +134,7 @@ export function PaymentCallbackHandler({ returnPath, portalTitle }: PaymentCallb
                     setUiState("reconciliation_required");
                     setStatusMessage(
                         res.reason ||
-                            "Payment was received by eSewa, but cannot be automatically settled due to a concurrent balance change. School administrators will reconcile it manually."
+                            "Payment was received by the gateway, but cannot be automatically settled due to a concurrent balance change. School administrators will reconcile it manually."
                     );
                 } else if (res.status === "pending" || res.status === "initiated") {
                     setUiState("pending");
@@ -171,7 +175,7 @@ export function PaymentCallbackHandler({ returnPath, portalTitle }: PaymentCallb
                                 Verifying Payment...
                             </h2>
                             <p className="text-sm text-slate-500 max-w-md">
-                                Please wait while we cryptographically verify your payment with the eSewa gateway
+                                Please wait while we cryptographically verify your payment with the payment gateway
                                 and settle your fees. Do not close or refresh this tab.
                             </p>
                         </div>
@@ -258,7 +262,7 @@ export function PaymentCallbackHandler({ returnPath, portalTitle }: PaymentCallb
                                     Needs a check
                                 </h2>
                                 <p className="text-sm text-slate-600 dark:text-slate-300 max-w-lg">
-                                    Your funds were successfully received and verified by the eSewa gateway,
+                                    Your funds were successfully received and verified by the payment gateway,
                                     but could not be automatically allocated to your fees because your balance
                                     changed concurrently (e.g. counter cash settlement).
                                 </p>
@@ -305,7 +309,7 @@ export function PaymentCallbackHandler({ returnPath, portalTitle }: PaymentCallb
                                 </h2>
                                 <p className="text-sm text-slate-500 max-w-md">
                                     The gateway has registered the transaction. Awaiting final confirmation from
-                                    eSewa servers.
+                                    the payment gateway.
                                 </p>
                             </div>
 

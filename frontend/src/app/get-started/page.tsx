@@ -8,7 +8,19 @@ import { Loader2, GraduationCap, CheckCircle, Shield, Zap, Users } from "lucide-
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
 
-import { useInitPayment, useVerifyAccount, useCheckDomain } from "@/hooks/payments";
+import { useVerifyAccount, useCheckDomain } from "@/hooks/payments";
+import {
+    BillingCycle,
+    CYCLE_LABEL,
+    SignupCheckout,
+    oneTimeTerm,
+    openSignupCheckout,
+    priceFor,
+    rupees,
+    useConfirmSignup,
+    usePlanSignup,
+    usePlans,
+} from "@/hooks/billing";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
@@ -47,11 +59,22 @@ import { Suspense } from "react";
 
 function GetStartedContent() {
     const router = useRouter();
-    const [step, setStep] = useState<"form" | "payment">("form");
+    const [step, setStep] = useState<"form" | "payment" | "done">("form");
     const [formData, setFormData] = useState<FormValues | null>(null);
-    const [paymentData, setPaymentData] = useState<any>(null);
+    const [checkout, setCheckout] = useState<SignupCheckout | null>(null);
+    const [total, setTotal] = useState("");
+    const [loginUrl, setLoginUrl] = useState("");
     const [isChecking, setIsChecking] = useState(false);
     const searchParams = useSearchParams();
+    const { data: plans = [], isLoading: loadingPlans } = usePlans();
+    const [planCode, setPlanCode] = useState(searchParams.get("plan") || "");
+    const [cycle, setCycle] = useState<BillingCycle>((searchParams.get("cycle") as BillingCycle) || "yearly");
+    const plan = plans.find((p) => p.code === planCode) ?? plans[0];
+    const offeredCycles = plan ? (["monthly", "yearly", "one_time"] as BillingCycle[]).filter((c) => priceFor(plan, c)) : [];
+    const activeCycle: BillingCycle = offeredCycles.includes(cycle) ? cycle : offeredCycles[0] ?? "monthly";
+    const price = plan ? priceFor(plan, activeCycle) : null;
+    const signup = usePlanSignup();
+    const confirm = useConfirmSignup();
 
     useEffect(() => {
         if (searchParams.get("status") === "failed" || searchParams.get("payment") === "failed") {
@@ -61,7 +84,6 @@ function GetStartedContent() {
         }
     }, [searchParams]);
 
-    const { mutateAsync: initPayment } = useInitPayment();
     const { mutateAsync: verifyAccount } = useVerifyAccount();
     const { mutateAsync: checkDomain } = useCheckDomain();
 
@@ -107,59 +129,68 @@ function GetStartedContent() {
                 return;
             }
 
-            // 3. Proceed to Payment Init
-            const payload = {
+            // 3. Sign up on the chosen plan: a trial school is ready at once, otherwise pay first.
+            if (!plan) {
+                toast.error("Choose a plan first.");
+                return;
+            }
+            const result = await signup.mutateAsync({
+                plan: plan.code,
+                cycle: activeCycle,
                 organization_name: values.organizationName,
                 subdomain: values.subdomain,
                 username: values.username,
                 email: values.email,
                 password: values.password,
                 phone: values.phone,
-            };
-
-            const response = await initPayment(payload);
+            });
             setFormData(values);
-            setPaymentData(response);
-            setStep("payment");
-        } catch (error: any) {
-            console.error("Validation or Payment error", error);
-            toast.error(error.response?.data?.error || "Something went wrong. Please try again.");
+            if (result.status === "ready") {
+                setLoginUrl(result.login_url);
+                setStep("done");
+            } else if (result.status === "pay") {
+                setCheckout(result.checkout);
+                setTotal(result.total);
+                setStep("payment");
+            }
+        } catch (error: unknown) {
+            const data = (error as { response?: { data?: Record<string, unknown> } })?.response?.data;
+            const first = data && Object.values(data)[0];
+            toast.error(Array.isArray(first) ? String(first[0]) : typeof first === "string" ? first : "Something went wrong. Please try again.");
         } finally {
             setIsChecking(false);
         }
     }
 
-    function handleEsewaPayment() {
-        if (!paymentData || !formData) return;
-
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = paymentData.url;
-
-        const fields = {
-            amount: paymentData.amount,
-            tax_amount: '0',
-            total_amount: paymentData.amount,
-            transaction_uuid: paymentData.transaction_uuid,
-            product_code: paymentData.product_code,
-            product_service_charge: '0',
-            product_delivery_charge: '0',
-            success_url: `${window.location.origin}/payment-success`,
-            failure_url: `${window.location.origin}/get-started?payment=failed`,
-            signed_field_names: 'total_amount,transaction_uuid,product_code',
-            signature: paymentData.signature,
-        };
-
-        Object.entries(fields).forEach(([key, value]) => {
-            const input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = key;
-            input.value = value;
-            form.appendChild(input);
-        });
-
-        document.body.appendChild(form);
-        form.submit();
+    async function handlePayment() {
+        if (!checkout) return;
+        setIsChecking(true);
+        try {
+            await openSignupCheckout(checkout, {
+                onDismiss: () => {
+                    setIsChecking(false);
+                    toast.info("Payment cancelled. Nothing was charged.");
+                },
+                onPaid: async (response) => {
+                    try {
+                        const result = await confirm.mutateAsync(response);
+                        if (result.status === "ready") {
+                            setLoginUrl(result.login_url);
+                            setStep("done");
+                        } else {
+                            toast.info("Payment received. We are confirming it with the bank; your school will be ready in a few minutes.");
+                        }
+                    } catch {
+                        toast.error("We could not confirm the payment. If money was taken, contact support with your payment ID.");
+                    } finally {
+                        setIsChecking(false);
+                    }
+                },
+            });
+        } catch (error) {
+            setIsChecking(false);
+            toast.error(error instanceof Error ? error.message : "The payment window could not be opened.");
+        }
     }
 
     return (
@@ -250,6 +281,57 @@ function GetStartedContent() {
                         {step === "form" ? (
                             <Form {...form}>
                                 <form onSubmit={form.handleSubmit(onFormSubmit)} className="space-y-5">
+                                    <div className="space-y-3 rounded-xl border border-slate-200 p-4">
+                                        <p className="text-sm font-semibold text-slate-900">Your plan</p>
+                                        {loadingPlans ? (
+                                            <p className="text-sm text-slate-500">Loading plans...</p>
+                                        ) : plans.length === 0 ? (
+                                            <p className="text-sm text-amber-700">Plans are not available right now. Please try again later.</p>
+                                        ) : (
+                                            <>
+                                                <div className="grid gap-2 sm:grid-cols-3">
+                                                    {plans.map((p) => (
+                                                        <button
+                                                            key={p.code}
+                                                            type="button"
+                                                            onClick={() => setPlanCode(p.code)}
+                                                            className={`rounded-lg border px-3 py-2 text-left text-sm ${plan?.code === p.code ? "border-blue-600 bg-blue-50" : "border-slate-200"}`}
+                                                        >
+                                                            <span className="block font-semibold text-slate-900">{p.name}</span>
+                                                            <span className="text-xs text-slate-500">
+                                                                {p.student_limit ? `Up to ${p.student_limit.toLocaleString("en-IN")} students` : "Unlimited students"}
+                                                            </span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {offeredCycles.map((c) => (
+                                                        <button
+                                                            key={c}
+                                                            type="button"
+                                                            onClick={() => setCycle(c)}
+                                                            className={`rounded-full border px-3 py-1 text-xs font-medium ${activeCycle === c ? "border-blue-600 bg-blue-600 text-white" : "border-slate-300 text-slate-700"}`}
+                                                        >
+                                                            {CYCLE_LABEL[c]}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                                {plan && price && (
+                                                    <p className="text-sm text-slate-700">
+                                                        <span className="text-lg font-bold text-slate-900">{rupees(price)}</span>
+                                                        {activeCycle === "monthly" ? " / month" : activeCycle === "yearly" ? " / year" : ` once, ${oneTimeTerm(plan)}`}
+                                                        <span className="text-slate-500"> + {Number(plan.gst_percent)}% GST</span>
+                                                        {plan.trial_days > 0 && (
+                                                            <span className="block text-emerald-700 font-medium">
+                                                                {plan.trial_days}-day free trial: nothing to pay today.
+                                                            </span>
+                                                        )}
+                                                    </p>
+                                                )}
+                                            </>
+                                        )}
+                                    </div>
+
                                     <FormField
                                         control={form.control}
                                         name="organizationName"
@@ -363,7 +445,7 @@ function GetStartedContent() {
                                                 Processing...
                                             </>
                                         ) : (
-                                            "Continue to Payment"
+                                            plan && plan.trial_days > 0 ? "Start free trial" : "Continue to payment"
                                         )}
                                     </Button>
 
@@ -372,28 +454,46 @@ function GetStartedContent() {
                                     </p>
                                 </form>
                             </Form>
+                        ) : step === "done" ? (
+                            <div className="space-y-5 text-center py-6">
+                                <CheckCircle className="mx-auto h-14 w-14 text-emerald-600" />
+                                <h2 className="text-2xl font-bold text-slate-900">Your school is ready</h2>
+                                <p className="text-sm text-slate-600">
+                                    {formData?.organizationName} has been set up
+                                    {plan && plan.trial_days > 0 && checkout === null ? ` with a ${plan.trial_days}-day free trial` : ""}.
+                                    Sign in with the username <b>{formData?.username}</b> and the password you chose.
+                                </p>
+                                {loginUrl ? (
+                                    <Button className="w-full h-12" onClick={() => window.location.assign(loginUrl)}>Go to my school</Button>
+                                ) : (
+                                    <p className="text-sm text-slate-500">You will receive the sign-in link by email.</p>
+                                )}
+                            </div>
                         ) : (
                             <div className="space-y-6">
                                 <div className="bg-linear-to-br from-green-50 to-emerald-50 p-6 rounded-xl border-2 border-green-200">
                                     <div className="flex items-center justify-between mb-4">
                                         <div>
-                                            <p className="text-sm font-medium text-green-700 mb-1">One-Time Payment</p>
-                                            <p className="text-4xl font-bold text-green-900">Rs. {paymentData?.amount}</p>
+                                            <p className="text-sm font-medium text-green-700 mb-1">
+                                                {plan?.name} · {CYCLE_LABEL[activeCycle]}
+                                            </p>
+                                            <p className="text-4xl font-bold text-green-900">{rupees(total)}</p>
+                                            <p className="text-xs text-green-700 mt-1">Including {Number(plan?.gst_percent ?? 18)}% GST</p>
                                         </div>
                                         <div className="text-right">
                                             <div className="inline-block bg-green-600 text-white px-4 py-2 rounded-full text-sm font-bold">
-                                                Lifetime Access
+                                                {activeCycle === "monthly" ? "Renews monthly" : activeCycle === "yearly" ? "Renews yearly" : plan ? oneTimeTerm(plan) : ""}
                                             </div>
                                         </div>
                                     </div>
                                     <div className="border-t border-green-200 pt-4 mt-4">
                                         <p className="text-sm text-green-700">
                                             <CheckCircle className="inline h-4 w-4 mr-2" />
-                                            All features included
+                                            {plan?.student_limit ? `Up to ${plan.student_limit.toLocaleString("en-IN")} students` : "Unlimited students"}
                                         </p>
                                         <p className="text-sm text-green-700 mt-2">
                                             <CheckCircle className="inline h-4 w-4 mr-2" />
-                                            No recurring fees
+                                            GST invoice emailed after payment
                                         </p>
                                     </div>
                                 </div>
@@ -403,7 +503,7 @@ function GetStartedContent() {
                                         <span className="font-semibold text-slate-900">Institution:</span> {formData?.organizationName}
                                     </p>
                                     <p className="text-sm text-slate-700 mb-2">
-                                        <span className="font-semibold text-slate-900">Subdomain:</span> {formData?.subdomain}.localhost
+                                        <span className="font-semibold text-slate-900">Subdomain:</span> {formData?.subdomain}
                                     </p>
                                     <p className="text-sm text-slate-700">
                                         <span className="font-semibold text-slate-900">Admin Account:</span> {formData?.username} ({formData?.email})
@@ -412,7 +512,7 @@ function GetStartedContent() {
 
                                 <Button
                                     className="w-full h-12 text-base font-semibold bg-linear-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
-                                    onClick={handleEsewaPayment}
+                                    onClick={handlePayment}
                                     disabled={isChecking}
                                 >
                                     {isChecking ? (
@@ -423,7 +523,7 @@ function GetStartedContent() {
                                     ) : (
                                         <>
                                             <Shield className="mr-2 h-5 w-5" />
-                                            Pay Securely with eSewa
+                                            Pay {rupees(total)} securely
                                         </>
                                     )}
                                 </Button>
@@ -439,7 +539,7 @@ function GetStartedContent() {
 
                                 <p className="text-xs text-center text-slate-500">
                                     <Shield className="inline h-3 w-3 mr-1" />
-                                    Secure payment powered by eSewa
+                                    UPI, cards, netbanking and wallets · secured by Razorpay
                                 </p>
                             </div>
                         )}

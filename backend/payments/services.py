@@ -166,12 +166,23 @@ def provision(payment_pk):
             failure_code="",
             updated_at=timezone.now(),
         )
+        _start_billing(payment_pk, result["organization"])
         return PROVISIONED, result
 
     Payment.objects.filter(pk=payment_pk).update(
         status=Payment.PROVISIONING_FAILED, failure_code=code, updated_at=timezone.now()
     )
     return FAILED, None
+
+
+def _start_billing(payment_pk, organization):
+    """The school exists: give it its subscription. A billing problem never undoes the school."""
+    try:
+        from billing.signup import on_school_provisioned
+
+        on_school_provisioned(Payment.objects.select_related("plan").get(pk=payment_pk), organization)
+    except Exception:
+        logger.exception("Signup payment %s: the school was created but its subscription was not.", payment_pk)
 
 
 def recover_stalled_provisioning(payment_pk=None):

@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Header } from "@/components/Header";
 import { ScrollReveal } from "@/components/ScrollReveal";
 import { ShineOverlay } from "@/components/ShineOverlay";
-import { DollarSign, Users, FileText, BookOpen, Calendar, CheckCircle, GraduationCap, Award, TrendingUp, Shield, Facebook, Twitter, Linkedin, Mail } from "lucide-react";
+import { PricingPlans } from "@/components/PricingPlans";
+import { DollarSign, Users, FileText, BookOpen, Calendar, GraduationCap, Award, TrendingUp, Shield, Facebook, Twitter, Linkedin, Mail } from "lucide-react";
 
 const FEATURES = [
     {
@@ -239,109 +240,7 @@ export default function LandingPage() {
                                 Choose the plan that fits your institution&apos;s needs
                             </p>
                         </ScrollReveal>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto md:items-center">
-                            <ScrollReveal delay={0}>
-                                <div className="h-full bg-white p-8 rounded-xl shadow-md border-2 border-slate-200 hover:border-blue-500 hover:shadow-xl hover:shadow-blue-900/10 transition-all duration-300 ease-out hover:-translate-y-1.5">
-                                    <h3 className="text-2xl font-bold mb-2 text-slate-900">Starter</h3>
-                                    <p className="text-slate-600 mb-6">Perfect for small schools</p>
-                                    <div className="mb-6">
-                                        <span className="text-4xl font-bold text-slate-900">$49</span>
-                                        <span className="text-slate-600">/month</span>
-                                    </div>
-                                    <ul className="space-y-3 mb-8">
-                                        <li className="flex items-center gap-2">
-                                            <CheckCircle className="h-5 w-5 text-green-500" />
-                                            <span className="text-slate-700">Up to 200 students</span>
-                                        </li>
-                                        <li className="flex items-center gap-2">
-                                            <CheckCircle className="h-5 w-5 text-green-500" />
-                                            <span className="text-slate-700">Basic features</span>
-                                        </li>
-                                        <li className="flex items-center gap-2">
-                                            <CheckCircle className="h-5 w-5 text-green-500" />
-                                            <span className="text-slate-700">Email support</span>
-                                        </li>
-                                        <li className="flex items-center gap-2">
-                                            <CheckCircle className="h-5 w-5 text-green-500" />
-                                            <span className="text-slate-700">5GB storage</span>
-                                        </li>
-                                    </ul>
-                                    <Button className="w-full bg-slate-100 text-slate-900 hover:bg-slate-900 hover:text-white transition-all duration-300 ease-out hover:scale-[1.03]">Choose Plan</Button>
-                                </div>
-                            </ScrollReveal>
-                            <ScrollReveal delay={150}>
-                                <div className="relative">
-                                    <div className="absolute -inset-1 rounded-xl bg-gradient-to-br from-blue-600 to-teal-600 opacity-75 blur-lg animate-glow-pulse" />
-                                    <div className="relative bg-gradient-to-br from-blue-600 to-teal-600 p-8 rounded-xl shadow-2xl border-2 border-blue-600 md:scale-105 text-white transition-all duration-300 ease-out hover:scale-[1.08] hover:shadow-blue-900/30">
-                                        <div className="bg-white text-blue-600 px-3 py-1 rounded-full text-sm font-bold inline-block mb-4">Most Popular</div>
-                                        <h3 className="text-2xl font-bold mb-2">Professional</h3>
-                                        <p className="text-blue-100 mb-6">For growing institutions</p>
-                                        <div className="mb-6">
-                                            <span className="text-4xl font-bold">$149</span>
-                                            <span className="text-blue-100">/month</span>
-                                        </div>
-                                        <ul className="space-y-3 mb-8">
-                                            <li className="flex items-center gap-2">
-                                                <CheckCircle className="h-5 w-5 text-white" />
-                                                <span>Up to 1000 students</span>
-                                            </li>
-                                            <li className="flex items-center gap-2">
-                                                <CheckCircle className="h-5 w-5 text-white" />
-                                                <span>All features</span>
-                                            </li>
-                                            <li className="flex items-center gap-2">
-                                                <CheckCircle className="h-5 w-5 text-white" />
-                                                <span>Priority support</span>
-                                            </li>
-                                            <li className="flex items-center gap-2">
-                                                <CheckCircle className="h-5 w-5 text-white" />
-                                                <span>50GB storage</span>
-                                            </li>
-                                            <li className="flex items-center gap-2">
-                                                <CheckCircle className="h-5 w-5 text-white" />
-                                                <span>Custom branding</span>
-                                            </li>
-                                        </ul>
-                                        <Button className="group relative overflow-hidden w-full bg-white text-blue-600 hover:bg-blue-50 transition-all duration-300 ease-out hover:scale-[1.03]" size="lg">
-                                            <ShineOverlay />
-                                            <span className="relative">Choose Plan</span>
-                                        </Button>
-                                    </div>
-                                </div>
-                            </ScrollReveal>
-                            <ScrollReveal delay={300}>
-                                <div className="h-full bg-white p-8 rounded-xl shadow-md border-2 border-slate-200 hover:border-blue-500 hover:shadow-xl hover:shadow-blue-900/10 transition-all duration-300 ease-out hover:-translate-y-1.5">
-                                    <h3 className="text-2xl font-bold mb-2 text-slate-900">Enterprise</h3>
-                                    <p className="text-slate-600 mb-6">For large universities</p>
-                                    <div className="mb-6">
-                                        <span className="text-4xl font-bold text-slate-900">Custom</span>
-                                    </div>
-                                    <ul className="space-y-3 mb-8">
-                                        <li className="flex items-center gap-2">
-                                            <CheckCircle className="h-5 w-5 text-green-500" />
-                                            <span className="text-slate-700">Unlimited students</span>
-                                        </li>
-                                        <li className="flex items-center gap-2">
-                                            <CheckCircle className="h-5 w-5 text-green-500" />
-                                            <span className="text-slate-700">All features</span>
-                                        </li>
-                                        <li className="flex items-center gap-2">
-                                            <CheckCircle className="h-5 w-5 text-green-500" />
-                                            <span className="text-slate-700">24/7 dedicated support</span>
-                                        </li>
-                                        <li className="flex items-center gap-2">
-                                            <CheckCircle className="h-5 w-5 text-green-500" />
-                                            <span className="text-slate-700">Unlimited storage</span>
-                                        </li>
-                                        <li className="flex items-center gap-2">
-                                            <CheckCircle className="h-5 w-5 text-green-500" />
-                                            <span className="text-slate-700">Custom integrations</span>
-                                        </li>
-                                    </ul>
-                                    <Button className="w-full bg-slate-100 text-slate-900 hover:bg-slate-900 hover:text-white transition-all duration-300 ease-out hover:scale-[1.03]">Contact Sales</Button>
-                                </div>
-                            </ScrollReveal>
-                        </div>
+                        <PricingPlans />
                     </div>
                 </section>
 

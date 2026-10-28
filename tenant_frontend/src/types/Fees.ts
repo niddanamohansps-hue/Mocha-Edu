@@ -187,3 +187,38 @@ export interface OnlinePaymentOrdersResponse {
     previous: string | null;
     results: OnlinePaymentOrder[];
 }
+
+export interface PaymentGatewaySetup {
+    gateway: string;
+    label: string;
+    country: string;
+    methods: string;
+    checkout: "popup" | "redirect";
+    webhooks: boolean;
+    key_label: string;
+    key_hint: string;
+    docs: string;
+    configured: boolean;
+    is_active: boolean;
+    mode: "test" | "live";
+    merchant_code: string;
+    has_secret: boolean;
+    has_webhook_secret: boolean;
+    webhook_url: string;
+    updated_at: string | null;
+}
+
+export interface PaymentGatewayInput {
+    merchant_code: string;
+    secret?: string;
+    webhook_secret?: string;
+    mode: "test" | "live";
+    is_active: boolean;
+}
+
+export interface PayableGateway {
+    gateway: string;
+    label: string;
+    methods: string;
+    checkout: "popup" | "redirect";
+}

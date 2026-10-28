@@ -682,6 +682,18 @@ SYSTEM_PERMISSIONS = [
         "module": "Alerts",
         "description": "View which automated alerts were sent and whether they were delivered",
     },
+    {
+        "codename": "manage_payment_gateways",
+        "name": "Manage Payment Gateways",
+        "module": "Fees",
+        "description": "Set up online payment gateways (keys, test or live mode) for parents to pay fees",
+    },
+    {
+        "codename": "view_system_health",
+        "name": "View System Health",
+        "module": "Administration",
+        "description": "See whether the server's services are running and how fast the school's pages respond",
+    },
     # Inventory
     {
         "codename": "view_inventory",

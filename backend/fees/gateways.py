@@ -108,6 +108,8 @@ def get_gateway_credentials(gateway: str = "esewa") -> Dict[str, Any]:
         return {
             "merchant_code": tenant_config.merchant_code,
             "secret_key": secret,
+            "webhook_secret": tenant_config.get_webhook_secret(),
+            "mode": tenant_config.mode,
             "is_tenant_custom": True,
         }
 
@@ -539,15 +541,49 @@ class MockGatewayAdapter(BasePaymentGatewayAdapter):
         )
 
 
+def _razorpay_adapter():
+    from .razorpay import RazorpayGatewayAdapter  # imported late: it builds on this module
+
+    return RazorpayGatewayAdapter
+
+
 _ADAPTER_REGISTRY = {
-    "esewa": EsewaGatewayAdapter,
-    "mock": MockGatewayAdapter,
+    "esewa": lambda: EsewaGatewayAdapter,
+    "razorpay": _razorpay_adapter,
+    "mock": lambda: MockGatewayAdapter,
+}
+
+# What a school can set up, and how each gateway's checkout behaves. Only gateways with a working
+# adapter are listed; adding one = an adapter + an entry here.
+#   checkout "redirect": the browser is sent to the gateway's page (a signed form POST) and comes back.
+#   checkout "popup":    the gateway's checkout opens over our page (Razorpay Checkout).
+GATEWAY_INFO = {
+    "razorpay": {
+        "label": "Razorpay",
+        "country": "India",
+        "methods": "UPI, cards, netbanking, wallets",
+        "checkout": "popup",
+        "webhooks": True,
+        "key_label": "Key ID",
+        "key_hint": "rzp_test_... or rzp_live_...",
+        "docs": "https://dashboard.razorpay.com/app/website-app-settings/api-keys",
+    },
+    "esewa": {
+        "label": "eSewa",
+        "country": "Nepal",
+        "methods": "eSewa wallet",
+        "checkout": "redirect",
+        "webhooks": False,
+        "key_label": "Product code",
+        "key_hint": "Your eSewa merchant product code",
+        "docs": "https://developer.esewa.com.np/",
+    },
 }
 
 
 def get_gateway_adapter(gateway: str = "esewa", **kwargs) -> BasePaymentGatewayAdapter:
-    adapter_cls = _ADAPTER_REGISTRY.get(gateway)
-    if not adapter_cls:
+    loader = _ADAPTER_REGISTRY.get(gateway)
+    if not loader:
         raise PaymentConfigurationError(f"No gateway adapter registered for '{gateway}'.")
-    return adapter_cls(**kwargs)
+    return loader()(**kwargs)
 
