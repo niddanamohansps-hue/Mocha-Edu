@@ -596,6 +596,8 @@ PLATFORM_NAME = config("PLATFORM_NAME", default="EduSekai")
 PLATFORM_LEGAL_NAME = config("PLATFORM_LEGAL_NAME", default="")
 PLATFORM_GSTIN = config("PLATFORM_GSTIN", default="")
 PLATFORM_ADDRESS = config("PLATFORM_ADDRESS", default="")
+# GST state code of the platform (e.g. "29" Karnataka); taken from PLATFORM_GSTIN when empty.
+PLATFORM_STATE_CODE = config("PLATFORM_STATE_CODE", default="")
 BILLING_INVOICE_PREFIX = config("BILLING_INVOICE_PREFIX", default="ES")
 BILLING_GRACE_DAYS = config("BILLING_GRACE_DAYS", default=7, cast=int)
 

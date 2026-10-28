@@ -19,6 +19,8 @@ export interface MyBilling {
         student_limit: number | null;
         autopay: boolean;
         cancel_at_period_end: boolean;
+        billing_state: string;
+        billing_gstin: string;
     } | null;
     invoices: BillingInvoice[];
 }

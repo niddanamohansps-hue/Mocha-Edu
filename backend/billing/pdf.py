@@ -76,9 +76,22 @@ def render_invoice_pdf(invoice):
     c.drawString(MARGIN, y - 5.5 * mm, "SAC 998431 - online software / SaaS")
     c.setFillColor(black)
 
+    if invoice.place_of_supply:
+        from .gst import STATES
+
+        y -= 11 * mm
+        c.drawString(MARGIN, y, f"Place of supply: {STATES.get(invoice.place_of_supply, '')} ({invoice.place_of_supply})")
+        c.setFillColor(black)
     y -= 16 * mm
-    rows = [(f"GST @ {invoice.gst_percent:g}%" if gstin else "Tax", money(invoice.gst_amount)),
-            ("Total paid", money(invoice.total))]
+    half = invoice.gst_percent / 2
+    if invoice.igst_amount:
+        tax_rows = [(f"IGST @ {invoice.gst_percent:g}%", invoice.igst_amount)]
+    elif invoice.cgst_amount or invoice.sgst_amount:
+        tax_rows = [(f"CGST @ {half:g}%", invoice.cgst_amount), (f"SGST @ {half:g}%", invoice.sgst_amount)]
+    else:
+        tax_rows = [(f"GST @ {invoice.gst_percent:g}%", invoice.gst_amount)]
+    rows = [("Taxable value", money(invoice.amount))] + [(label, money(value)) for label, value in tax_rows]
+    rows.append(("Total paid", money(invoice.total)))
     for label, value in rows:
         c.setFont(FONT_BOLD if label == "Total paid" else FONT, 11 if label == "Total paid" else 10)
         c.drawRightString(PAGE_W - MARGIN - 45 * mm, y, label)

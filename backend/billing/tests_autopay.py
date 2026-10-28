@@ -252,3 +252,13 @@ class AutopayTests(TransactionTestCase):
             Subscription.objects.filter(organization=other).delete()
             connection.set_schema_to_public()
             Organization.objects.filter(pk=other.pk).delete()
+
+    def test_owner_saves_gst_details_and_a_bad_gstin_is_refused(self):
+        client = self._client("ap_owner")
+        bad = client.put("/api/billing/my/gst/", {"gstin": "12345"}, format="json", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(bad.status_code, 400)
+        ok = client.put("/api/billing/my/gst/", {"gstin": "27abcde1234f1z5"}, format="json", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(ok.status_code, 200, ok.data)
+        self.assertEqual((ok.data["billing_state"], ok.data["state_name"]), ("27", "Maharashtra"))
+        self.sub.refresh_from_db()
+        self.assertEqual(self.sub.billing_gstin, "27ABCDE1234F1Z5")

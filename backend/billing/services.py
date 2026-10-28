@@ -84,11 +84,16 @@ def issue_invoice(subscription, *, now=None, cycle=None, plan=None):
     length = period_length(cycle, plan)
     org = subscription.organization
     gst = gst_for(amount, plan.gst_percent)
+    from .gst import split
+
+    cgst, sgst, igst, pos = split(gst, subscription.billing_state)
     return Invoice.objects.create(
         subscription=subscription, plan_name=plan.name, cycle=cycle,
         period_start=start, period_end=start + length if length else None,
         amount=amount, gst_percent=plan.gst_percent, gst_amount=gst, total=amount + gst,
         billed_name=org.name, billed_email=org.email, billed_address=org.address,
+        billed_gstin=subscription.billing_gstin, place_of_supply=pos,
+        cgst_amount=cgst, sgst_amount=sgst, igst_amount=igst,
     )
 
 

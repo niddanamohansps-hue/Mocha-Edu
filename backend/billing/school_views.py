@@ -58,6 +58,7 @@ class MyBillingView(APIView):
                 "can_write": sub.can_write(), "student_limit": sub.plan.student_limit,
                 "autopay": bool(sub.razorpay_subscription_id) and not sub.cancel_at_period_end,
                 "cancel_at_period_end": sub.cancel_at_period_end,
+                "billing_state": sub.billing_state, "billing_gstin": sub.billing_gstin,
             },
             "invoices": InvoiceSerializer(sub.invoices.filter(status=Invoice.PAID), many=True).data,
         })
@@ -242,3 +243,32 @@ class InvoicePdfView(APIView):
         filename = "invoice-" + invoice.number.replace("/", "-") + ".pdf"
         response["Content-Disposition"] = f'attachment; filename="{filename}"'
         return response
+
+
+class GstDetailsView(APIView):
+    """PUT {state, gstin}: the school's GST details for its invoices (a GSTIN decides the state)."""
+
+    def get_permissions(self):
+        return [IsAuthenticated(), HasPermission("manage_billing")]
+
+    def put(self, request):
+        from .gst import STATES, validate_gstin
+
+        sub = _subscription()
+        if sub is None:
+            return Response({"error": "This school has no subscription."}, status=status.HTTP_404_NOT_FOUND)
+        gstin = (request.data.get("gstin") or "").strip()
+        state = (request.data.get("state") or "").strip()
+        if gstin:
+            try:
+                gstin = validate_gstin(gstin)
+            except ValueError as exc:
+                return Response({"gstin": [str(exc)]}, status=status.HTTP_400_BAD_REQUEST)
+            state = gstin[:2]
+        elif state and state not in STATES:
+            return Response({"state": ["Choose a state from the list."]}, status=status.HTTP_400_BAD_REQUEST)
+        sub.billing_gstin, sub.billing_state = gstin, state
+        sub.save(update_fields=["billing_gstin", "billing_state", "updated_at"])
+        log_action(request, action="billing_gst_updated", model_name="Subscription", object_id=sub.id,
+                   changes={"state": state, "has_gstin": bool(gstin)})
+        return Response({"billing_state": state, "billing_gstin": gstin, "state_name": STATES.get(state, "")})

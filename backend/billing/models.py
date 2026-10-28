@@ -91,6 +91,9 @@ class Subscription(models.Model):
     is_legacy = models.BooleanField(default=False)
 
     razorpay_subscription_id = models.CharField(max_length=60, blank=True, db_index=True)
+    # GST details the school gives on its Billing page (state = GST state code, e.g. "29").
+    billing_state = models.CharField(max_length=2, blank=True)
+    billing_gstin = models.CharField(max_length=15, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -140,6 +143,10 @@ class Invoice(models.Model):
     billed_email = models.EmailField(blank=True)
     billed_address = models.TextField(blank=True)
     billed_gstin = models.CharField(max_length=15, blank=True)
+    place_of_supply = models.CharField(max_length=2, blank=True)
+    cgst_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    sgst_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    igst_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 
     razorpay_order_id = models.CharField(max_length=60, blank=True, db_index=True)
     razorpay_payment_id = models.CharField(max_length=60, blank=True, unique=True, null=True)

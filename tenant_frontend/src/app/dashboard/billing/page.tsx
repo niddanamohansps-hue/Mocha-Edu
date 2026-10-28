@@ -7,6 +7,7 @@ import { ResponsiveList } from "@/components/common/ResponsiveList";
 import { LoadingState } from "@/components/feedback/LoadingState";
 import { ErrorState } from "@/components/feedback/ErrorState";
 import Unauthorized from "@/components/Unauthorized";
+import { GstDetails } from "@/components/dashboard/billing/GstDetails";
 import { downloadInvoice, useCancelAutopay, useMyBilling, usePayNow, useStartAutopay } from "@/hooks/useBilling";
 import { usePermissions } from "@/providers/PermissionProvider";
 
@@ -97,6 +98,8 @@ export default function BillingPage() {
                     {canAutopay && !sub.autopay && (
                         <p className="text-xs text-slate-500">Automatic renewal uses UPI AutoPay or a card mandate through Razorpay: you approve it once and each {sub.cycle === "monthly" ? "month" : "year"} is paid on time, with a GST invoice every time.</p>
                     )}
+
+                    {!sub.is_legacy && <GstDetails state={sub.billing_state} gstin={sub.billing_gstin} />}
 
                     <div className="space-y-2">
                         <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Invoices</h2>
