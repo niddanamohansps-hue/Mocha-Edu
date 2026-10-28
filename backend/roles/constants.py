@@ -683,6 +683,12 @@ SYSTEM_PERMISSIONS = [
         "description": "View which automated alerts were sent and whether they were delivered",
     },
     {
+        "codename": "manage_billing",
+        "name": "Manage Billing",
+        "module": "Administration",
+        "description": "See the school's EduSekai plan and invoices, and turn automatic renewal on or off",
+    },
+    {
         "codename": "manage_payment_gateways",
         "name": "Manage Payment Gateways",
         "module": "Fees",

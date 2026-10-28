@@ -307,6 +307,9 @@ export const getMenuItems = (
     if (can("view_notification_log")) {
         adminChildren.push({ label: "Alert Log", href: "/dashboard/notifications/alert-log" });
     }
+    if (can("manage_billing")) {
+        adminChildren.push({ label: "Billing", href: "/dashboard/billing" });
+    }
     if (can("view_system_health")) {
         adminChildren.push({ label: "System Health", href: "/dashboard/system-health" });
     }

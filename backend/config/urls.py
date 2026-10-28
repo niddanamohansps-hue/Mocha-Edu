@@ -8,6 +8,7 @@ from django.conf.urls.static import static
 
 urlpatterns = [
     path("api/health/", health, name="health"),
+    path("api/billing/", include("billing.school_urls")),
     path("api/system-health/", SystemHealthView.as_view(), name="system-health"),
     path("admin/", admin.site.urls),
     path("api/auth/", include("accounts.urls")),

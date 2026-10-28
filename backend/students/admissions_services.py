@@ -221,6 +221,10 @@ def enroll_application_as_student(
     elif application.section:
         section = application.section
 
+    from billing.enforcement import check_student_capacity
+
+    check_student_capacity()
+
     # 1. Create Student Profile
     student_profile = Profile.objects.create(
         user_id=None,

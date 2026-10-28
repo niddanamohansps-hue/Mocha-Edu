@@ -62,6 +62,9 @@ class StudentEnrollmentSerializer(serializers.Serializer):
 
     @transaction.atomic
     def create(self, validated_data):
+        from billing.enforcement import check_student_capacity
+
+        check_student_capacity()
         parents_data = validated_data.pop("parents", [])
         level_id = validated_data.pop("level_id")
         section_id = validated_data.pop("section_id", None)

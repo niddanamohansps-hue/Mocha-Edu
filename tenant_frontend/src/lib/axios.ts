@@ -1,5 +1,18 @@
 import axios from 'axios';
+import { toast } from 'sonner';
 import { apiBaseUrl } from './apiBase';
+
+let lastReadOnlyNotice = 0;
+
+function showReadOnlyNotice(message: string) {
+    if (Date.now() - lastReadOnlyNotice < 10_000) return;
+    lastReadOnlyNotice = Date.now();
+    toast.error(message || "This school is read-only until the subscription is paid.", {
+        id: "subscription-read-only",
+        duration: 10_000,
+        action: { label: "Go to Billing", onClick: () => window.location.assign("/dashboard/billing") },
+    });
+}
 
 const getBaseURL = apiBaseUrl;
 
@@ -25,6 +38,13 @@ axiosInstance.interceptors.response.use(
         const originalRequest = error.config;
 
         if (!originalRequest || !error.response) return Promise.reject(error);
+
+        // The school's subscription is unpaid: changes are refused, reading still works. One clear
+        // message (not repeated for every failed call) with a way to the Billing page.
+        if (error.response.status === 402 && error.response.data?.code === "subscription_read_only") {
+            showReadOnlyNotice(error.response.data.error);
+            return Promise.reject(error);
+        }
 
         if (
             originalRequest.url.includes('/auth/refresh/') ||
