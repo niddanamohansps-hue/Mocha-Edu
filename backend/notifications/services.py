@@ -26,13 +26,17 @@ def notify(*, recipient_user_id, title, body="", category="", link=""):
     if not title:
         raise ValueError("title is required.")
 
-    return Notification.objects.create(
+    notification = Notification.objects.create(
         recipient_user_id=recipient_user_id,
         title=title,
         body=body,
         category=category,
         link=link,
     )
+    from .push import queue_push
+
+    queue_push([notification])  # also to the recipient's phone, if they turned push on
+    return notification
 
 
 def notify_many(*, recipient_user_ids, title, body="", category="", link=""):
@@ -63,7 +67,11 @@ def notify_many(*, recipient_user_ids, title, body="", category="", link=""):
         )
         for recipient_user_id in recipient_user_ids
     ]
-    return Notification.objects.bulk_create(notifications)
+    created = Notification.objects.bulk_create(notifications)
+    from .push import queue_push
+
+    queue_push(created)  # also to the recipients' phones, if they turned push on
+    return created
 
 
 def queue_email(*, to_email, subject, body):

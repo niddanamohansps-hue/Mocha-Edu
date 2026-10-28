@@ -281,3 +281,21 @@ class AlertLog(models.Model):
         if self.outbox_event_id is None:
             return self.IN_APP_ONLY
         return self.outbox_event.status
+
+
+class PushSubscription(models.Model):
+    """
+    One browser or phone that agreed to receive push notifications for a user (Web Push). The endpoint and
+    keys come from the browser; they are useless without the platform's private VAPID key. A subscription
+    the push service reports as gone (404/410) is deleted.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user_id = models.UUIDField(db_index=True)
+    endpoint = models.URLField(max_length=1000, unique=True)
+    p256dh = models.CharField(max_length=200)
+    auth = models.CharField(max_length=100)
+    user_agent = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_success_at = models.DateTimeField(null=True, blank=True)
+    failures = models.PositiveSmallIntegerField(default=0)

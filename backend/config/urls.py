@@ -10,6 +10,7 @@ from django.conf.urls.static import static
 urlpatterns = [
     path("api/health/", health, name="health"),
     path("api/billing/", include("billing.school_urls")),
+    path("api/homework/", include("homework.urls")),
     path("api/imports/<str:kind>/template/", ImportTemplateView.as_view(), name="import-template"),
     path("api/imports/<str:kind>/", ImportView.as_view(), name="import"),
     path("api/system-health/", SystemHealthView.as_view(), name="system-health"),

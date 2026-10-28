@@ -48,13 +48,15 @@ SYSTEM_ROLES = [
             "view_own_leaves",
             "apply_staff_leave",
             "cancel_own_leave",
+            "view_homework",
+            "manage_homework",
         ],
     },
     {
         "slug": "student",
         "name": "Student",
         "description": "Enrolled students",
-        "default_permissions": ["view_own_fees", "pay_own_fees", "view_calendar_events"],
+        "default_permissions": ["view_own_fees", "pay_own_fees", "view_calendar_events", "view_own_homework"],
     },
     {
         "slug": "parent",
@@ -67,6 +69,7 @@ SYSTEM_ROLES = [
             "view_child_attendance",
             "view_child_timetable",
             "view_calendar_events",
+            "view_child_homework",
         ],
     },
 ]

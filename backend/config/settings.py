@@ -114,6 +114,7 @@ TENANT_APPS = (
     "library",
     "question_bank",
     "dashboard",
+    "homework",
 )
 
 INSTALLED_APPS = list(SHARED_APPS) + [
@@ -438,6 +439,11 @@ else:
 # process (one instance per environment), separate from, and in addition
 # to, the `celery -A config worker` process(es) that actually execute tasks.
 CELERY_BEAT_SCHEDULE = {
+    # Homework due tomorrow and not done: 12:30 UTC = 18:00 India.
+    "homework-reminders": {
+        "task": "homework.tasks.send_homework_reminders",
+        "schedule": crontab(hour=12, minute=30),
+    },
     # Trials and unpaid subscriptions move to grace, then read-only.
     "refresh-subscriptions": {
         "task": "billing.tasks.refresh_subscriptions",
@@ -593,6 +599,10 @@ PLATFORM_RAZORPAY_KEY_ID = config("PLATFORM_RAZORPAY_KEY_ID", default="")
 PLATFORM_RAZORPAY_KEY_SECRET = config("PLATFORM_RAZORPAY_KEY_SECRET", default="")
 PLATFORM_RAZORPAY_WEBHOOK_SECRET = config("PLATFORM_RAZORPAY_WEBHOOK_SECRET", default="")
 PLATFORM_NAME = config("PLATFORM_NAME", default="EduSekai")
+# Free phone / browser push notifications (notifications/push.py). Generate with: manage.py generate_vapid_keys
+WEBPUSH_VAPID_PUBLIC_KEY = config("WEBPUSH_VAPID_PUBLIC_KEY", default="")
+WEBPUSH_VAPID_PRIVATE_KEY = config("WEBPUSH_VAPID_PRIVATE_KEY", default="")
+WEBPUSH_CONTACT = config("WEBPUSH_CONTACT", default="mailto:support@example.com")
 # Printed on invoices. Without a GSTIN they are plain invoices, not GST tax invoices.
 PLATFORM_LEGAL_NAME = config("PLATFORM_LEGAL_NAME", default="")
 PLATFORM_GSTIN = config("PLATFORM_GSTIN", default="")

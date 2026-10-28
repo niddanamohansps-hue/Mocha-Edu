@@ -683,6 +683,30 @@ SYSTEM_PERMISSIONS = [
         "description": "View which automated alerts were sent and whether they were delivered",
     },
     {
+        "codename": "view_homework",
+        "name": "View Homework",
+        "module": "Homework",
+        "description": "See homework set for classes (teachers see their own classes)",
+    },
+    {
+        "codename": "manage_homework",
+        "name": "Set Homework",
+        "module": "Homework",
+        "description": "Set, change and cancel homework (teachers only for their own classes and subjects)",
+    },
+    {
+        "codename": "view_own_homework",
+        "name": "View Own Homework",
+        "module": "Homework",
+        "description": "A student sees their homework and marks it done",
+    },
+    {
+        "codename": "view_child_homework",
+        "name": "View Child's Homework",
+        "module": "Homework",
+        "description": "A parent sees their children's homework and marks it done",
+    },
+    {
         "codename": "manage_billing",
         "name": "Manage Billing",
         "module": "Administration",

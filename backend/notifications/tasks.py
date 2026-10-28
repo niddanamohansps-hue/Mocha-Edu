@@ -166,3 +166,14 @@ def recover_stale_outbox_events():
     if recovered:
         logger.warning("recover_stale_outbox_events requeued %s stale event(s)", recovered)
     return recovered
+
+
+@shared_task(ignore_result=True)
+def send_push_notifications(schema_name, notification_ids):
+    """Pushes in-app notifications to the recipients' subscribed phones / browsers (notifications/push.py)."""
+    from django_tenants.utils import schema_context
+
+    from .push import send
+
+    with schema_context(schema_name):
+        return send(notification_ids)

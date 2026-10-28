@@ -56,7 +56,7 @@ export default function ChildSwitcher({ childOptions, selectedId, onChange }: Ch
                     {childOptions.map((c) => (
                         <SelectItem key={c.student_id} value={c.student_id}>
                             {c.full_name}
-                            {c.section ? ` — ${c.section}` : ""}
+                            {c.level || c.section ? ` — ${[c.level, c.section].filter(Boolean).join(" ")}` : ""}
                         </SelectItem>
                     ))}
                 </SelectContent>

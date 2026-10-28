@@ -470,18 +470,19 @@ class Command(BaseCommand):
         grant("instructor", [
             "view_students", "view_academics", "manage_grading", "enter_marks", "view_examinations",
             "mark_attendance", "view_attendance", "view_attendance_reports", "view_course_content",
-            "manage_course_content", "view_timetable",
+            "manage_course_content", "view_timetable", "view_homework", "manage_homework",
         ])
         grant("staff", [
             "view_students", "manage_students", "view_academics", "view_attendance",
             "view_attendance_reports", "view_fees", "collect_fees", "view_examinations",
             "view_notifications",
         ])
-        grant("student", ["view_own_attendance", "view_own_results", "view_own_fees", "view_course_content"])
+        grant("student", ["view_own_attendance", "view_own_results", "view_own_fees", "view_course_content",
+                          "view_own_homework"])
         # Parents see their children through the parent portal, never the student-only "own" screens.
         grant("parent", [
             "view_own_children", "view_child_attendance", "view_child_timetable", "view_child_results",
-            "view_child_fees", "pay_child_fees", "view_calendar_events",
+            "view_child_fees", "pay_child_fees", "view_calendar_events", "view_child_homework",
         ])
 
     def _create_institution_profile(self, organization):

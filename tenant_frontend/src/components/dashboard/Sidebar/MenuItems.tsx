@@ -232,6 +232,11 @@ export const getMenuItems = (
         });
     }
 
+    // 7.4 Homework diary: staff set it, students and parents follow it (one page adapts to each).
+    if (can("manage_homework") || can("view_homework") || can("view_own_homework") || can("view_child_homework")) {
+        menuItems.push({ label: "Homework", icon: BookOpen, href: "/dashboard/homework" });
+    }
+
     // 7.5 Parent Portal - gated on view_own_children per spec; sub-items are
     // further narrowed by their own permission in case a role somehow has
     // view_own_children without one of the child-scoped permissions.
