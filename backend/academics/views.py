@@ -114,7 +114,7 @@ class SubjectAssignmentViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = SubjectAssignment.objects.all().select_related(
-            "section", "subject", "instructor__staff_member__profile"
+            "section__level__program", "subject__level", "instructor__staff_member__profile"
         )
 
         instructor_id = self.request.query_params.get("instructor", None)

@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAcademicYears } from "@/hooks/useAcademics";
+import { usePermissions } from "@/providers/PermissionProvider";
 import { AcademicYear } from "@/types/Academics";
 
 interface AcademicYearContextType {
@@ -25,7 +26,11 @@ function getStorageKey(): string {
 
 export function AcademicYearProvider({ children }: { children: React.ReactNode }) {
     const queryClient = useQueryClient();
-    const { data: years = [], isLoading, isError, error } = useAcademicYears();
+    // Parents and students cannot list academic years; don't ask (the server would answer 403).
+    const { can } = usePermissions();
+    const canListYears = can("view_academic_level");
+    const { data: years = [], isLoading: loadingYears, isError, error } = useAcademicYears(canListYears);
+    const isLoading = canListYears && loadingYears;
     const [selectedYear, setSelectedYearState] = useState<AcademicYear | null>(null);
     const [isInitialized, setIsInitialized] = useState(false);
 
@@ -108,7 +113,7 @@ export function AcademicYearProvider({ children }: { children: React.ReactNode }
         setIsInitialized(true);
     }, [years, isLoading, isError, currentYear]);
 
-    const hasAccess = !isError || (error as any)?.response?.status !== 403;
+    const hasAccess = canListYears && (!isError || (error as any)?.response?.status !== 403);
 
     return (
         <AcademicYearContext.Provider

@@ -322,9 +322,10 @@ export const useDeleteAssignment = () => {
 
 // === ACADEMIC YEARS ===
 
-export const useAcademicYears = () => {
+export const useAcademicYears = (enabled = true) => {
     return useQuery({
         queryKey: ["academic-years"],
+        enabled,
         queryFn: async () => {
             const response = await axiosInstance.get("/academics/academic-years/?page_size=100");
             const data = response.data;

@@ -253,6 +253,7 @@ export default function ApplicationDetailDrawer({
             <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto rounded-3xl p-6 sm:p-8">
                 {isLoading || !application ? (
                     <div className="h-64 flex flex-col items-center justify-center">
+                        <DialogTitle className="sr-only">Loading application</DialogTitle>
                         <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
                         <span className="text-sm text-slate-500 mt-2">Loading application...</span>
                     </div>

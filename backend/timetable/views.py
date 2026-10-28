@@ -251,7 +251,7 @@ class SectionTimetableView(APIView):
 
         academic_year = request.query_params.get("academic_year")
         qs = TimetableEntry.objects.filter(section_id=section_id).select_related(
-            "subject", "period", "room", "instructor__staff_member__profile"
+            "section", "subject", "period", "room", "instructor__staff_member__profile"
         )
         if academic_year:
             qs = qs.filter(academic_year=academic_year)
@@ -276,7 +276,7 @@ class InstructorTimetableView(APIView):
 
         academic_year = request.query_params.get("academic_year")
         qs = TimetableEntry.objects.filter(instructor_id=instructor_id).select_related(
-            "section", "subject", "period", "room"
+            "section", "subject", "period", "room", "instructor__staff_member__profile"
         )
         if academic_year:
             qs = qs.filter(academic_year=academic_year)
@@ -302,7 +302,7 @@ class MyTimetableView(APIView):
             if not current or not current.section_id:
                 return Response({"role": "student", "results": []})
             qs = TimetableEntry.objects.filter(section_id=current.section_id).select_related(
-                "subject", "period", "room", "instructor__staff_member__profile"
+                "section", "subject", "period", "room", "instructor__staff_member__profile"
             )
             if academic_year:
                 qs = qs.filter(academic_year=academic_year)
@@ -311,7 +311,7 @@ class MyTimetableView(APIView):
         instructor = get_instructor_for_user(request.user)
         if instructor is not None:
             qs = TimetableEntry.objects.filter(instructor=instructor).select_related(
-                "section", "subject", "period", "room"
+                "section", "subject", "period", "room", "instructor__staff_member__profile"
             )
             if academic_year:
                 qs = qs.filter(academic_year=academic_year)

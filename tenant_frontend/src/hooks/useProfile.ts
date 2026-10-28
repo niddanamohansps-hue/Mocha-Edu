@@ -56,11 +56,12 @@ async function updateInstitutionProfile(payload: Partial<InstitutionProfile> | F
     return data;
 }
 
-export function useInstitutionProfile() {
+export function useInstitutionProfile(enabled = true) {
     return useQuery({
         queryKey: ["institution-profile"],
         queryFn: getInstitutionProfile,
         retry: false,
+        enabled,
     });
 }
 

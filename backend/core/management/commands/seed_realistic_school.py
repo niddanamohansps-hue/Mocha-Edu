@@ -478,7 +478,11 @@ class Command(BaseCommand):
             "view_notifications",
         ])
         grant("student", ["view_own_attendance", "view_own_results", "view_own_fees", "view_course_content"])
-        grant("parent", ["view_own_attendance", "view_own_results", "view_own_fees"])
+        # Parents see their children through the parent portal, never the student-only "own" screens.
+        grant("parent", [
+            "view_own_children", "view_child_attendance", "view_child_timetable", "view_child_results",
+            "view_child_fees", "pay_child_fees", "view_calendar_events",
+        ])
 
     def _create_institution_profile(self, organization):
         from profiles.models import InstitutionProfile

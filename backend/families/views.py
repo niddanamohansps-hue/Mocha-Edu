@@ -1,4 +1,4 @@
-from django.db.models import Q
+from django.db.models import Prefetch, Q
 from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -17,7 +17,11 @@ from .serializers import (
 
 
 class ParentViewSet(viewsets.ModelViewSet):
-    queryset = Parent.objects.all().select_related("profile").order_by(
+    queryset = Parent.objects.all().select_related(
+        "profile", "profile__student_record", "profile__staff_record"
+    ).prefetch_related(
+        Prefetch("student_links", queryset=StudentParentRelation.objects.select_related("student__profile"))
+    ).order_by(
         "profile__first_name", "profile__last_name"
     )
     serializer_class = ParentSerializer

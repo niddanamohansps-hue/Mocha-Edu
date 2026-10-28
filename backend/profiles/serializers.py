@@ -3,6 +3,27 @@ from .models import Profile, InstitutionProfile
 from django.db import connection
 
 
+def attach_users(profiles):
+    """Loads the users of many profiles in one query (Profile.user is a soft link, not a join)."""
+    from accounts.models import User
+
+    profiles = [p for p in profiles if p is not None]
+    ids = {p.user_id for p in profiles if p.user_id and not hasattr(p, "_user_cache")}
+    users = {u.id: u for u in User.objects.filter(id__in=ids)} if ids else {}
+    for profile in profiles:
+        if not hasattr(profile, "_user_cache"):
+            profile._user_cache = users.get(profile.user_id) if profile.user_id else None
+
+
+class WithProfileUsersListSerializer(serializers.ListSerializer):
+    """For lists of objects that have a ``profile``: their users are loaded together, not one per row."""
+
+    def to_representation(self, data):
+        items = list(data.all() if hasattr(data, "all") else data)
+        attach_users(getattr(item, "profile", None) for item in items)
+        return super().to_representation(items)
+
+
 class ProfileSerializer(serializers.ModelSerializer):
     email = serializers.SerializerMethodField()
     username = serializers.CharField(source="user.username", read_only=True)

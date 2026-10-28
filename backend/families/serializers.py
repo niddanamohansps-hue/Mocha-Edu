@@ -6,7 +6,7 @@ from rest_framework import serializers
 
 from accounts.utils.crypto import encrypt_secret
 from profiles.models import Profile
-from profiles.serializers import ProfileSerializer
+from profiles.serializers import ProfileSerializer, WithProfileUsersListSerializer
 from students.models import Student
 from .models import Parent, StudentParentRelation
 
@@ -117,6 +117,7 @@ class ParentSerializer(serializers.ModelSerializer):
     address = serializers.CharField(required=False, allow_blank=True, write_only=True)
 
     class Meta:
+        list_serializer_class = WithProfileUsersListSerializer
         model = Parent
         fields = (
             "id",
@@ -163,7 +164,7 @@ class ParentSerializer(serializers.ModelSerializer):
         return attrs
 
     def get_children(self, obj):
-        relations = obj.student_links.select_related("student__profile").all()
+        relations = obj.student_links.all()  # preloaded with the student and profile by ParentViewSet
         return [
             {
                 "relation_id": rel.id,

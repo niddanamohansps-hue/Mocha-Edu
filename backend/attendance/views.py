@@ -1,4 +1,4 @@
-from django.db.models import Count
+from django.db.models import Count, Prefetch
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status, viewsets
@@ -30,6 +30,15 @@ from .services import (
     user_can_access_student_attendance,
 )
 
+
+
+def _with_records(session):
+    """The session reloaded with its student rows and their names, for AttendanceSessionSerializer."""
+    return (
+        AttendanceSession.objects.select_related("section")
+        .prefetch_related(Prefetch("student_records", queryset=StudentAttendance.objects.select_related("student__profile")))
+        .get(pk=session.pk)
+    )
 
 class SectionRosterView(APIView):
     permission_classes = [IsAuthenticated, HasPermission("view_attendance")]
@@ -127,7 +136,7 @@ class AttendanceSessionViewSet(viewsets.ViewSet):
         session, error = self._get_session_or_403(request, pk)
         if error:
             return error
-        return Response(AttendanceSessionSerializer(session).data)
+        return Response(AttendanceSessionSerializer(_with_records(session)).data)
 
     def create(self, request):
         serializer = AttendanceSessionBulkSerializer(data=request.data)
@@ -166,7 +175,7 @@ class AttendanceSessionViewSet(viewsets.ViewSet):
         )
 
         return Response(
-            AttendanceSessionSerializer(session).data,
+            AttendanceSessionSerializer(_with_records(session)).data,
             status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
         )
 
@@ -201,7 +210,7 @@ class AttendanceSessionViewSet(viewsets.ViewSet):
             },
         )
 
-        return Response(AttendanceSessionSerializer(session).data)
+        return Response(AttendanceSessionSerializer(_with_records(session)).data)
 
     def destroy(self, request, pk=None):
         session, error = self._get_session_or_403(request, pk)
@@ -243,7 +252,7 @@ class AttendanceSessionViewSet(viewsets.ViewSet):
             object_id=session.id,
             changes={"section": str(session.section_id), "date": str(session.date)},
         )
-        return Response(AttendanceSessionSerializer(session).data)
+        return Response(AttendanceSessionSerializer(_with_records(session)).data)
 
 
 class StudentAttendanceHistoryView(APIView):
@@ -340,7 +349,9 @@ class BelowThresholdReportView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        qs = StudentAttendance.objects.select_related("student__profile", "session")
+        from students.models import Student
+
+        qs = StudentAttendance.objects.all()
         if section_id:
             qs = qs.filter(session__section_id=section_id)
         if academic_year:
@@ -349,26 +360,26 @@ class BelowThresholdReportView(APIView):
         settings_obj = AttendanceSettings.get_solo()
         threshold = float(settings_obj.minimum_attendance_percentage)
 
+        # Counted in the database: one row per (student, status), never one object per attendance mark.
         per_student = {}
-        for row in qs:
-            per_student.setdefault(row.student_id, {"student": row.student, "counts": {}})
-            per_student[row.student_id]["counts"][row.status] = (
-                per_student[row.student_id]["counts"].get(row.status, 0) + 1
-            )
+        for row in qs.values("student_id", "status").annotate(n=Count("id")).order_by():
+            per_student.setdefault(row["student_id"], {})[row["status"]] = row["n"]
 
-        results = []
-        for entry in per_student.values():
-            pct = calculate_attendance_percentage(entry["counts"], settings_obj)
+        below = {}
+        for student_id, counts in per_student.items():
+            pct = calculate_attendance_percentage(counts, settings_obj)
             if pct is not None and pct < threshold:
-                student = entry["student"]
-                results.append(
-                    {
-                        "student": str(student.id),
-                        "full_name": f"{student.profile.first_name} {student.profile.last_name}",
-                        "enrollment_id": student.enrollment_id,
-                        "percentage": pct,
-                    }
-                )
+                below[student_id] = pct
+
+        results = [
+            {
+                "student": str(student.id),
+                "full_name": f"{student.profile.first_name} {student.profile.last_name}",
+                "enrollment_id": student.enrollment_id,
+                "percentage": below[student.id],
+            }
+            for student in Student.objects.filter(id__in=below).select_related("profile")
+        ]
 
         return Response({"threshold": threshold, "students": results})
 
@@ -421,7 +432,7 @@ class StaffAttendanceHistoryView(APIView):
     permission_classes = [IsAuthenticated, HasPermission("view_staff_attendance")]
 
     def get(self, request, staff_id):
-        qs = StaffAttendance.objects.filter(staff_id=staff_id).order_by("-date")
+        qs = StaffAttendance.objects.filter(staff_id=staff_id).select_related("staff__profile").order_by("-date")
         start_date = request.query_params.get("start_date")
         end_date = request.query_params.get("end_date")
         if start_date:

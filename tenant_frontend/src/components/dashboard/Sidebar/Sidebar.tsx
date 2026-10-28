@@ -88,7 +88,8 @@ export function Sidebar({ user, isCollapsed, setIsCollapsed, isMobileMenuOpen, o
 }
 
 function InstitutionLogo({ isCollapsed, compact = false }: { isCollapsed: boolean; compact?: boolean }) {
-    const { data: institution } = useInstitutionProfile();
+    const { can } = usePermissions();
+    const { data: institution } = useInstitutionProfile(can("view_institution_profile"));
     const logoUrl = getMediaUrl(institution?.logo);
 
     if (logoUrl) {

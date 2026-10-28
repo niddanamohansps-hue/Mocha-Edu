@@ -255,7 +255,7 @@ class AlertLog(models.Model):
     recipient_hint = models.CharField(max_length=80, blank=True)
     # No foreign key: deleting a student must never cascade into the log.
     student_id = models.UUIDField()
-    enrollment_id = models.CharField(max_length=50, blank=True)
+    enrollment_id = models.CharField(max_length=50, blank=True, db_index=True)
 
     notification_id = models.UUIDField(null=True, blank=True)
     outbox_event = models.ForeignKey(

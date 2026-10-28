@@ -5,6 +5,7 @@ Transactional services for leave calculations, atomic balance reservation,
 attendance synchronization, timetable substitution discovery, and audit logging.
 """
 
+from collections import defaultdict
 from datetime import date, timedelta
 from decimal import Decimal
 import logging
@@ -682,93 +683,100 @@ def get_affected_periods_and_substitutes(application: LeaveApplication):
     from attendance.models import AttendanceSettings
 
     weekly_off = AttendanceSettings.weekly_off()
-    affected_slots = []
+    leave_dates = []
     current = application.start_date
     while current <= application.end_date:
         if current.weekday() not in weekly_off and current not in holiday_dates:
-            day_of_week = current.weekday()
-            entries = TimetableEntry.objects.filter(
-                instructor=instructor,
-                academic_year=application.academic_year,
-                day_of_week=day_of_week,
-            ).select_related("section__level", "subject", "period", "room")
-
-            for entry in entries:
-                existing_sub = TimetableSubstitution.objects.filter(
-                    timetable_entry=entry,
-                    date=current,
-                ).select_related("substitute_instructor__staff_member__profile").first()
-
-                # Instructors already teaching this period
-                busy_instructor_ids = set(
-                    TimetableEntry.objects.filter(
-                        academic_year=application.academic_year,
-                        day_of_week=day_of_week,
-                        period=entry.period,
-                        instructor__isnull=False,
-                    ).values_list("instructor_id", flat=True)
-                )
-
-                # Instructors already substituting elsewhere on this date & period
-                busy_sub_ids = set(
-                    TimetableSubstitution.objects.filter(
-                        date=current,
-                        timetable_entry__period=entry.period,
-                        substitute_instructor__isnull=False,
-                    ).values_list("substitute_instructor_id", flat=True)
-                )
-
-                all_busy = busy_instructor_ids | busy_sub_ids | {instructor.id}
-
-                eligible_instructors = (
-                    Instructor.objects.filter(staff_member__is_active=True)
-                    .exclude(id__in=all_busy)
-                    .select_related("staff_member__profile")
-                )
-
-                substitutes_data = [
-                    {
-                        "instructor_id": inst.id,
-                        "name": f"{inst.staff_member.profile.first_name} {inst.staff_member.profile.last_name}",
-                        "specialization": inst.specialization,
-                        "department": inst.staff_member.department,
-                        "is_same_subject": (
-                            inst.specialization.lower() in entry.subject.name.lower()
-                            or entry.subject.name.lower() in inst.specialization.lower()
-                        ),
-                    }
-                    for inst in eligible_instructors
-                ]
-                substitutes_data.sort(key=lambda x: not x["is_same_subject"])
-
-                affected_slots.append({
-                    "date": current.strftime("%Y-%m-%d"),
-                    "day_of_week": DAY_OF_WEEK_CHOICES[day_of_week][1],
-                    "entry_id": str(entry.id),
-                    "section": f"{entry.section.level.name} - {entry.section.name}",
-                    "subject": f"{entry.subject.name} ({entry.subject.code})",
-                    "period": {
-                        "id": str(entry.period.id),
-                        "name": entry.period.name,
-                        "start_time": entry.period.start_time.strftime("%H:%M"),
-                        "end_time": entry.period.end_time.strftime("%H:%M"),
-                    },
-                    "room": entry.room.name if entry.room else None,
-                    "existing_substitution": {
-                        "id": str(existing_sub.id),
-                        "substitute_instructor": (
-                            f"{existing_sub.substitute_instructor.staff_member.profile.first_name} "
-                            f"{existing_sub.substitute_instructor.staff_member.profile.last_name}"
-                        )
-                        if existing_sub and existing_sub.substitute_instructor
-                        else None,
-                        "reason": existing_sub.reason if existing_sub else "",
-                    }
-                    if existing_sub
-                    else None,
-                    "eligible_substitutes": substitutes_data,
-                })
+            leave_dates.append(current)
         current += timedelta(days=1)
+    weekdays = {d.weekday() for d in leave_dates}
+
+    # Everything the loop needs, in four queries for the whole leave instead of four per period.
+    entries_by_day = defaultdict(list)
+    for entry in TimetableEntry.objects.filter(
+        instructor=instructor,
+        academic_year=application.academic_year,
+        day_of_week__in=weekdays,
+    ).select_related("section__level", "subject", "period", "room"):
+        entries_by_day[entry.day_of_week].append(entry)
+
+    # Instructors already teaching each (weekday, period)
+    busy_teaching = defaultdict(set)
+    for day, period_id, instructor_id in TimetableEntry.objects.filter(
+        academic_year=application.academic_year,
+        day_of_week__in=weekdays,
+        instructor__isnull=False,
+    ).values_list("day_of_week", "period_id", "instructor_id"):
+        busy_teaching[(day, period_id)].add(instructor_id)
+
+    # Existing substitutions per (entry, date), and instructors already substituting each (date, period)
+    existing_subs = {}
+    busy_substituting = defaultdict(set)
+    for sub in TimetableSubstitution.objects.filter(date__in=leave_dates).select_related(
+        "timetable_entry", "substitute_instructor__staff_member__profile"
+    ):
+        existing_subs.setdefault((sub.timetable_entry_id, sub.date), sub)
+        if sub.substitute_instructor_id:
+            busy_substituting[(sub.date, sub.timetable_entry.period_id)].add(sub.substitute_instructor_id)
+
+    active_instructors = list(
+        Instructor.objects.filter(staff_member__is_active=True).select_related("staff_member__profile")
+    )
+
+    affected_slots = []
+    for current in leave_dates:
+        day_of_week = current.weekday()
+        for entry in entries_by_day[day_of_week]:
+            existing_sub = existing_subs.get((entry.id, current))
+            all_busy = (
+                busy_teaching[(day_of_week, entry.period_id)]
+                | busy_substituting[(current, entry.period_id)]
+                | {instructor.id}
+            )
+            eligible_instructors = [inst for inst in active_instructors if inst.id not in all_busy]
+
+            substitutes_data = [
+                {
+                    "instructor_id": inst.id,
+                    "name": f"{inst.staff_member.profile.first_name} {inst.staff_member.profile.last_name}",
+                    "specialization": inst.specialization,
+                    "department": inst.staff_member.department,
+                    "is_same_subject": (
+                        inst.specialization.lower() in entry.subject.name.lower()
+                        or entry.subject.name.lower() in inst.specialization.lower()
+                    ),
+                }
+                for inst in eligible_instructors
+            ]
+            substitutes_data.sort(key=lambda x: not x["is_same_subject"])
+
+            affected_slots.append({
+                "date": current.strftime("%Y-%m-%d"),
+                "day_of_week": DAY_OF_WEEK_CHOICES[day_of_week][1],
+                "entry_id": str(entry.id),
+                "section": f"{entry.section.level.name} - {entry.section.name}",
+                "subject": f"{entry.subject.name} ({entry.subject.code})",
+                "period": {
+                    "id": str(entry.period.id),
+                    "name": entry.period.name,
+                    "start_time": entry.period.start_time.strftime("%H:%M"),
+                    "end_time": entry.period.end_time.strftime("%H:%M"),
+                },
+                "room": entry.room.name if entry.room else None,
+                "existing_substitution": {
+                    "id": str(existing_sub.id),
+                    "substitute_instructor": (
+                        f"{existing_sub.substitute_instructor.staff_member.profile.first_name} "
+                        f"{existing_sub.substitute_instructor.staff_member.profile.last_name}"
+                    )
+                    if existing_sub and existing_sub.substitute_instructor
+                    else None,
+                    "reason": existing_sub.reason if existing_sub else "",
+                }
+                if existing_sub
+                else None,
+                "eligible_substitutes": substitutes_data,
+            })
 
     return affected_slots
 

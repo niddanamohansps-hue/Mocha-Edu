@@ -37,7 +37,7 @@ class RoleViewSet(viewsets.ModelViewSet):
 
         return Role.objects.annotate(
             user_count=Count("user_roles", filter=Q(user_roles__is_active=True))
-        ).order_by("-is_system_role", "name")
+        ).prefetch_related("permissions").order_by("-is_system_role", "name")
 
     def perform_create(self, serializer):
         # Auto-generate slug from name

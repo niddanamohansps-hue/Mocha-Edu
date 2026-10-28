@@ -70,7 +70,9 @@ class Profile(models.Model):
         if not self.user_id:
             return None
 
-        return User.objects.filter(id=self.user_id).first()
+        # Remembered on the instance: serializers read it several times per row.
+        self._user_cache = User.objects.filter(id=self.user_id).first()
+        return self._user_cache
 
 
 class InstitutionProfile(models.Model):

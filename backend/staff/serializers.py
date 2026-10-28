@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import StaffMember, Instructor
-from profiles.serializers import ProfileSerializer
+from profiles.serializers import ProfileSerializer, WithProfileUsersListSerializer
 from django.db import transaction
 from profiles.models import Profile
 from django.apps import apps
@@ -21,6 +21,7 @@ class StaffMemberSerializer(serializers.ModelSerializer):
     instructor_data = InstructorSerializer(source="instructor_record", read_only=True)
 
     class Meta:
+        list_serializer_class = WithProfileUsersListSerializer
         model = StaffMember
         fields = (
             "id",

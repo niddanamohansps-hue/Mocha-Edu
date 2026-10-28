@@ -15,7 +15,9 @@ from core.audit import log_action
 
 
 class StaffMemberViewSet(viewsets.ModelViewSet):
-    queryset = StaffMember.objects.all().select_related("profile").order_by(
+    queryset = StaffMember.objects.all().select_related(
+        "profile", "profile__student_record", "instructor_record"
+    ).order_by(
         "profile__first_name", "profile__last_name"
     )
     serializer_class = StaffMemberSerializer

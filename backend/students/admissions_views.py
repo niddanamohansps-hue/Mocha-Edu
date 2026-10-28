@@ -59,6 +59,28 @@ from .services import get_staff_member_for_user
 from .admissions_tasks import scan_admission_document_task
 
 
+
+def _detail_queryset():
+    """Applications with everything the detail serializer reads, so a response costs a fixed number of queries."""
+    return AdmissionApplication.objects.select_related(
+        "level",
+        "section",
+        "academic_year_ref",
+        "assigned_reviewer__profile",
+        "decision_by__profile",
+        "enrolled_by__profile",
+        "student",
+        "enquiry",
+    ).prefetch_related(
+        "documents__verified_by__profile",
+        "interviews__interviewer__profile",
+        "activities__performed_by__profile",
+    )
+
+
+def _detail(pk):
+    return _detail_queryset().get(pk=pk)
+
 class AdmissionDashboardStatsView(APIView):
     """
     Returns aggregated metrics and pipeline status counts for admissions.
@@ -184,7 +206,7 @@ class AdmissionEnquiryConvertView(APIView):
 
     def post(self, request, pk):
         application = convert_enquiry_to_application(pk, user=request.user, request=request)
-        serializer = AdmissionApplicationDetailSerializer(application)
+        serializer = AdmissionApplicationDetailSerializer(_detail(application.pk))
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
@@ -257,7 +279,7 @@ class AdmissionApplicationListView(APIView):
             changes={"application_number": application.application_number},
         )
 
-        detail_serializer = AdmissionApplicationDetailSerializer(application)
+        detail_serializer = AdmissionApplicationDetailSerializer(_detail(application.pk))
         return Response(detail_serializer.data, status=status.HTTP_201_CREATED)
 
 
@@ -268,23 +290,7 @@ class AdmissionApplicationDetailView(APIView):
     permission_classes = [IsAuthenticated, HasPermission("view_admissions")]
 
     def get(self, request, pk):
-        application = get_object_or_404(
-            AdmissionApplication.objects.select_related(
-                "level",
-                "section",
-                "academic_year_ref",
-                "assigned_reviewer__profile",
-                "decision_by__profile",
-                "enrolled_by__profile",
-                "student",
-                "enquiry",
-            ).prefetch_related(
-                "documents__verified_by__profile",
-                "interviews__interviewer__profile",
-                "activities__performed_by__profile",
-            ),
-            pk=pk,
-        )
+        application = get_object_or_404(_detail_queryset(), pk=pk)
         serializer = AdmissionApplicationDetailSerializer(application)
         return Response(serializer.data)
 
@@ -308,7 +314,7 @@ class AdmissionApplicationDetailView(APIView):
             changes=request.data,
         )
 
-        detail_serializer = AdmissionApplicationDetailSerializer(updated)
+        detail_serializer = AdmissionApplicationDetailSerializer(_detail(updated.pk))
         return Response(detail_serializer.data)
 
 
@@ -344,7 +350,7 @@ class AdmissionApplicationStatusView(APIView):
             request=request,
         )
 
-        detail_serializer = AdmissionApplicationDetailSerializer(updated_app)
+        detail_serializer = AdmissionApplicationDetailSerializer(_detail(updated_app.pk))
         return Response(detail_serializer.data, status=status.HTTP_200_OK)
 
 
@@ -382,7 +388,7 @@ class AdmissionApplicationAssignView(APIView):
             changes={"assigned_reviewer": {"old": old_reviewer, "new": str(reviewer.id) if reviewer else None}},
         )
 
-        detail_serializer = AdmissionApplicationDetailSerializer(application)
+        detail_serializer = AdmissionApplicationDetailSerializer(_detail(application.pk))
         return Response(detail_serializer.data, status=status.HTTP_200_OK)
 
 
@@ -410,7 +416,7 @@ class AdmissionApplicationDecisionView(APIView):
             request=request,
         )
 
-        detail_serializer = AdmissionApplicationDetailSerializer(updated_app)
+        detail_serializer = AdmissionApplicationDetailSerializer(_detail(updated_app.pk))
         return Response(detail_serializer.data, status=status.HTTP_200_OK)
 
 
@@ -433,7 +439,7 @@ class AdmissionApplicationEnrollView(APIView):
         )
 
         application = AdmissionApplication.objects.get(pk=pk)
-        detail_serializer = AdmissionApplicationDetailSerializer(application)
+        detail_serializer = AdmissionApplicationDetailSerializer(_detail(application.pk))
         return Response(
             {
                 "message": "Applicant successfully enrolled as student.",

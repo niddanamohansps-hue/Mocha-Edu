@@ -1,3 +1,5 @@
+from datetime import datetime, time, timedelta
+
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.dateparse import parse_date
@@ -167,7 +169,9 @@ class AlertLogListView(generics.ListAPIView):
                 raise ValidationError({"kind": [f"Unknown kind. Use one of: {', '.join(AlertLog.Kind.values)}."]})
             queryset = queryset.filter(kind=kind)
 
-        for name, lookup in (("created_after", "created_at__date__gte"), ("created_before", "created_at__date__lte")):
+        # Whole days as timestamp bounds (same days as created_at__date, in the current time zone), so the
+        # (kind, created_at) index is usable: wrapping the column in DATE() would scan the table.
+        for name, lookup, day_offset in (("created_after", "created_at__gte", 0), ("created_before", "created_at__lt", 1)):
             raw = params.get(name)
             if raw:
                 try:
@@ -177,7 +181,8 @@ class AlertLogListView(generics.ListAPIView):
                     parsed = None
                 if parsed is None:
                     raise ValidationError({name: ["Use a valid date in YYYY-MM-DD format."]})
-                queryset = queryset.filter(**{lookup: parsed})
+                start = datetime.combine(parsed + timedelta(days=day_offset), time.min)
+                queryset = queryset.filter(**{lookup: timezone.make_aware(start, timezone.get_current_timezone())})
 
         enrollment_id = (params.get("enrollment_id") or "").strip()
         if enrollment_id:
