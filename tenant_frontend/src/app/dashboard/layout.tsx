@@ -4,6 +4,7 @@ import { useMe } from "@/hooks/useAuth";
 import {
     Menu,
     ChevronRight,
+    Search,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
@@ -14,25 +15,34 @@ import { PermissionProvider } from "@/providers/PermissionProvider";
 import { AcademicYearProvider } from "@/providers/AcademicYearProvider";
 import { AcademicYearSelector } from "@/components/dashboard/AcademicYearSelector";
 import PasswordChangeGuard from "@/components/PasswordChangeGuard";
+import { CommandPalette } from "@/components/dashboard/CommandPalette";
+import { MobileBottomNav } from "@/components/parent-portal/MobileBottomNav";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
     const { data: user, isLoading } = useMe();
     const router = useRouter();
     const pathname = usePathname();
 
-    // Two independent concerns that used to share one boolean:
-    // - isCollapsed: desktop-only narrow (icon-only) vs. wide sidebar.
-    // - isMobileMenuOpen: mobile-only off-canvas drawer visibility.
-    // Conflating them meant collapsing the desktop sidebar could also
-    // hide/show the mobile drawer (and vice versa) depending on viewport.
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
 
-    // Close the mobile drawer automatically whenever the route changes -
-    // otherwise it stays open over the newly-navigated page.
+    // Close the mobile drawer automatically whenever the route changes
     useEffect(() => {
         setIsMobileMenuOpen(false);
     }, [pathname]);
+
+    // Global Ctrl+K / Cmd+K listener
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+                e.preventDefault();
+                setIsCommandPaletteOpen((prev) => !prev);
+            }
+        };
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, []);
 
     if (isLoading) return null;
 
@@ -41,14 +51,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         return null;
     }
 
+    const isParentPortal = pathname?.startsWith("/dashboard/parent-portal");
+
     return (
         <PermissionProvider>
             <AcademicYearProvider>
                 <PasswordChangeGuard>
                     <div className="flex h-screen bg-[#F8FAFC] dark:bg-slate-950 overflow-hidden">
-
-                        {/* Sidebar handles both the persistent desktop <aside> and
-                            the full-screen mobile takeover menu internally. */}
+                        {/* Sidebar handles both persistent desktop and mobile menu */}
                         <Sidebar
                             user={user}
                             isCollapsed={isCollapsed}
@@ -62,6 +72,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                             {/* Header */}
                             <header className="relative h-16 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 sm:px-6 z-10 transition-all duration-300">
                                 <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-sky-500/30 via-teal-500/30 to-transparent" />
+                                
                                 <div className="flex items-center gap-2 sm:gap-4 min-w-0">
                                     <button
                                         onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -73,11 +84,33 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                                     <div className="flex items-center gap-2 text-sm font-medium text-slate-500 min-w-0">
                                         <span className="hidden sm:inline shrink-0">Dashboard</span>
                                         <ChevronRight className="h-4 w-4 hidden sm:inline shrink-0" />
-                                        <span className="text-slate-900 dark:text-white capitalize truncate">{pathname.split('/').pop()?.replace(/-/g, ' ')}</span>
+                                        <span className="text-slate-900 dark:text-white capitalize truncate">
+                                            {pathname.split("/").pop()?.replace(/-/g, " ")}
+                                        </span>
                                     </div>
                                 </div>
 
+                                {/* Quick Command Search Button */}
+                                <button
+                                    onClick={() => setIsCommandPaletteOpen(true)}
+                                    className="hidden md:flex items-center gap-2.5 px-3 py-1.5 text-xs text-slate-500 dark:text-slate-400 bg-slate-100/80 dark:bg-slate-800/80 hover:bg-slate-200/80 dark:hover:bg-slate-700/80 rounded-xl border border-slate-200/60 dark:border-slate-700/60 transition shadow-2xs cursor-pointer"
+                                    title="Press Ctrl + K to search"
+                                >
+                                    <Search className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+                                    <span className="text-slate-600 dark:text-slate-300">Search students, staff or commands...</span>
+                                    <kbd className="px-1.5 py-0.5 text-[10px] font-mono bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-slate-400">
+                                        Ctrl K
+                                    </kbd>
+                                </button>
+
                                 <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+                                    <button
+                                        onClick={() => setIsCommandPaletteOpen(true)}
+                                        className="md:hidden p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition"
+                                        aria-label="Search"
+                                    >
+                                        <Search className="h-5 w-5" />
+                                    </button>
                                     <AcademicYearSelector />
                                     <NotificationBell />
                                     <ProfileMenu />
@@ -85,12 +118,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                             </header>
 
                             {/* Main Content Container */}
-                            <main className="flex-1 overflow-y-auto bg-[#F8FAFC] dark:bg-slate-950 p-3 sm:p-6 transition-all duration-300">
+                            <main className={`flex-1 overflow-y-auto bg-[#F8FAFC] dark:bg-slate-950 p-3 sm:p-6 transition-all duration-300 ${
+                                isParentPortal ? "pb-20 md:pb-6" : ""
+                            }`}>
                                 <div className="max-w-9xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
                                     {children}
                                 </div>
                             </main>
+
+                            {/* Mobile Bottom Navigation for Parent Portal */}
+                            {isParentPortal && <MobileBottomNav />}
                         </div>
+
+                        {/* Global Command Palette */}
+                        <CommandPalette
+                            isOpen={isCommandPaletteOpen}
+                            onClose={() => setIsCommandPaletteOpen(false)}
+                        />
                     </div>
                 </PasswordChangeGuard>
             </AcademicYearProvider>

@@ -160,31 +160,66 @@ export default function MarkAttendancePage() {
                                 { key: "enrollment", header: "Enrollment ID", className: "text-slate-500", cell: (s) => s.enrollment_id },
                                 {
                                     key: "status",
-                                    header: "Status",
-                                    className: "w-40",
-                                    cell: (s) => (
-                                        <Select
-                                            value={marks[s.student]?.status ?? "present"}
-                                            onValueChange={(v) =>
-                                                setMarks((prev) => ({
-                                                    ...prev,
-                                                    [s.student]: { ...prev[s.student], status: v as AttendanceStatus },
-                                                }))
-                                            }
-                                            disabled={isLocked}
-                                        >
-                                            <SelectTrigger className="h-9 w-full" aria-label={`Attendance status for ${s.full_name}`}>
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {STATUS_OPTIONS.map((opt) => (
-                                                    <SelectItem key={opt.value} value={opt.value}>
-                                                        {opt.label}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    ),
+                                    header: "Attendance Status",
+                                    className: "w-60",
+                                    cell: (s) => {
+                                        const currentStatus = marks[s.student]?.status ?? "present";
+                                        return (
+                                            <div className="flex items-center gap-1.5">
+                                                <button
+                                                    type="button"
+                                                    disabled={isLocked}
+                                                    onClick={() =>
+                                                        setMarks((prev) => ({
+                                                            ...prev,
+                                                            [s.student]: { ...prev[s.student], status: "present" },
+                                                        }))
+                                                    }
+                                                    className={`px-2.5 py-1 text-xs rounded-lg transition font-semibold cursor-pointer ${
+                                                        currentStatus === "present"
+                                                            ? "bg-emerald-600 text-white shadow-xs"
+                                                            : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300"
+                                                    }`}
+                                                >
+                                                    Present
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    disabled={isLocked}
+                                                    onClick={() =>
+                                                        setMarks((prev) => ({
+                                                            ...prev,
+                                                            [s.student]: { ...prev[s.student], status: "absent" },
+                                                        }))
+                                                    }
+                                                    className={`px-2.5 py-1 text-xs rounded-lg transition font-semibold cursor-pointer ${
+                                                        currentStatus === "absent"
+                                                            ? "bg-rose-600 text-white shadow-xs"
+                                                            : "bg-rose-50 text-rose-700 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-300"
+                                                    }`}
+                                                >
+                                                    Absent
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    disabled={isLocked}
+                                                    onClick={() =>
+                                                        setMarks((prev) => ({
+                                                            ...prev,
+                                                            [s.student]: { ...prev[s.student], status: "late" },
+                                                        }))
+                                                    }
+                                                    className={`px-2.5 py-1 text-xs rounded-lg transition font-semibold cursor-pointer ${
+                                                        currentStatus === "late"
+                                                            ? "bg-amber-600 text-white shadow-xs"
+                                                            : "bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300"
+                                                    }`}
+                                                >
+                                                    Late
+                                                </button>
+                                            </div>
+                                        );
+                                    },
                                 },
                                 {
                                     key: "remarks",
