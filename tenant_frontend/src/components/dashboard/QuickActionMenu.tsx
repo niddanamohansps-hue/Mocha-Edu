@@ -33,7 +33,7 @@ export function QuickActionMenu() {
             desc: "Record student tuition or bus fee",
             icon: CreditCard,
             color: "text-emerald-500 bg-emerald-50 dark:bg-emerald-950/50",
-            href: "/dashboard/fees",
+            href: "/dashboard/fees/collect",
             visible: isOwner || can("add_paymentallocation") || can("view_fee"),
         },
         {
@@ -81,7 +81,7 @@ export function QuickActionMenu() {
             desc: "Send school announcement to parents & staff",
             icon: Megaphone,
             color: "text-purple-500 bg-purple-50 dark:bg-purple-950/50",
-            href: "/dashboard/communication/announcements",
+            href: "/dashboard/announcements",
             visible: isOwner || can("add_announcement"),
         },
     ].filter((a) => a.visible);
