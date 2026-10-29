@@ -126,6 +126,48 @@ class ExamSchedule(models.Model):
         return f"{self.examination} - {self.subject} - {self.section}"
 
 
+class ExamScheduleComponent(models.Model):
+    """
+    Sub-component of an ExamSchedule (e.g. Theory, Practical, Internal Assessment).
+    Allows schools to define custom component splits with independent maximum
+    and passing marks, plus optional separate pass enforcement.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    exam_schedule = models.ForeignKey(
+        ExamSchedule, on_delete=models.CASCADE, related_name="components"
+    )
+    name = models.CharField(max_length=100)
+    code = models.CharField(max_length=20)
+    max_marks = models.DecimalField(max_digits=6, decimal_places=2)
+    pass_marks = models.DecimalField(max_digits=6, decimal_places=2)
+    is_theory = models.BooleanField(default=True)
+    requires_separate_pass = models.BooleanField(
+        default=False,
+        help_text="If True, student must score >= pass_marks in this component to pass the subject.",
+    )
+    order = models.PositiveIntegerField(default=0)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["order", "name"]
+        unique_together = ("exam_schedule", "code")
+
+    def __str__(self):
+        return f"{self.exam_schedule} - {self.name} ({self.code})"
+
+    def clean(self):
+        if self.max_marks is not None and self.max_marks <= 0:
+            raise ValidationError({"max_marks": "Maximum marks must be greater than zero."})
+        if self.pass_marks is not None and self.max_marks is not None:
+            if self.pass_marks > self.max_marks:
+                raise ValidationError({"pass_marks": "Pass marks cannot exceed maximum marks."})
+            if self.pass_marks < 0:
+                raise ValidationError({"pass_marks": "Pass marks cannot be negative."})
+
+
 class ExamMark(models.Model):
     """
     Raw, source-of-truth marks for one student in one ExamSchedule.
@@ -239,6 +281,41 @@ class RecheckRequest(models.Model):
                 fields=["mark"], condition=models.Q(status="pending"), name="exam_recheck_one_pending_per_mark"
             ),
         ]
+
+
+class ExamComponentMark(models.Model):
+    """
+    Component-level score for one student mark record (e.g. Theory 65/80, Practical 18/20).
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    mark = models.ForeignKey(
+        ExamMark, on_delete=models.CASCADE, related_name="component_marks"
+    )
+    component = models.ForeignKey(
+        ExamScheduleComponent, on_delete=models.CASCADE, related_name="student_marks"
+    )
+    marks_obtained = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    is_absent = models.BooleanField(default=False)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("mark", "component")
+        ordering = ["component__order", "component__name"]
+
+    def __str__(self):
+        return f"{self.mark.student} - {self.component.name}: {self.marks_obtained}"
+
+    def clean(self):
+        if self.marks_obtained is not None and self.component_id:
+            if self.marks_obtained < 0:
+                raise ValidationError({"marks_obtained": "Marks cannot be negative."})
+            if self.marks_obtained > self.component.max_marks:
+                raise ValidationError(
+                    {"marks_obtained": f"Marks cannot exceed maximum component marks ({self.component.max_marks})."}
+                )
 
 
 class ExamResult(models.Model):
@@ -360,3 +437,103 @@ class ExaminationSettings(models.Model):
     @classmethod
     def load(cls):
         return cls.objects.filter(singleton=True).first() or cls()
+
+
+class TermWeightage(models.Model):
+    """
+    Configurable term weightage per academic year and class level.
+    Used to consolidate multi-term examinations into a final composite academic score
+    (e.g., Periodic Test 10% + Mid-Term 30% + Final 60% = 100%).
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    academic_year = models.CharField(max_length=20)
+    academic_year_ref = models.ForeignKey(
+        "academics.AcademicYear",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    level = models.ForeignKey(
+        "academics.AcademicLevel", on_delete=models.CASCADE, related_name="term_weightages"
+    )
+    examination = models.ForeignKey(
+        Examination, on_delete=models.CASCADE, related_name="term_weightages"
+    )
+    weightage_percentage = models.DecimalField(max_digits=5, decimal_places=2)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("academic_year", "level", "examination")
+        ordering = ["examination__start_date", "examination__name"]
+
+    def __str__(self):
+        return f"{self.level.name} - {self.examination.name} ({self.weightage_percentage}%) [{self.academic_year}]"
+
+    def clean(self):
+        if self.weightage_percentage is not None:
+            if self.weightage_percentage <= 0 or self.weightage_percentage > 100:
+                raise ValidationError({"weightage_percentage": "Weightage percentage must be between 0 and 100."})
+
+
+class CoScholasticActivity(models.Model):
+    """
+    Co-scholastic domains prescribed by boards/schools
+    (e.g., Art Education, Work Education, Health & Physical Education, Discipline).
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=100, unique=True)
+    code = models.CharField(max_length=30, blank=True, default="")
+    description = models.CharField(max_length=255, blank=True, default="")
+    order = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["order", "name"]
+        verbose_name_plural = "Co-scholastic activities"
+
+    def __str__(self):
+        return self.name
+
+
+class CoScholasticGrade(models.Model):
+    """
+    Direct letter grade awarded to a student in a co-scholastic activity for an examination.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    student = models.ForeignKey(
+        "students.Student", on_delete=models.CASCADE, related_name="co_scholastic_grades"
+    )
+    examination = models.ForeignKey(
+        Examination, on_delete=models.CASCADE, related_name="co_scholastic_grades"
+    )
+    activity = models.ForeignKey(
+        CoScholasticActivity, on_delete=models.CASCADE, related_name="grades"
+    )
+    grade = models.CharField(max_length=10)
+    remarks = models.CharField(max_length=255, blank=True, default="")
+    recorded_by = models.ForeignKey(
+        "staff.StaffMember",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="recorded_co_scholastic_grades",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("student", "examination", "activity")
+        ordering = ["activity__order", "activity__name"]
+
+    def __str__(self):
+        return f"{self.student} - {self.activity.name}: {self.grade} ({self.examination.name})"

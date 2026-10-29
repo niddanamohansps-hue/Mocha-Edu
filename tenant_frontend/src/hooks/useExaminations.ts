@@ -4,6 +4,10 @@ import { toast } from "sonner";
 import type { PaginatedResponse } from "@/types/Pagination";
 import {
     BelowPassingReport,
+    CoScholasticActivity,
+    CoScholasticGrade,
+    ExamComponentMark,
+    ExamScheduleComponent,
     Examination,
     ExamMarkRecordInput,
     ExamResult,
@@ -20,6 +24,7 @@ import {
     RecheckStatus,
     SavedMark,
     ScheduleMarks,
+    TermWeightage,
 } from "@/types/Examinations";
 
 function errorMessage(error: any, fallback: string) {
@@ -410,5 +415,148 @@ export const useDeleteGradeBoundary = () => {
             toast.success("Grade boundary deleted");
         },
         onError: (error: any) => toast.error(errorMessage(error, "Failed to delete grade boundary")),
+    });
+};
+
+// === STAGE C: SCHEDULE COMPONENTS ===
+
+export const useExamScheduleComponents = (scheduleId?: string) => {
+    return useQuery({
+        queryKey: ["examinations", "components", scheduleId],
+        queryFn: async () => {
+            const response = await axiosInstance.get(`/examinations/components/?exam_schedule=${scheduleId}`);
+            return response.data as ExamScheduleComponent[];
+        },
+        enabled: !!scheduleId,
+    });
+};
+
+export const useCreateExamScheduleComponent = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (data: Partial<ExamScheduleComponent>) => {
+            const response = await axiosInstance.post("/examinations/components/", data);
+            return response.data as ExamScheduleComponent;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["examinations"] });
+            toast.success("Component created");
+        },
+        onError: (error: any) => toast.error(errorMessage(error, "Failed to create component")),
+    });
+};
+
+export const useDeleteExamScheduleComponent = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (id: string) => {
+            await axiosInstance.delete(`/examinations/components/${id}/`);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["examinations"] });
+            toast.success("Component deleted");
+        },
+        onError: (error: any) => toast.error(errorMessage(error, "Failed to delete component")),
+    });
+};
+
+// === STAGE C: TERM WEIGHTAGES ===
+
+export const useTermWeightages = (academicYear?: string, levelId?: string) => {
+    return useQuery({
+        queryKey: ["examinations", "term-weightages", academicYear, levelId],
+        queryFn: async () => {
+            const params = new URLSearchParams();
+            if (academicYear) params.append("academic_year", academicYear);
+            if (levelId) params.append("level", levelId);
+            const response = await axiosInstance.get(`/examinations/term-weightages/?${params.toString()}`);
+            return response.data as TermWeightage[];
+        },
+        enabled: !!academicYear,
+    });
+};
+
+export const useCreateTermWeightage = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (data: Partial<TermWeightage>) => {
+            const response = await axiosInstance.post("/examinations/term-weightages/", data);
+            return response.data as TermWeightage;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["examinations", "term-weightages"] });
+            toast.success("Term weightage saved");
+        },
+        onError: (error: any) => toast.error(errorMessage(error, "Failed to save term weightage")),
+    });
+};
+
+export const useDeleteTermWeightage = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (id: string) => {
+            await axiosInstance.delete(`/examinations/term-weightages/${id}/`);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["examinations", "term-weightages"] });
+            toast.success("Term weightage deleted");
+        },
+        onError: (error: any) => toast.error(errorMessage(error, "Failed to delete term weightage")),
+    });
+};
+
+// === STAGE C: CO-SCHOLASTIC ACTIVITIES & GRADES ===
+
+export const useCoScholasticActivities = () => {
+    return useQuery({
+        queryKey: ["examinations", "co-scholastic", "activities"],
+        queryFn: async () => {
+            const response = await axiosInstance.get("/examinations/co-scholastic/activities/");
+            return response.data as CoScholasticActivity[];
+        },
+    });
+};
+
+export const useCreateCoScholasticActivity = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (data: Partial<CoScholasticActivity>) => {
+            const response = await axiosInstance.post("/examinations/co-scholastic/activities/", data);
+            return response.data as CoScholasticActivity;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["examinations", "co-scholastic", "activities"] });
+            toast.success("Co-scholastic activity created");
+        },
+        onError: (error: any) => toast.error(errorMessage(error, "Failed to create activity")),
+    });
+};
+
+export const useCoScholasticGrades = (examinationId?: string, studentId?: string) => {
+    return useQuery({
+        queryKey: ["examinations", "co-scholastic", "grades", examinationId, studentId],
+        queryFn: async () => {
+            const params = new URLSearchParams();
+            if (examinationId) params.append("examination", examinationId);
+            if (studentId) params.append("student", studentId);
+            const response = await axiosInstance.get(`/examinations/co-scholastic/grades/?${params.toString()}`);
+            return response.data as CoScholasticGrade[];
+        },
+        enabled: !!examinationId,
+    });
+};
+
+export const useBulkSubmitCoScholasticGrades = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (data: { examination: string; records: { student: string; activity: string; grade: string; remarks?: string }[] }) => {
+            const response = await axiosInstance.post("/examinations/co-scholastic/grades/bulk/", data);
+            return response.data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["examinations", "co-scholastic"] });
+            toast.success("Co-scholastic grades saved");
+        },
+        onError: (error: any) => toast.error(errorMessage(error, "Failed to save co-scholastic grades")),
     });
 };

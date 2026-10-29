@@ -20,7 +20,7 @@ import { LoadingState } from "@/components/feedback/LoadingState";
 import { EmptyState } from "@/components/feedback/EmptyState";
 import { ErrorState } from "@/components/feedback/ErrorState";
 
-type Row = { marks_obtained: string; attendance: MarkAttendance; remarks: string };
+type Row = { marks_obtained: string; attendance: MarkAttendance; remarks: string; components?: Record<string, string> };
 
 const TEXTAREA = "w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent px-3 py-2 text-sm min-h-[70px]";
 
@@ -182,9 +182,20 @@ export default function MarksEntryPage() {
         const initial: Record<string, Row> = {};
         for (const s of roster) {
             const m = byStudent[s.student];
+            const compMarksMap: Record<string, string> = {};
+            if (m?.component_marks) {
+                for (const cm of m.component_marks) {
+                    compMarksMap[cm.component] = cm.marks_obtained === null ? "" : String(Number(cm.marks_obtained));
+                }
+            }
             initial[s.student] = m
-                ? { marks_obtained: m.marks_obtained === null ? "" : String(Number(m.marks_obtained)), attendance: m.attendance, remarks: m.remarks }
-                : { marks_obtained: "", attendance: "present", remarks: "" };
+                ? {
+                    marks_obtained: m.marks_obtained === null ? "" : String(Number(m.marks_obtained)),
+                    attendance: m.attendance,
+                    remarks: m.remarks,
+                    components: compMarksMap,
+                }
+                : { marks_obtained: "", attendance: "present", remarks: "", components: compMarksMap };
         }
         setMarks(initial);
         setReason("");
@@ -197,6 +208,25 @@ export default function MarksEntryPage() {
 
     const update = (student: string, patch: Partial<Row>) => setMarks((prev) => ({ ...prev, [student]: { ...prev[student], ...patch } }));
 
+    const updateComponent = (student: string, componentId: string, val: string) => {
+        setMarks((prev) => {
+            const studentRow = prev[student] || { marks_obtained: "", attendance: "present", remarks: "", components: {} };
+            const updatedComps = { ...(studentRow.components || {}), [componentId]: val };
+            const sum = Object.values(updatedComps).reduce((acc, curr) => {
+                const num = parseFloat(curr);
+                return isNaN(num) ? acc : acc + num;
+            }, 0);
+            return {
+                ...prev,
+                [student]: {
+                    ...studentRow,
+                    components: updatedComps,
+                    marks_obtained: Object.values(updatedComps).some((v) => v !== "") ? String(sum) : "",
+                },
+            };
+        });
+    };
+
     const handleSubmit = () => {
         if (!schedule) return;
         const records = Object.entries(marks).map(([student, m]) => ({
@@ -205,6 +235,13 @@ export default function MarksEntryPage() {
             is_absent: ["absent", "medical", "malpractice"].includes(m.attendance),
             attendance: m.attendance,
             remarks: m.remarks,
+            components: schedule.components && schedule.components.length > 0 && m.components
+                ? Object.entries(m.components).map(([cid, score]) => ({
+                    component: cid,
+                    marks_obtained: score === "" ? null : Number(score),
+                    is_absent: ["absent", "medical", "malpractice"].includes(m.attendance),
+                }))
+                : undefined,
         }));
         submitMarks({ scheduleId: schedule.id, records, reason: reason.trim() });
     };
@@ -308,16 +345,35 @@ export default function MarksEntryPage() {
                                     </select>
                                 ),
                             },
+                            ...(schedule.components && schedule.components.length > 0
+                                ? schedule.components.map((c) => ({
+                                    key: `comp_${c.id}`,
+                                    header: `${c.name} (${Number(c.max_marks)})`,
+                                    cell: (s: any) => (
+                                        <Input
+                                            type="number"
+                                            inputMode="decimal"
+                                            aria-label={`${c.name} marks for ${s.full_name}`}
+                                            className="h-9 w-20"
+                                            disabled={!editable || marks[s.student]?.attendance !== "present"}
+                                            value={marks[s.student]?.components?.[c.id] ?? ""}
+                                            onChange={(e) => updateComponent(s.student, c.id, e.target.value)}
+                                        />
+                                    ),
+                                }))
+                                : []),
                             {
                                 key: "marks",
-                                header: `Marks (out of ${Number(schedule.max_marks)})`,
+                                header: schedule.components && schedule.components.length > 0
+                                    ? `Total (${Number(schedule.max_marks)})`
+                                    : `Marks (out of ${Number(schedule.max_marks)})`,
                                 cell: (s) => (
                                     <Input
                                         type="number"
                                         inputMode="decimal"
                                         aria-label={`Marks for ${s.full_name}`}
                                         className="h-9 w-24"
-                                        disabled={!editable || marks[s.student]?.attendance !== "present"}
+                                        disabled={!editable || marks[s.student]?.attendance !== "present" || (!!schedule.components && schedule.components.length > 0)}
                                         value={marks[s.student]?.marks_obtained ?? ""}
                                         onChange={(e) => update(s.student, { marks_obtained: e.target.value })}
                                     />

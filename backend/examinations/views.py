@@ -1,4 +1,5 @@
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
@@ -11,15 +12,30 @@ from core.audit import log_action
 from core.pagination import StandardResultsPagination
 from roles.permissions import HasPermission
 
-from .models import ExamResult, ExamSchedule, Examination, ExamType, GradeBoundary
+from .models import (
+    CoScholasticActivity,
+    CoScholasticGrade,
+    ExamResult,
+    ExamSchedule,
+    ExamScheduleComponent,
+    Examination,
+    ExamType,
+    GradeBoundary,
+    TermWeightage,
+)
 from .serializers import (
+    BulkCoScholasticGradeEntrySerializer,
+    CoScholasticActivitySerializer,
+    CoScholasticGradeSerializer,
     ExamMarkBulkSerializer,
     ExamResultSerializer,
+    ExamScheduleComponentSerializer,
     ExamScheduleCreateUpdateSerializer,
     ExamScheduleSerializer,
     ExaminationSerializer,
     ExamTypeSerializer,
     GradeBoundarySerializer,
+    TermWeightageSerializer,
 )
 from .services import (
     get_instructor_for_user,
@@ -224,12 +240,14 @@ class ExamScheduleViewSet(viewsets.ModelViewSet):
         # explicitly here rather than assumed to come from the decorator.
         if self.action in ("list", "retrieve"):
             perm = HasPermission("view_examinations")
-        elif self.action in ("marks", "marks_import"):
+        elif self.action in ("marks", "marks_import", "component_marks"):
             perm = HasPermission("enter_marks")
-        elif self.action == "history":
+        elif self.action in ("history",):
             perm = HasPermission("view_examinations")
         elif self.action == "lock":
             perm = HasPermission("manage_marks")
+        elif self.action == "components":
+            perm = HasPermission("view_examinations" if self.request.method == "GET" else "manage_examinations")
         else:
             perm = HasPermission("manage_examinations")
         return [IsAuthenticated(), perm]
@@ -430,6 +448,60 @@ class ExamScheduleViewSet(viewsets.ModelViewSet):
         )
         return Response(ExamScheduleSerializer(schedule).data)
 
+    @action(detail=True, methods=["get", "post"], url_path="components")
+    def components(self, request, pk=None):
+        schedule = self.get_object()
+        if request.method == "GET":
+            return Response(ExamScheduleComponentSerializer(schedule.components.all(), many=True).data)
+
+        if schedule.examination.is_published:
+            return Response({"error": "Cannot modify components of a published examination."}, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = ExamScheduleComponentSerializer(data={**request.data, "exam_schedule": str(schedule.id)})
+        serializer.is_valid(raise_exception=True)
+        comp = serializer.save()
+        log_action(
+            request, action="exam_component_created", model_name="ExamScheduleComponent",
+            object_id=comp.id, changes={"schedule": str(schedule.id), "name": comp.name},
+        )
+        return Response(ExamScheduleComponentSerializer(comp).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["get", "post"], url_path="component-marks")
+    def component_marks(self, request, pk=None):
+        schedule = get_object_or_404(ExamSchedule.objects.select_related("examination"), pk=pk)
+        if not user_can_access_schedule(request, schedule):
+            return Response({"error": "You are not authorized to enter marks for this schedule."}, status=status.HTTP_403_FORBIDDEN)
+
+        if request.method == "GET":
+            from .models import ExamMark
+            from .serializers import ExamMarkSerializer
+            rows = ExamMark.objects.filter(exam_schedule=schedule).select_related("student__profile").prefetch_related("component_marks__component")
+            return Response({
+                "is_published": schedule.examination.is_published,
+                "components": ExamScheduleComponentSerializer(schedule.components.all(), many=True).data,
+                "marks": ExamMarkSerializer(rows, many=True).data,
+            })
+
+        blocked = _marks_blocked(request, schedule)
+        if blocked:
+            return blocked
+
+        serializer = ExamMarkBulkSerializer(data=request.data, exam_schedule=schedule)
+        serializer.is_valid(raise_exception=True)
+
+        entered_by = get_staff_member_for_user(request.user)
+        summary = serializer.save(entered_by=entered_by, user_id=request.user.id, require_reason=schedule.is_locked)
+
+        log_action(
+            request, action="component_marks_submitted", model_name="ExamSchedule", object_id=schedule.id,
+            changes={
+                "examination": str(schedule.examination_id), "schedule": str(schedule.id),
+                "total_records": summary["total"], "absent": summary["absent"],
+                "created": summary["created"], "updated": summary["updated"],
+            },
+        )
+        return Response(ExamScheduleSerializer(schedule).data)
+
 
 class GradeBoundaryViewSet(viewsets.ModelViewSet):
     queryset = GradeBoundary.objects.all()
@@ -462,6 +534,192 @@ class GradeBoundaryViewSet(viewsets.ModelViewSet):
             self.request, action="grading_config_changed", model_name="GradeBoundary", object_id=boundary_id,
             changes={"deleted": label},
         )
+
+
+class ExamScheduleComponentViewSet(viewsets.ModelViewSet):
+    queryset = ExamScheduleComponent.objects.select_related("exam_schedule__examination")
+    serializer_class = ExamScheduleComponentSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ["exam_schedule"]
+
+    def get_permissions(self):
+        perm = HasPermission(
+            "view_examinations" if self.action in ("list", "retrieve") else "manage_examinations"
+        )
+        return [IsAuthenticated(), perm]
+
+    def perform_create(self, serializer):
+        schedule = serializer.validated_data["exam_schedule"]
+        if schedule.examination.is_published:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({"non_field_errors": ["Cannot add components to a published examination."]})
+        comp = serializer.save()
+        log_action(
+            self.request, action="exam_component_created", model_name="ExamScheduleComponent",
+            object_id=comp.id, changes={"schedule": str(schedule.id), "name": comp.name, "max_marks": str(comp.max_marks)},
+        )
+
+    def perform_update(self, serializer):
+        instance = self.get_object()
+        if instance.exam_schedule.examination.is_published:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({"non_field_errors": ["Cannot modify components of a published examination."]})
+        comp = serializer.save()
+        log_action(
+            self.request, action="exam_component_updated", model_name="ExamScheduleComponent",
+            object_id=comp.id, changes={"name": comp.name, "max_marks": str(comp.max_marks)},
+        )
+
+    def perform_destroy(self, instance):
+        if instance.exam_schedule.examination.is_published:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({"non_field_errors": ["Cannot delete components of a published examination."]})
+        comp_id, name = instance.id, instance.name
+        instance.delete()
+        log_action(
+            self.request, action="exam_component_deleted", model_name="ExamScheduleComponent",
+            object_id=comp_id, changes={"name": name},
+        )
+
+
+class TermWeightageViewSet(viewsets.ModelViewSet):
+    queryset = TermWeightage.objects.select_related("level", "examination")
+    serializer_class = TermWeightageSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ["academic_year", "level", "examination"]
+
+    def get_permissions(self):
+        perm = HasPermission(
+            "view_examinations" if self.action in ("list", "retrieve") else "manage_examinations"
+        )
+        return [IsAuthenticated(), perm]
+
+    def perform_create(self, serializer):
+        tw = serializer.save()
+        log_action(
+            self.request, action="term_weightage_created", model_name="TermWeightage",
+            object_id=tw.id, changes={
+                "academic_year": tw.academic_year,
+                "level": str(tw.level_id),
+                "examination": str(tw.examination_id),
+                "weightage_percentage": str(tw.weightage_percentage),
+            },
+        )
+
+    def perform_update(self, serializer):
+        tw = serializer.save()
+        log_action(
+            self.request, action="term_weightage_updated", model_name="TermWeightage",
+            object_id=tw.id, changes={"weightage_percentage": str(tw.weightage_percentage)},
+        )
+
+    def perform_destroy(self, instance):
+        tw_id = instance.id
+        instance.delete()
+        log_action(
+            self.request, action="term_weightage_deleted", model_name="TermWeightage",
+            object_id=tw_id, changes={},
+        )
+
+
+class CoScholasticActivityViewSet(viewsets.ModelViewSet):
+    queryset = CoScholasticActivity.objects.all()
+    serializer_class = CoScholasticActivitySerializer
+
+    def get_permissions(self):
+        perm = HasPermission(
+            "view_examinations" if self.action in ("list", "retrieve") else "manage_examinations"
+        )
+        return [IsAuthenticated(), perm]
+
+    def perform_create(self, serializer):
+        act = serializer.save()
+        log_action(
+            self.request, action="co_scholastic_activity_created", model_name="CoScholasticActivity",
+            object_id=act.id, changes={"name": act.name, "code": act.code},
+        )
+
+    def perform_update(self, serializer):
+        act = serializer.save()
+        log_action(
+            self.request, action="co_scholastic_activity_updated", model_name="CoScholasticActivity",
+            object_id=act.id, changes={"name": act.name},
+        )
+
+    def perform_destroy(self, instance):
+        act_id, name = instance.id, instance.name
+        instance.delete()
+        log_action(
+            self.request, action="co_scholastic_activity_deleted", model_name="CoScholasticActivity",
+            object_id=act_id, changes={"name": name},
+        )
+
+
+class CoScholasticGradeViewSet(viewsets.ModelViewSet):
+    queryset = CoScholasticGrade.objects.select_related("student__profile", "examination", "activity")
+    serializer_class = CoScholasticGradeSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ["examination", "student", "activity"]
+
+    def get_permissions(self):
+        if self.action in ("list", "retrieve"):
+            perm = HasPermission("view_examinations")
+        else:
+            perm = HasPermission("enter_marks")
+        return [IsAuthenticated(), perm]
+
+    def perform_create(self, serializer):
+        staff = get_staff_member_for_user(self.request.user)
+        grade = serializer.save(recorded_by=staff)
+        log_action(
+            self.request, action="co_scholastic_grade_recorded", model_name="CoScholasticGrade",
+            object_id=grade.id, changes={"grade": grade.grade},
+        )
+
+    def perform_update(self, serializer):
+        staff = get_staff_member_for_user(self.request.user)
+        grade = serializer.save(recorded_by=staff)
+        log_action(
+            self.request, action="co_scholastic_grade_updated", model_name="CoScholasticGrade",
+            object_id=grade.id, changes={"grade": grade.grade},
+        )
+
+    @action(detail=False, methods=["post"], url_path="bulk")
+    def bulk_entry(self, request):
+        serializer = BulkCoScholasticGradeEntrySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        exam_id = serializer.validated_data["examination"]
+        records = serializer.validated_data["records"]
+        examination = get_object_or_404(Examination, pk=exam_id)
+
+        staff = get_staff_member_for_user(request.user)
+
+        with transaction.atomic():
+            saved_count = 0
+            for item in records:
+                student_id = item["student"]
+                activity_id = item["activity"]
+                grade_val = item["grade"].strip()
+                remarks_val = item.get("remarks", "").strip()
+
+                CoScholasticGrade.objects.update_or_create(
+                    examination=examination,
+                    student_id=student_id,
+                    activity_id=activity_id,
+                    defaults={
+                        "grade": grade_val,
+                        "remarks": remarks_val,
+                        "recorded_by": staff,
+                    },
+                )
+                saved_count += 1
+
+        log_action(
+            request, action="co_scholastic_grades_bulk_recorded", model_name="CoScholasticGrade",
+            object_id=examination.id, changes={"count": saved_count, "examination": str(exam_id)},
+        )
+        return Response({"status": "success", "saved": saved_count})
 
 
 class StudentResultsView(APIView):

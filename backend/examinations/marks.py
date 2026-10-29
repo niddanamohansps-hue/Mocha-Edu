@@ -16,7 +16,7 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
 
-from .models import ExamMark, ExamMarkChange, ExamResult, RecheckRequest
+from .models import ExamComponentMark, ExamMark, ExamMarkChange, ExamResult, RecheckRequest
 
 NOT_SAT = ExamMark.NOT_SAT
 ATTENDANCE_VALUES = {choice for choice, _ in ExamMark.Attendance.choices}
@@ -33,6 +33,21 @@ def normalise_record(record):
     record["is_absent"] = attendance in NOT_SAT
     if attendance != "present":
         record["marks_obtained"] = None
+        if "components" in record:
+            for c in record["components"]:
+                c["marks_obtained"] = None
+                c["is_absent"] = True
+    elif "components" in record and record.get("marks_obtained") is None:
+        # If student attended and components are provided without top-level marks,
+        # aggregate the components that have scores.
+        total = Decimal("0.00")
+        has_score = False
+        for c in record["components"]:
+            if c.get("marks_obtained") is not None and not c.get("is_absent"):
+                total += Decimal(str(c["marks_obtained"]))
+                has_score = True
+        if has_score:
+            record["marks_obtained"] = total
     return record
 
 
@@ -93,6 +108,48 @@ def record_marks(schedule, records, *, entered_by, user_id, kind=ExamMarkChange.
         ExamMark.objects.bulk_update(updated, ["marks_obtained", "is_absent", "attendance", "remarks", "entered_by", "updated_at"])
     if history:
         ExamMarkChange.objects.bulk_create(history)
+
+    # Component marks handling:
+    has_components_in_records = any("components" in r for r in records)
+    if has_components_in_records:
+        mark_by_student_id = {str(m.student_id): m for m in (created + updated)}
+        existing_comp_marks = {
+            (str(cm.mark_id), str(cm.component_id)): cm
+            for cm in ExamComponentMark.objects.filter(mark__exam_schedule=schedule)
+        }
+        comp_creates = []
+        comp_updates = []
+        for record in records:
+            if "components" not in record:
+                continue
+            student_id = str(record["student"])
+            mark = mark_by_student_id.get(student_id)
+            if not mark:
+                continue
+            is_parent_absent = record.get("is_absent", False)
+            for c_data in record["components"]:
+                c_id = str(c_data["component"])
+                c_absent = is_parent_absent or c_data.get("is_absent", False)
+                c_marks = None if c_absent else c_data.get("marks_obtained")
+                key = (str(mark.id), c_id)
+                if key in existing_comp_marks:
+                    cm = existing_comp_marks[key]
+                    cm.marks_obtained = c_marks
+                    cm.is_absent = c_absent
+                    comp_updates.append(cm)
+                else:
+                    comp_creates.append(
+                        ExamComponentMark(
+                            mark=mark,
+                            component_id=c_id,
+                            marks_obtained=c_marks,
+                            is_absent=c_absent,
+                        )
+                    )
+        if comp_creates:
+            ExamComponentMark.objects.bulk_create(comp_creates)
+        if comp_updates:
+            ExamComponentMark.objects.bulk_update(comp_updates, ["marks_obtained", "is_absent", "updated_at"])
 
     return {
         "created": len(created),

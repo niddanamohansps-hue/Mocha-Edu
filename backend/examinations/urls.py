@@ -3,7 +3,10 @@ from rest_framework.routers import DefaultRouter
 
 from .views import (
     BelowPassingReportView,
+    CoScholasticActivityViewSet,
+    CoScholasticGradeViewSet,
     ExamMarkGraceView,
+    ExamScheduleComponentViewSet,
     ExamScheduleViewSet,
     ExaminationSettingsView,
     ExaminationViewSet,
@@ -13,12 +16,17 @@ from .views import (
     StudentReportCardView,
     StudentResultsView,
     StudentTranscriptView,
+    TermWeightageViewSet,
 )
 
 router = DefaultRouter()
 router.register(r"types", ExamTypeViewSet, basename="exam-type")
 router.register(r"examinations", ExaminationViewSet, basename="examination")
 router.register(r"schedules", ExamScheduleViewSet, basename="exam-schedule")
+router.register(r"components", ExamScheduleComponentViewSet, basename="exam-schedule-component")
+router.register(r"term-weightages", TermWeightageViewSet, basename="term-weightage")
+router.register(r"co-scholastic/activities", CoScholasticActivityViewSet, basename="coscholastic-activity")
+router.register(r"co-scholastic/grades", CoScholasticGradeViewSet, basename="coscholastic-grade")
 router.register(r"grading", GradeBoundaryViewSet, basename="grade-boundary")
 router.register(r"rechecks", RecheckViewSet, basename="exam-recheck")
 

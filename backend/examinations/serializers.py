@@ -1,14 +1,20 @@
 from django.db import IntegrityError
 from rest_framework import serializers
 
-from .models import ExamMarkChange, RecheckRequest
 from .models import (
+    CoScholasticActivity,
+    CoScholasticGrade,
+    ExamComponentMark,
     ExamMark,
+    ExamMarkChange,
     ExamResult,
     ExamSchedule,
+    ExamScheduleComponent,
     Examination,
     ExamType,
     GradeBoundary,
+    RecheckRequest,
+    TermWeightage,
 )
 from .services import validate_exam_schedule
 
@@ -41,6 +47,36 @@ class ExaminationSerializer(serializers.ModelSerializer):
         return attrs
 
 
+class ExamScheduleComponentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ExamScheduleComponent
+        fields = [
+            "id", "exam_schedule", "name", "code", "max_marks", "pass_marks",
+            "is_theory", "requires_separate_pass", "order", "created_at", "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+    def validate(self, attrs):
+        instance = ExamScheduleComponent(
+            id=self.instance.id if self.instance else None,
+            exam_schedule=attrs.get("exam_schedule", getattr(self.instance, "exam_schedule", None)),
+            name=attrs.get("name", getattr(self.instance, "name", "")),
+            code=attrs.get("code", getattr(self.instance, "code", "")),
+            max_marks=attrs.get("max_marks", getattr(self.instance, "max_marks", None)),
+            pass_marks=attrs.get("pass_marks", getattr(self.instance, "pass_marks", None)),
+            is_theory=attrs.get("is_theory", getattr(self.instance, "is_theory", True)),
+            requires_separate_pass=attrs.get("requires_separate_pass", getattr(self.instance, "requires_separate_pass", False)),
+            order=attrs.get("order", getattr(self.instance, "order", 0)),
+        )
+        try:
+            instance.clean()
+        except Exception as exc:
+            raise serializers.ValidationError(
+                exc.message_dict if hasattr(exc, "message_dict") else {"non_field_errors": exc.messages}
+            )
+        return attrs
+
+
 class ExamScheduleSerializer(serializers.ModelSerializer):
     """Read shape."""
 
@@ -49,6 +85,7 @@ class ExamScheduleSerializer(serializers.ModelSerializer):
     room_name = serializers.CharField(source="room.name", read_only=True)
     period_name = serializers.CharField(source="period.name", read_only=True)
     examination_name = serializers.CharField(source="examination.name", read_only=True)
+    components = ExamScheduleComponentSerializer(many=True, read_only=True)
 
     class Meta:
         model = ExamSchedule
@@ -56,7 +93,7 @@ class ExamScheduleSerializer(serializers.ModelSerializer):
             "id", "examination", "examination_name", "academic_year", "subject", "subject_name",
             "section", "section_name", "date", "start_time", "end_time", "period", "period_name",
             "room", "room_name", "max_marks", "pass_marks", "is_locked", "locked_at",
-            "created_at", "updated_at",
+            "components", "created_at", "updated_at",
         ]
         read_only_fields = ["id", "is_locked", "locked_at", "created_at", "updated_at"]
 
@@ -114,6 +151,12 @@ class ExamScheduleCreateUpdateSerializer(serializers.ModelSerializer):
             )
 
 
+class StudentComponentMarkInputSerializer(serializers.Serializer):
+    component = serializers.UUIDField()
+    marks_obtained = serializers.DecimalField(max_digits=6, decimal_places=2, required=False, allow_null=True)
+    is_absent = serializers.BooleanField(default=False)
+
+
 class ExamMarkRecordInputSerializer(serializers.Serializer):
     student = serializers.UUIDField()
     marks_obtained = serializers.DecimalField(max_digits=6, decimal_places=2, required=False, allow_null=True)
@@ -121,6 +164,7 @@ class ExamMarkRecordInputSerializer(serializers.Serializer):
     # Optional; older clients send only is_absent. See marks.normalise_record.
     attendance = serializers.ChoiceField(choices=ExamMark.Attendance.choices, required=False)
     remarks = serializers.CharField(max_length=255, required=False, allow_blank=True, default="")
+    components = StudentComponentMarkInputSerializer(many=True, required=False)
 
     def validate(self, attrs):
         from .marks import normalise_record
@@ -128,15 +172,34 @@ class ExamMarkRecordInputSerializer(serializers.Serializer):
         return normalise_record(attrs)
 
 
+class ExamComponentMarkSerializer(serializers.ModelSerializer):
+    component_name = serializers.CharField(source="component.name", read_only=True)
+    component_code = serializers.CharField(source="component.code", read_only=True)
+    max_marks = serializers.DecimalField(source="component.max_marks", max_digits=6, decimal_places=2, read_only=True)
+    pass_marks = serializers.DecimalField(source="component.pass_marks", max_digits=6, decimal_places=2, read_only=True)
+    requires_separate_pass = serializers.BooleanField(source="component.requires_separate_pass", read_only=True)
+
+    class Meta:
+        model = ExamComponentMark
+        fields = [
+            "id", "mark", "component", "component_name", "component_code",
+            "max_marks", "pass_marks", "requires_separate_pass",
+            "marks_obtained", "is_absent", "created_at", "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+
 class ExamMarkSerializer(serializers.ModelSerializer):
     student_name = serializers.SerializerMethodField()
     enrollment_id = serializers.CharField(source="student.enrollment_id", read_only=True)
+    component_marks = ExamComponentMarkSerializer(many=True, read_only=True)
 
     class Meta:
         model = ExamMark
         fields = [
             "id", "student", "student_name", "enrollment_id", "marks_obtained",
-            "is_absent", "attendance", "grace_marks", "remarks", "entered_by", "created_at", "updated_at",
+            "is_absent", "attendance", "grace_marks", "remarks", "entered_by",
+            "component_marks", "created_at", "updated_at",
         ]
         read_only_fields = ["id", "entered_by", "grace_marks", "created_at", "updated_at"]
 
@@ -165,6 +228,10 @@ class ExamMarkBulkSerializer(serializers.Serializer):
         if not records:
             raise serializers.ValidationError("At least one record is required.")
 
+        schedule_components = {}
+        if self._exam_schedule:
+            schedule_components = {str(c.id): c for c in self._exam_schedule.components.all()}
+
         seen = set()
         for record in records:
             student_id = str(record["student"])
@@ -173,6 +240,24 @@ class ExamMarkBulkSerializer(serializers.Serializer):
                     f"Duplicate entry for student {student_id} in the same submission."
                 )
             seen.add(student_id)
+
+            if "components" in record:
+                for c_data in record["components"]:
+                    cid = str(c_data["component"])
+                    if schedule_components and cid not in schedule_components:
+                        raise serializers.ValidationError(
+                            f"Component {cid} does not belong to this exam schedule."
+                        )
+                    comp = schedule_components.get(cid)
+                    c_marks = c_data.get("marks_obtained")
+                    if c_marks is not None:
+                        if c_marks < 0:
+                            raise serializers.ValidationError(f"Component marks for student {student_id} cannot be negative.")
+                        if comp and c_marks > comp.max_marks:
+                            raise serializers.ValidationError(
+                                f"Component '{comp.name}' marks for student {student_id} ({c_marks}) "
+                                f"cannot exceed maximum marks ({comp.max_marks})."
+                            )
 
             marks = record.get("marks_obtained")
             if marks is not None:
@@ -297,3 +382,77 @@ class GradeBoundarySerializer(serializers.ModelSerializer):
             setattr(instance, field, value)
         instance.save()
         return instance
+
+
+class TermWeightageSerializer(serializers.ModelSerializer):
+    level_name = serializers.CharField(source="level.name", read_only=True)
+    examination_name = serializers.CharField(source="examination.name", read_only=True)
+
+    class Meta:
+        model = TermWeightage
+        fields = [
+            "id", "academic_year", "level", "level_name", "examination",
+            "examination_name", "weightage_percentage", "created_at", "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+    def validate(self, attrs):
+        instance = TermWeightage(
+            id=self.instance.id if self.instance else None,
+            academic_year=attrs.get("academic_year", getattr(self.instance, "academic_year", "")),
+            level=attrs.get("level", getattr(self.instance, "level", None)),
+            examination=attrs.get("examination", getattr(self.instance, "examination", None)),
+            weightage_percentage=attrs.get("weightage_percentage", getattr(self.instance, "weightage_percentage", None)),
+        )
+        try:
+            instance.clean()
+        except Exception as exc:
+            raise serializers.ValidationError(
+                exc.message_dict if hasattr(exc, "message_dict") else {"non_field_errors": exc.messages}
+            )
+        return attrs
+
+
+class CoScholasticActivitySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CoScholasticActivity
+        fields = ["id", "name", "code", "description", "order", "is_active", "created_at", "updated_at"]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+
+class CoScholasticGradeSerializer(serializers.ModelSerializer):
+    student_name = serializers.SerializerMethodField()
+    enrollment_id = serializers.CharField(source="student.enrollment_id", read_only=True)
+    examination_name = serializers.CharField(source="examination.name", read_only=True)
+    activity_name = serializers.CharField(source="activity.name", read_only=True)
+    activity_code = serializers.CharField(source="activity.code", read_only=True)
+
+    class Meta:
+        model = CoScholasticGrade
+        fields = [
+            "id", "student", "student_name", "enrollment_id", "examination",
+            "examination_name", "activity", "activity_name", "activity_code",
+            "grade", "remarks", "recorded_by", "created_at", "updated_at",
+        ]
+        read_only_fields = ["id", "recorded_by", "created_at", "updated_at"]
+
+    def get_student_name(self, obj):
+        profile = obj.student.profile
+        return f"{profile.first_name} {profile.last_name}"
+
+
+class SingleCoScholasticGradeInputSerializer(serializers.Serializer):
+    student = serializers.UUIDField()
+    activity = serializers.UUIDField()
+    grade = serializers.CharField(max_length=10)
+    remarks = serializers.CharField(max_length=255, required=False, allow_blank=True, default="")
+
+
+class BulkCoScholasticGradeEntrySerializer(serializers.Serializer):
+    examination = serializers.UUIDField()
+    records = SingleCoScholasticGradeInputSerializer(many=True)
+
+    def validate_records(self, records):
+        if not records:
+            raise serializers.ValidationError("At least one grade record is required.")
+        return records

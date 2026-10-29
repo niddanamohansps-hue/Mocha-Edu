@@ -217,7 +217,37 @@ export const PrintableReportCard: React.FC<PrintableReportCardProps> = ({
                                         {exam.subject_breakdown.map((sub, sIdx) => (
                                             <tr key={sub.subject || sIdx} className={sIdx % 2 === 1 ? "bg-slate-50/50" : ""}>
                                                 <td className="py-2 px-3 text-slate-400">{sIdx + 1}</td>
-                                                <td className="py-2 px-3 font-semibold text-slate-900">{sub.subject_name}</td>
+                                                <td className="py-2 px-3 font-semibold text-slate-900">
+                                                    <div>{sub.subject_name}</div>
+                                                    {sub.components && sub.components.length > 0 && (
+                                                        <div className="flex flex-wrap gap-1.5 mt-1 text-[11px] font-normal text-slate-600">
+                                                            {sub.components.map((c, cIdx) => (
+                                                                <span
+                                                                    key={c.component_id || cIdx}
+                                                                    className={`inline-flex items-center px-1.5 py-0.5 rounded border ${
+                                                                        c.requires_separate_pass && !c.is_pass
+                                                                            ? "bg-red-50 text-red-700 border-red-200"
+                                                                            : "bg-slate-100 text-slate-700 border-slate-200"
+                                                                    }`}
+                                                                >
+                                                                    <span className="font-semibold mr-1">{c.code}:</span>
+                                                                    {c.is_absent ? (
+                                                                        <span className="text-red-600 font-semibold">Ab</span>
+                                                                    ) : (
+                                                                        <span>
+                                                                            {c.marks_obtained !== null ? c.marks_obtained : "—"}/{c.max_marks}
+                                                                        </span>
+                                                                    )}
+                                                                    {c.requires_separate_pass && !c.is_pass && (
+                                                                        <span className="ml-1 text-[9px] uppercase font-bold text-red-600">
+                                                                            (Fail)
+                                                                        </span>
+                                                                    )}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </td>
                                                 <td className="py-2 px-3 text-center text-slate-600">{sub.credits ?? 1.0}</td>
                                                 <td className="py-2 px-3 text-right text-slate-600">{sub.max_marks}</td>
                                                 <td className="py-2 px-3 text-right font-medium text-slate-900">
@@ -335,6 +365,111 @@ export const PrintableReportCard: React.FC<PrintableReportCardProps> = ({
                                 )}
                             </div>
                         )}
+                    </div>
+                )}
+
+                {/* Term Weightage Consolidated Breakdown */}
+                {reportCard.term_weightage && reportCard.term_weightage.terms && reportCard.term_weightage.terms.length > 0 && (
+                    <div className="mt-6 border border-slate-300 rounded-xl overflow-hidden bg-white">
+                        <div className="bg-slate-100 px-4 py-2 border-b border-slate-300">
+                            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900">
+                                Consolidated Term Evaluation & Weightage Breakdown
+                            </h4>
+                        </div>
+                        <div className="w-full overflow-x-auto">
+                            <table className="w-full text-xs text-left">
+                                <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 uppercase font-semibold">
+                                    <tr>
+                                        <th className="py-2 px-3">Evaluation Term</th>
+                                        <th className="py-2 px-3 text-right">Prescribed Weight</th>
+                                        <th className="py-2 px-3 text-right">Term Percentage</th>
+                                        <th className="py-2 px-3 text-right">Weighted Contribution</th>
+                                        <th className="py-2 px-3 text-center">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-200">
+                                    {reportCard.term_weightage.terms.map((t, tIdx) => (
+                                        <tr key={t.examination_id || tIdx}>
+                                            <td className="py-2 px-3 font-semibold text-slate-900">
+                                                {t.examination_name}
+                                            </td>
+                                            <td className="py-2 px-3 text-right text-slate-600">
+                                                {t.weightage_percentage}%
+                                            </td>
+                                            <td className="py-2 px-3 text-right font-medium text-slate-900">
+                                                {t.percentage !== null ? `${t.percentage}%` : "—"}
+                                            </td>
+                                            <td className="py-2 px-3 text-right font-bold text-indigo-700">
+                                                {t.weighted_contribution !== null ? `${t.weighted_contribution}%` : "—"}
+                                            </td>
+                                            <td className="py-2 px-3 text-center">
+                                                <span className={`font-semibold ${t.is_pass ? "text-emerald-700" : "text-red-600"}`}>
+                                                    {t.is_pass ? "Pass" : "Fail"}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                                <tfoot className="bg-slate-100 font-bold border-t-2 border-slate-300 text-slate-900">
+                                    <tr>
+                                        <td className="py-2 px-3 uppercase text-xs">Composite Score</td>
+                                        <td className="py-2 px-3 text-right">{reportCard.term_weightage.total_weightage}%</td>
+                                        <td className="py-2 px-3 text-right">—</td>
+                                        <td className="py-2 px-3 text-right text-indigo-800">
+                                            {reportCard.term_weightage.composite_score !== null ? `${reportCard.term_weightage.composite_score}%` : "—"}
+                                        </td>
+                                        <td className="py-2 px-3 text-center text-indigo-900">
+                                            Grade: {reportCard.term_weightage.overall_grade || "—"}
+                                        </td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+                )}
+
+                {/* Co-Scholastic Activities Section (CBSE 8-Point Scale) */}
+                {reportCard.co_scholastic && reportCard.co_scholastic.length > 0 && (
+                    <div className="mt-6 border border-slate-300 rounded-xl overflow-hidden bg-white">
+                        <div className="bg-slate-100 px-4 py-2 border-b border-slate-300 flex items-center justify-between">
+                            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900">
+                                Co-Scholastic Activities & Domain Assessment
+                            </h4>
+                            <span className="text-[10px] font-semibold text-slate-500 uppercase">Graded on Direct Letter Scale</span>
+                        </div>
+                        <div className="w-full overflow-x-auto">
+                            <table className="w-full text-xs text-left">
+                                <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 uppercase font-semibold">
+                                    <tr>
+                                        <th className="py-2 px-3 w-12">#</th>
+                                        <th className="py-2 px-3">Activity / Assessment Domain</th>
+                                        <th className="py-2 px-3 text-center w-24">Grade Awarded</th>
+                                        <th className="py-2 px-3">Descriptive Indicators / Remarks</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-200">
+                                    {reportCard.co_scholastic.map((act, aIdx) => (
+                                        <tr key={act.activity_id || aIdx} className={aIdx % 2 === 1 ? "bg-slate-50/50" : ""}>
+                                            <td className="py-2 px-3 text-slate-400">{aIdx + 1}</td>
+                                            <td className="py-2 px-3 font-semibold text-slate-900">
+                                                {act.activity_name}
+                                                {act.activity_code && (
+                                                    <span className="text-slate-400 font-normal ml-1">({act.activity_code})</span>
+                                                )}
+                                            </td>
+                                            <td className="py-2 px-3 text-center font-black text-indigo-700 text-sm">
+                                                <span className="inline-block px-2.5 py-0.5 rounded bg-indigo-50 border border-indigo-200">
+                                                    {act.grade}
+                                                </span>
+                                            </td>
+                                            <td className="py-2 px-3 text-slate-700 italic">
+                                                {act.remarks || "Satisfactory participation and conduct."}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 )}
 

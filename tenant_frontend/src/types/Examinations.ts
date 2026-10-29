@@ -44,6 +44,7 @@ export interface ExamSchedule {
     pass_marks: string;
     is_locked: boolean;
     locked_at: string | null;
+    components?: ExamScheduleComponent[];
 }
 
 export interface ExamScheduleInput {
@@ -66,6 +67,11 @@ export interface ExamMarkRecordInput {
     is_absent: boolean;
     attendance?: MarkAttendance;
     remarks?: string;
+    components?: {
+        component: string;
+        marks_obtained: number | null;
+        is_absent?: boolean;
+    }[];
 }
 
 export interface ExamMark {
@@ -76,6 +82,19 @@ export interface ExamMark {
     marks_obtained: string | null;
     is_absent: boolean;
     remarks: string;
+}
+
+export interface SubjectComponentResult {
+    component_id: string;
+    name: string;
+    code: string;
+    max_marks: number;
+    pass_marks: number;
+    marks_obtained: number | null;
+    is_absent: boolean;
+    is_theory: boolean;
+    requires_separate_pass: boolean;
+    is_pass: boolean;
 }
 
 export interface SubjectResultBreakdown {
@@ -89,6 +108,7 @@ export interface SubjectResultBreakdown {
     is_pass: boolean;
     attendance?: MarkAttendance;
     grace_marks?: number;
+    components?: SubjectComponentResult[];
 }
 
 export interface ExamResult {
@@ -155,6 +175,7 @@ export interface ReportCardSubjectBreakdown {
     credits: number;
     is_absent: boolean;
     is_pass: boolean;
+    components?: SubjectComponentResult[];
 }
 
 export interface ReportCardExamination {
@@ -199,6 +220,26 @@ export interface ReportCard {
     attendance?: AttendanceSummary;
     promotion?: PromotionSummary | null;
     remarks?: TeacherRemark[];
+    co_scholastic?: {
+        activity_id: string;
+        activity_name: string;
+        activity_code: string;
+        grade: string;
+        remarks: string;
+    }[];
+    term_weightage?: {
+        total_weightage: number;
+        composite_score: number | null;
+        overall_grade: string | null;
+        terms: {
+            examination_id: string;
+            examination_name: string;
+            weightage_percentage: number;
+            percentage: number | null;
+            weighted_contribution: number | null;
+            is_pass: boolean;
+        }[];
+    } | null;
     generated_at?: string;
 }
 
@@ -288,6 +329,7 @@ export interface SavedMark {
     attendance: MarkAttendance;
     grace_marks: string;
     remarks: string;
+    component_marks?: ExamComponentMark[];
 }
 
 export interface ScheduleMarks {
@@ -340,4 +382,62 @@ export interface RecheckRequest {
     decision_comment: string;
     created_at: string;
     decided_at: string | null;
+}
+
+export interface ExamScheduleComponent {
+    id: string;
+    exam_schedule: string;
+    name: string;
+    code: string;
+    max_marks: string;
+    pass_marks: string;
+    is_theory: boolean;
+    requires_separate_pass: boolean;
+    order: number;
+}
+
+export interface ExamComponentMark {
+    id: string;
+    mark: string;
+    component: string;
+    component_name: string;
+    component_code: string;
+    max_marks: string;
+    pass_marks: string;
+    requires_separate_pass: boolean;
+    marks_obtained: string | null;
+    is_absent: boolean;
+}
+
+export interface TermWeightage {
+    id: string;
+    academic_year: string;
+    level: string;
+    level_name?: string;
+    examination: string;
+    examination_name?: string;
+    weightage_percentage: string;
+}
+
+export interface CoScholasticActivity {
+    id: string;
+    name: string;
+    code: string;
+    description: string;
+    order: number;
+    is_active: boolean;
+}
+
+export interface CoScholasticGrade {
+    id: string;
+    student: string;
+    student_name?: string;
+    enrollment_id?: string;
+    examination: string;
+    examination_name?: string;
+    activity: string;
+    activity_name?: string;
+    activity_code?: string;
+    grade: string;
+    remarks?: string;
 }
