@@ -14,6 +14,7 @@ import { NotificationBell } from "@/components/dashboard/NotificationBell";
 import { PermissionProvider } from "@/providers/PermissionProvider";
 import { AcademicYearProvider } from "@/providers/AcademicYearProvider";
 import { AcademicYearSelector } from "@/components/dashboard/AcademicYearSelector";
+import { QuickActionMenu } from "@/components/dashboard/QuickActionMenu";
 import PasswordChangeGuard from "@/components/PasswordChangeGuard";
 import { CommandPalette } from "@/components/dashboard/CommandPalette";
 import { MobileBottomNav } from "@/components/parent-portal/MobileBottomNav";
@@ -112,6 +113,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                                         <Search className="h-5 w-5" />
                                     </button>
                                     <AcademicYearSelector />
+                                    <QuickActionMenu />
                                     <NotificationBell />
                                     <ProfileMenu />
                                 </div>
