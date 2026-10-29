@@ -36,7 +36,9 @@ import {
     Loader2,
     GraduationCap,
     Clock,
-    Filter,
+    X,
+    MoreHorizontal,
+    Eye,
 } from "lucide-react";
 
 const STATUS_FILTER_OPTIONS: { label: string; value: string }[] = [
@@ -52,6 +54,34 @@ const STATUS_FILTER_OPTIONS: { label: string; value: string }[] = [
     { label: "Offer Accepted", value: "offer_accepted" },
     { label: "Enrolled", value: "enrolled" },
 ];
+
+const AVATAR_PALETTES = [
+    { bg: "bg-sky-100 dark:bg-sky-950/70", text: "text-sky-700 dark:text-sky-300", border: "border-sky-300/60 dark:border-sky-800" },
+    { bg: "bg-emerald-100 dark:bg-emerald-950/70", text: "text-emerald-700 dark:text-emerald-300", border: "border-emerald-300/60 dark:border-emerald-800" },
+    { bg: "bg-indigo-100 dark:bg-indigo-950/70", text: "text-indigo-700 dark:text-indigo-300", border: "border-indigo-300/60 dark:border-indigo-800" },
+    { bg: "bg-purple-100 dark:bg-purple-950/70", text: "text-purple-700 dark:text-purple-300", border: "border-purple-300/60 dark:border-purple-800" },
+    { bg: "bg-amber-100 dark:bg-amber-950/70", text: "text-amber-700 dark:text-amber-300", border: "border-amber-300/60 dark:border-amber-800" },
+    { bg: "bg-rose-100 dark:bg-rose-950/70", text: "text-rose-700 dark:text-rose-300", border: "border-rose-300/60 dark:border-rose-800" },
+    { bg: "bg-teal-100 dark:bg-teal-950/70", text: "text-teal-700 dark:text-teal-300", border: "border-teal-300/60 dark:border-teal-800" },
+];
+
+function getAvatarStyle(name: string) {
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+        hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const index = Math.abs(hash) % AVATAR_PALETTES.length;
+    return AVATAR_PALETTES[index];
+}
+
+function getInitials(name: string) {
+    if (!name) return "AP";
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) {
+        return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
+}
 
 export default function ApplicationsTab() {
     const { can, isOwner } = usePermissions();
@@ -89,92 +119,68 @@ export default function ApplicationsTab() {
     const getStatusBadge = (status: ApplicationStatus) => {
         switch (status) {
             case "draft":
-                return <Badge variant="outline" className="font-semibold capitalize">Draft</Badge>;
+                return <Badge variant="outline" className="font-semibold text-xs capitalize">Draft</Badge>;
             case "submitted":
-                return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 border-none font-semibold">Submitted</Badge>;
+                return <Badge className="bg-sky-50 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300 border border-sky-300/80 font-semibold text-xs">Submitted</Badge>;
             case "under_review":
-                return <Badge className="bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300 border-none font-semibold">Under Review</Badge>;
+                return <Badge className="bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-300/80 font-semibold text-xs">Under Review</Badge>;
             case "documents_pending":
-                return <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border-none font-semibold">Docs Pending</Badge>;
+                return <Badge className="bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300/80 font-semibold text-xs">Docs Pending</Badge>;
             case "documents_verified":
-                return <Badge className="bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300 border-none font-semibold">Docs Verified</Badge>;
+                return <Badge className="bg-teal-50 text-teal-700 dark:bg-teal-950/60 dark:text-teal-300 border border-teal-300/80 font-semibold text-xs">Docs Verified</Badge>;
             case "assessment_pending":
-                return <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300 border-none font-semibold">Assessment Pending</Badge>;
+                return <Badge className="bg-purple-50 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-300/80 font-semibold text-xs">Assessment Pending</Badge>;
             case "approved":
-                return <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 border-none font-semibold">Approved</Badge>;
+                return <Badge className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300/80 font-semibold text-xs">Approved</Badge>;
             case "waitlisted":
-                return <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300 border-none font-semibold">Waitlisted</Badge>;
+                return <Badge className="bg-orange-50 text-orange-700 dark:bg-orange-950/60 dark:text-orange-300 border border-orange-300/80 font-semibold text-xs">Waitlisted</Badge>;
             case "rejected":
-                return <Badge className="bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 border-none font-semibold">Rejected</Badge>;
+                return <Badge className="bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-300/80 font-semibold text-xs">Rejected</Badge>;
             case "offer_accepted":
-                return <Badge className="bg-cyan-100 text-cyan-800 dark:bg-cyan-900/40 dark:text-cyan-300 border-none font-semibold">Offer Accepted</Badge>;
+                return <Badge className="bg-cyan-50 text-cyan-700 dark:bg-cyan-950/60 dark:text-cyan-300 border border-cyan-300/80 font-semibold text-xs">Offer Accepted</Badge>;
             case "enrolled":
-                return <Badge className="bg-green-600 text-white border-none font-bold">Enrolled</Badge>;
+                return <Badge className="bg-emerald-600 text-white border-none font-bold text-xs">Enrolled</Badge>;
             case "withdrawn":
-                return <Badge className="bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-none font-semibold">Withdrawn</Badge>;
+                return <Badge className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-none font-semibold text-xs">Withdrawn</Badge>;
             default:
-                return <Badge variant="outline">{status}</Badge>;
+                return <Badge variant="outline" className="text-xs">{status}</Badge>;
         }
     };
 
     return (
-        <div className="space-y-6">
-            {/* Header controls: Search & Filters */}
-            <div className="flex flex-col gap-4">
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-                    <div className="relative flex-1 max-w-md">
-                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                        <Input aria-label="Search by name, app #, enq #, phone..."
-                            placeholder="Search by name, app #, enq #, phone..."
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            className="pl-10 h-11 bg-white dark:bg-slate-900 rounded-xl border-slate-200 dark:border-slate-800 shadow-sm"
-                        />
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                        {canManageApplications && (
-                            <Button
-                                onClick={() => setNewAppOpen(true)}
-                                className="h-11 px-5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold gap-2 shadow-sm"
-                            >
-                                <Plus className="h-4 w-4" />
-                                New Application
-                            </Button>
-                        )}
-                    </div>
+        <div className="space-y-4">
+            {/* 1. High-Density Unified Filter Bar (Zero Dead Space) */}
+            <div className="p-3 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl shadow-2xs flex flex-col md:flex-row gap-2.5 items-center justify-between">
+                {/* Search Input */}
+                <div className="relative flex-1 w-full">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <Input
+                        aria-label="Search by name, app #, enq #, phone..."
+                        placeholder="Search by student name, application number, phone..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        className="pl-9 pr-8 h-9 text-xs rounded-lg border-slate-200 dark:border-slate-800 focus:border-sky-500 focus:ring-1 focus:ring-sky-500/20 bg-slate-50/50 dark:bg-slate-950/50"
+                    />
+                    {search && (
+                        <button
+                            onClick={() => setSearch("")}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-slate-400 hover:text-slate-600"
+                        >
+                            <X className="h-3.5 w-3.5" />
+                        </button>
+                    )}
                 </div>
 
-                {/* Filter Row */}
-                <div className="flex flex-wrap items-center gap-2.5 pt-1">
-                    <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider mr-1">
-                        <Filter className="w-3.5 h-3.5" /> Filters:
-                    </div>
-
-                    {/* Status Select */}
-                    <div className="w-44">
-                        <Select value={statusFilter} onValueChange={setStatusFilter}>
-                            <SelectTrigger className="h-9 text-xs rounded-lg bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
-                                <SelectValue placeholder="All Statuses" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {STATUS_FILTER_OPTIONS.map((opt) => (
-                                    <SelectItem key={opt.value} value={opt.value} className="text-xs">
-                                        {opt.label}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-
+                {/* Grade & Year Dropdowns */}
+                <div className="flex items-center gap-2 w-full md:w-auto shrink-0 justify-between sm:justify-start">
                     {/* Grade Level Select */}
-                    <div className="w-44">
+                    <div className="w-38 sm:w-44">
                         <Select value={levelFilter} onValueChange={setLevelFilter}>
                             <SelectTrigger className="h-9 text-xs rounded-lg bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
-                                <SelectValue placeholder="All Grades/Levels" />
+                                <SelectValue placeholder="All Grades" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="all" className="text-xs">All Grades/Levels</SelectItem>
+                                <SelectItem value="all" className="text-xs">All Grades / Levels</SelectItem>
                                 {levels.map((lvl) => (
                                     <SelectItem key={lvl.id} value={lvl.id} className="text-xs">
                                         {lvl.name}
@@ -185,13 +191,13 @@ export default function ApplicationsTab() {
                     </div>
 
                     {/* Academic Year Select */}
-                    <div className="w-44">
+                    <div className="w-36 sm:w-40">
                         <Select value={yearFilter} onValueChange={setYearFilter}>
                             <SelectTrigger className="h-9 text-xs rounded-lg bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
-                                <SelectValue placeholder="All Academic Years" />
+                                <SelectValue placeholder="All Years" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="all" className="text-xs">All Academic Years</SelectItem>
+                                <SelectItem value="all" className="text-xs">All Years</SelectItem>
                                 {years.map((y) => (
                                     <SelectItem key={y.id} value={y.id} className="text-xs">
                                         {y.name} {y.is_current ? "(Current)" : ""}
@@ -201,26 +207,25 @@ export default function ApplicationsTab() {
                         </Select>
                     </div>
 
-                    {(statusFilter !== "all" || levelFilter !== "all" || yearFilter !== "all" || search) && (
+                    {(levelFilter !== "all" || yearFilter !== "all" || search) && (
                         <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => {
-                                setStatusFilter("all");
                                 setLevelFilter("all");
                                 setYearFilter("all");
                                 setSearch("");
                             }}
-                            className="h-9 text-xs text-slate-500 hover:text-slate-800"
+                            className="h-9 px-2 text-xs text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40"
                         >
-                            Reset Filters
+                            Reset
                         </Button>
                     )}
                 </div>
             </div>
 
-            {/* Quick Status Bar / Tabs */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-2 scrollbar-none">
+            {/* 2. Streamlined Status Funnel Bar (Eliminated Duplicate Status Dropdown) */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs scrollbar-none">
                 {STATUS_FILTER_OPTIONS.map((opt) => {
                     const active = statusFilter === opt.value;
                     return (
@@ -228,10 +233,10 @@ export default function ApplicationsTab() {
                             key={opt.value}
                             type="button"
                             onClick={() => setStatusFilter(opt.value)}
-                            className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
                                 active
-                                    ? "bg-blue-600 text-white shadow-sm"
-                                    : "bg-slate-100 hover:bg-slate-200 text-slate-600 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300"
+                                    ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-2xs"
+                                    : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200/80 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800"
                             }`}
                         >
                             {opt.label}
@@ -240,19 +245,19 @@ export default function ApplicationsTab() {
                 })}
             </div>
 
-            {/* Applications Table */}
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+            {/* 3. Applications Table */}
+            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden">
                 {isLoading ? (
                     <div className="p-16 flex flex-col items-center justify-center gap-3">
-                        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-                        <span className="text-sm text-slate-500 font-medium">Loading applications...</span>
+                        <Loader2 className="w-7 h-7 animate-spin text-sky-600" />
+                        <span className="text-xs text-slate-500 font-medium">Loading applicant pipeline...</span>
                     </div>
                 ) : applications.length === 0 ? (
                     <div className="p-16 text-center space-y-3">
-                        <div className="w-14 h-14 mx-auto rounded-2xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400">
-                            <GraduationCap className="w-7 h-7" />
+                        <div className="w-12 h-12 mx-auto rounded-xl bg-sky-50 dark:bg-sky-900/30 flex items-center justify-center text-sky-600 dark:text-sky-400">
+                            <GraduationCap className="w-6 h-6" />
                         </div>
-                        <h3 className="text-base font-bold text-slate-800 dark:text-white">
+                        <h3 className="text-sm font-bold text-slate-800 dark:text-white">
                             No applications found
                         </h3>
                         <p className="text-xs text-slate-500 max-w-sm mx-auto">
@@ -264,7 +269,7 @@ export default function ApplicationsTab() {
                             <Button
                                 onClick={() => setNewAppOpen(true)}
                                 size="sm"
-                                className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold gap-1.5 mt-2"
+                                className="rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold gap-1.5 mt-2"
                             >
                                 <Plus className="h-3.5 w-3.5" /> Submit First Application
                             </Button>
@@ -273,27 +278,24 @@ export default function ApplicationsTab() {
                 ) : (
                     <div className="overflow-x-auto">
                         <Table>
-                            <TableHeader>
-                                <TableRow className="bg-slate-50/75 dark:bg-slate-800/50 hover:bg-transparent">
-                                    <TableHead className="font-bold text-xs text-slate-600 dark:text-slate-300 py-3.5">
-                                        App Number / Date
+                            <TableHeader className="bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200/80 dark:border-slate-800">
+                                <TableRow className="hover:bg-transparent">
+                                    <TableHead className="py-3.5 pl-5 text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                                        App Number & Date
                                     </TableHead>
-                                    <TableHead className="font-bold text-xs text-slate-600 dark:text-slate-300 py-3.5">
-                                        Applicant
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                                        Applicant Name
                                     </TableHead>
-                                    <TableHead className="font-bold text-xs text-slate-600 dark:text-slate-300 py-3.5">
-                                        Grade Level / Year
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                                        Applied Grade & Year
                                     </TableHead>
-                                    <TableHead className="font-bold text-xs text-slate-600 dark:text-slate-300 py-3.5">
-                                        Guardian
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                                        Guardian Contact
                                     </TableHead>
-                                    <TableHead className="font-bold text-xs text-slate-600 dark:text-slate-300 py-3.5">
-                                        Reviewer
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                                        Stage Status
                                     </TableHead>
-                                    <TableHead className="font-bold text-xs text-slate-600 dark:text-slate-300 py-3.5">
-                                        Status
-                                    </TableHead>
-                                    <TableHead className="text-right font-bold text-xs text-slate-600 dark:text-slate-300 py-3.5 pr-6">
+                                    <TableHead className="text-right pr-5 text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                                         Actions
                                     </TableHead>
                                 </TableRow>
@@ -302,79 +304,81 @@ export default function ApplicationsTab() {
                                 {applications.map((app) => {
                                     const fullName = `${app.first_name} ${app.middle_name ? app.middle_name + " " : ""}${app.last_name}`;
                                     const guardianName = `${app.guardian_first_name} ${app.guardian_last_name}`;
+                                    const avatarStyle = getAvatarStyle(fullName);
+                                    const initials = getInitials(fullName);
+
                                     return (
                                         <TableRow
                                             key={app.id}
                                             onClick={() => handleOpenDetail(app.id)}
-                                            className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 cursor-pointer transition-colors"
+                                            className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 cursor-pointer transition-colors border-b border-slate-100 dark:border-slate-800/70"
                                         >
-                                            <TableCell className="py-3.5">
-                                                <div className="font-mono text-xs font-bold text-blue-600 dark:text-blue-400">
+                                            {/* App Number & Date */}
+                                            <TableCell className="py-3 pl-5">
+                                                <code className="text-xs font-mono font-bold text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/60 px-1.5 py-0.5 rounded border border-sky-200 dark:border-sky-800">
                                                     {app.application_number}
-                                                </div>
-                                                <div className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
+                                                </code>
+                                                <div className="text-[10px] text-slate-400 flex items-center gap-1 mt-1 font-medium">
                                                     <Calendar className="w-3 h-3" />
-                                                    {app.submission_date || app.created_at.split("T")[0]}
+                                                    <span>{app.submission_date || app.created_at.split("T")[0]}</span>
                                                 </div>
                                             </TableCell>
 
-                                            <TableCell className="py-3.5">
-                                                <div className="font-bold text-xs text-slate-800 dark:text-slate-100">
-                                                    {fullName}
-                                                </div>
-                                                <div className="text-[11px] text-slate-400 capitalize">
-                                                    {app.gender} • DOB: {app.date_of_birth}
+                                            {/* Applicant with Colorful Avatar */}
+                                            <TableCell className="py-3">
+                                                <div className="flex items-center gap-2.5">
+                                                    <div
+                                                        className={`h-8 w-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 border ${avatarStyle.bg} ${avatarStyle.text} ${avatarStyle.border}`}
+                                                    >
+                                                        {initials}
+                                                    </div>
+                                                    <div>
+                                                        <div className="font-semibold text-xs text-slate-900 dark:text-slate-100">
+                                                            {fullName}
+                                                        </div>
+                                                        <div className="text-[10px] text-slate-400 capitalize">
+                                                            {app.gender} • DOB: {app.date_of_birth}
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </TableCell>
 
-                                            <TableCell className="py-3.5">
-                                                <div className="font-semibold text-xs text-slate-700 dark:text-slate-200">
+                                            {/* Applied Grade Level */}
+                                            <TableCell className="py-3">
+                                                <span className="font-medium text-xs text-slate-800 dark:text-slate-200">
                                                     {app.level_name || "Level not set"}
-                                                </div>
-                                                <div className="text-[11px] text-slate-400">
+                                                </span>
+                                                <div className="text-[10px] text-slate-400">
                                                     AY: {app.academic_year}
                                                 </div>
                                             </TableCell>
 
-                                            <TableCell className="py-3.5">
-                                                <div className="font-semibold text-xs text-slate-800 dark:text-slate-200">
+                                            {/* Guardian Contact */}
+                                            <TableCell className="py-3">
+                                                <div className="font-medium text-xs text-slate-800 dark:text-slate-200">
                                                     {guardianName}
                                                 </div>
-                                                <div className="text-[11px] text-slate-400 flex items-center gap-1 capitalize">
+                                                <div className="text-[10px] text-slate-400 flex items-center gap-1 capitalize">
                                                     <Phone className="w-3 h-3 text-slate-400" />
-                                                    {app.guardian_phone} ({app.guardian_relationship})
+                                                    <span>{app.guardian_phone} ({app.guardian_relationship})</span>
                                                 </div>
                                             </TableCell>
 
-                                            <TableCell className="py-3.5">
-                                                {app.assigned_reviewer_name ? (
-                                                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-1">
-                                                        <User className="w-3 h-3 text-slate-400" />
-                                                        {app.assigned_reviewer_name}
-                                                    </span>
-                                                ) : (
-                                                    <span className="text-xs text-slate-400 italic">
-                                                        Unassigned
-                                                    </span>
-                                                )}
-                                            </TableCell>
-
-                                            <TableCell className="py-3.5">
+                                            {/* Stage Status */}
+                                            <TableCell className="py-3">
                                                 {getStatusBadge(app.status)}
                                             </TableCell>
 
-                                            <TableCell className="text-right py-3.5 pr-6">
+                                            {/* Actions */}
+                                            <TableCell className="text-right pr-5 py-3" onClick={(e) => e.stopPropagation()}>
                                                 <Button
-                                                    size="sm"
                                                     variant="ghost"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleOpenDetail(app.id);
-                                                    }}
-                                                    className="h-8 px-3 rounded-lg text-xs font-bold text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/30 gap-1"
+                                                    size="sm"
+                                                    onClick={() => handleOpenDetail(app.id)}
+                                                    className="h-8 px-2.5 text-xs text-slate-600 hover:text-sky-600 hover:bg-slate-100 dark:hover:bg-slate-800"
                                                 >
-                                                    Review
-                                                    <ChevronRight className="w-3.5 h-3.5" />
+                                                    <Eye className="w-3.5 h-3.5 mr-1" />
+                                                    <span>Review</span>
                                                 </Button>
                                             </TableCell>
                                         </TableRow>
@@ -386,7 +390,7 @@ export default function ApplicationsTab() {
                 )}
             </div>
 
-            {/* Application Detail Drawer / Dialog */}
+            {/* Application Detail Drawer */}
             <ApplicationDetailDrawer
                 applicationId={selectedApplicationId}
                 open={drawerOpen}
