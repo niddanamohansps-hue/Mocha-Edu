@@ -916,4 +916,29 @@ SYSTEM_PERMISSIONS = [
         "module": "Expenses",
         "description": "Create, edit, and deactivate expense categories and payment accounts",
     },
+    # Front Office & Visitor Management
+    {
+        "codename": "view_front_office",
+        "name": "View Front Office & Visitors",
+        "module": "Front Office",
+        "description": "View visitor logs, student gate passes, and postal records",
+    },
+    {
+        "codename": "manage_visitors",
+        "name": "Manage Visitors",
+        "module": "Front Office",
+        "description": "Check-in and check-out visitors, issue visitor passes",
+    },
+    {
+        "codename": "issue_gate_pass",
+        "name": "Issue Student Gate Passes",
+        "module": "Front Office",
+        "description": "Issue early departure gate passes and record gate exits",
+    },
+    {
+        "codename": "manage_postal_records",
+        "name": "Manage Postal & Courier Records",
+        "module": "Front Office",
+        "description": "Log inward and outward postal and courier dispatches",
+    },
 ]

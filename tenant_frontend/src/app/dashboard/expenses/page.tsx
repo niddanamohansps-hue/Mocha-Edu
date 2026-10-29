@@ -1127,3 +1127,4 @@ export default function ExpensesPage() {
         </div>
     );
 }
+

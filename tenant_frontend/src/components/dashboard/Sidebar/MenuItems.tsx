@@ -16,7 +16,8 @@ import {
     Megaphone,
     Boxes,
     Wallet,
-    Library
+    Library,
+    ShieldCheck
 } from "lucide-react";
 import { SidebarItemType } from "@/components/dashboard/Sidebar/SidebarItem";
 
@@ -297,6 +298,15 @@ export const getMenuItems = (
             label: "Expenses & Cashbook",
             icon: Wallet,
             href: "/dashboard/expenses"
+        });
+    }
+
+    // 7.8 Front Office & Visitor Management
+    if (can("view_front_office")) {
+        menuItems.push({
+            label: "Front Office",
+            icon: ShieldCheck,
+            href: "/dashboard/front-office"
         });
     }
 
