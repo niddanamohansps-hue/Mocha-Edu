@@ -1,24 +1,31 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import axiosInstance from "@/lib/axios";
 import { toast } from "sonner";
-import { useStudents, useDeleteStudent } from "@/hooks/useStudents";
+import { useStudents, useDeleteStudent, Student } from "@/hooks/useStudents";
 import { usePermissions } from "@/providers/PermissionProvider";
 import { Button } from "@/components/ui/button";
 import {
-    Plus,
     Search,
     UserPlus,
-    Upload,
-    MoreHorizontal,
     Filter,
     GraduationCap,
     Lock,
     Pencil,
     Trash2,
     Users,
-    Download
+    Download,
+    CreditCard,
+    MoreHorizontal,
+    FileSpreadsheet,
+    FileText,
+    ChevronDown,
+    X,
+    ExternalLink,
+    CheckCircle2,
+    Clock,
+    Shield,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -27,17 +34,18 @@ import {
     TableCell,
     TableHead,
     TableHeader,
-    TableRow
+    TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Pagination } from "@/components/ui/pagination";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import Unauthorized from "@/components/Unauthorized";
-import { cn } from "@/lib/utils";
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { LoadingState } from "@/components/feedback/LoadingState";
@@ -48,19 +56,119 @@ import { TableShell } from "@/components/common/table/TableShell";
 
 const PAGE_SIZE = 20;
 
+// Deterministic vibrant avatar color palette
+const AVATAR_PALETTES = [
+    { bg: "bg-sky-100 dark:bg-sky-950/70", text: "text-sky-700 dark:text-sky-300", border: "border-sky-300/60 dark:border-sky-800" },
+    { bg: "bg-emerald-100 dark:bg-emerald-950/70", text: "text-emerald-700 dark:text-emerald-300", border: "border-emerald-300/60 dark:border-emerald-800" },
+    { bg: "bg-indigo-100 dark:bg-indigo-950/70", text: "text-indigo-700 dark:text-indigo-300", border: "border-indigo-300/60 dark:border-indigo-800" },
+    { bg: "bg-purple-100 dark:bg-purple-950/70", text: "text-purple-700 dark:text-purple-300", border: "border-purple-300/60 dark:border-purple-800" },
+    { bg: "bg-amber-100 dark:bg-amber-950/70", text: "text-amber-700 dark:text-amber-300", border: "border-amber-300/60 dark:border-amber-800" },
+    { bg: "bg-rose-100 dark:bg-rose-950/70", text: "text-rose-700 dark:text-rose-300", border: "border-rose-300/60 dark:border-rose-800" },
+    { bg: "bg-teal-100 dark:bg-teal-950/70", text: "text-teal-700 dark:text-teal-300", border: "border-teal-300/60 dark:border-teal-800" },
+];
+
+function getAvatarStyle(name: string) {
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+        hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const index = Math.abs(hash) % AVATAR_PALETTES.length;
+    return AVATAR_PALETTES[index];
+}
+
+function getInitials(name: string) {
+    if (!name) return "ST";
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) {
+        return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
+}
+
 export default function StudentsPage() {
     const { can, isOwner } = usePermissions();
     const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
+
     const pageParam = Number(searchParams.get("page"));
     const page = Number.isInteger(pageParam) && pageParam >= 1 ? pageParam : 1;
-    const { data, isLoading, isError, refetch } = useStudents({ page, pageSize: PAGE_SIZE });
+
+    // Filters state from URL
+    const [searchQuery, setSearchQuery] = useState(searchParams.get("search") || "");
+    const [debouncedSearch, setDebouncedSearch] = useState(searchQuery);
+    const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "all");
+    const [gradeFilter, setGradeFilter] = useState<string>("all");
+    const [sectionFilter, setSectionFilter] = useState<string>("all");
+
+    // Debounce search query
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedSearch(searchQuery);
+        }, 300);
+        return () => clearTimeout(handler);
+    }, [searchQuery]);
+
+    // Update URL when search or status filter changes
+    useEffect(() => {
+        const params = new URLSearchParams(searchParams.toString());
+        if (debouncedSearch) {
+            params.set("search", debouncedSearch);
+        } else {
+            params.delete("search");
+        }
+
+        if (statusFilter !== "all") {
+            params.set("status", statusFilter);
+        } else {
+            params.delete("status");
+        }
+
+        params.delete("page"); // Reset to page 1 on filter
+        router.replace(`${pathname}?${params.toString()}`);
+    }, [debouncedSearch, statusFilter]);
+
+    const { data, isLoading, isError, refetch } = useStudents({
+        page,
+        pageSize: PAGE_SIZE,
+        search: debouncedSearch,
+        status: statusFilter !== "all" ? statusFilter : undefined,
+    });
+
     const students = data?.results;
     const { mutate: deleteStudent } = useDeleteStudent();
     const [studentToDelete, setStudentToDelete] = useState<string | null>(null);
     const [exportingUdise, setExportingUdise] = useState(false);
     const [exportingCbseLoc, setExportingCbseLoc] = useState(false);
+
+    // Extract unique grades & sections from current student results for fast client-side narrowing
+    const availableGrades = useMemo(() => {
+        if (!students) return [];
+        const set = new Set<string>();
+        students.forEach((s: Student) => {
+            if (s.level) set.add(s.level);
+        });
+        return Array.from(set).sort();
+    }, [students]);
+
+    const availableSections = useMemo(() => {
+        if (!students) return [];
+        const set = new Set<string>();
+        students.forEach((s: Student) => {
+            if (s.section && s.section !== "Unassigned") set.add(s.section);
+        });
+        return Array.from(set).sort();
+    }, [students]);
+
+    // Filter students by grade & section client-side
+    const filteredStudents = useMemo(() => {
+        if (!students) return [];
+        return students.filter((s: Student) => {
+            if (gradeFilter !== "all" && s.level !== gradeFilter) return false;
+            if (sectionFilter !== "all" && s.section !== sectionFilter) return false;
+            return true;
+        });
+    }, [students, gradeFilter, sectionFilter]);
 
     const handleExportUdise = async () => {
         try {
@@ -74,7 +182,7 @@ export default function StudentsPage() {
             link.click();
             link.remove();
             toast.success("UDISE+ SDMS export downloaded successfully");
-        } catch (e) {
+        } catch {
             toast.error("Failed to export UDISE+ data");
         } finally {
             setExportingUdise(false);
@@ -93,7 +201,7 @@ export default function StudentsPage() {
             link.click();
             link.remove();
             toast.success("CBSE LOC candidate export downloaded successfully");
-        } catch (e) {
+        } catch {
             toast.error("Failed to export CBSE LOC data");
         } finally {
             setExportingCbseLoc(false);
@@ -107,8 +215,7 @@ export default function StudentsPage() {
         } else {
             params.set("page", String(nextPage));
         }
-        const query = params.toString();
-        router.replace(query ? `${pathname}?${query}` : pathname);
+        router.replace(`${pathname}?${params.toString()}`);
     };
 
     const canView = isOwner || can("view_student");
@@ -127,207 +234,428 @@ export default function StudentsPage() {
         return <ErrorState onRetry={refetch} className="m-6" />;
     }
 
+    const totalCount = data?.count ?? 0;
+
     return (
-        <div className="space-y-6">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="space-y-5 max-w-7xl mx-auto pb-12 animate-in fade-in duration-500">
+            {/* 1. Senior Executive Header (Clean 1-Row Action Hierarchy) */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200/80 dark:border-slate-800">
                 <div>
-                    <h1 className="text-3xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
+                    <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
                         Student Directory
                     </h1>
-                    <p className="text-slate-500 dark:text-slate-400 mt-2 text-lg">
-                        View and manage all students enrolled in your institution
+                    <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
+                        Manage all <span className="font-semibold text-slate-700 dark:text-slate-300">{totalCount} enrolled students</span>, admission profiles, and government compliance rosters
                     </p>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-3">
-                    {canView && (
-                        <>
+                {/* Single Aligned Action Strip */}
+                <div className="flex flex-wrap items-center gap-2.5">
+                    {/* Compliance Exports Dropdown */}
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
                             <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-9 px-3 gap-1.5 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 text-xs font-semibold cursor-pointer shadow-2xs"
+                            >
+                                <Download className="h-3.5 w-3.5 text-slate-500" />
+                                <span>Export Data</span>
+                                <ChevronDown className="h-3 w-3 text-slate-400" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-56 p-1.5 rounded-xl shadow-lg">
+                            <DropdownMenuLabel className="text-[11px] font-semibold text-slate-400 px-2 py-1">
+                                National & Board Exports
+                            </DropdownMenuLabel>
+                            <DropdownMenuItem
                                 onClick={handleExportUdise}
-                                variant="outline"
-                                size="xl"
                                 disabled={exportingUdise}
+                                className="flex items-center gap-2 p-2 rounded-lg cursor-pointer text-xs"
                             >
-                                <Download className="h-4 w-4 mr-2 text-emerald-600" />
-                                {exportingUdise ? "Exporting..." : "UDISE+ Export"}
-                            </Button>
-                            <Button
+                                <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+                                <div className="flex-1">
+                                    <p className="font-medium text-slate-800 dark:text-slate-200">UDISE+ SDMS Export</p>
+                                    <p className="text-[10px] text-slate-400">Ministry of Education (.csv)</p>
+                                </div>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
                                 onClick={handleExportCbseLoc}
-                                variant="outline"
-                                size="xl"
                                 disabled={exportingCbseLoc}
+                                className="flex items-center gap-2 p-2 rounded-lg cursor-pointer text-xs"
                             >
-                                <Download className="h-4 w-4 mr-2 text-indigo-600" />
-                                {exportingCbseLoc ? "Exporting..." : "CBSE LOC"}
-                            </Button>
-                        </>
-                    )}
+                                <FileText className="h-4 w-4 text-indigo-600" />
+                                <div className="flex-1">
+                                    <p className="font-medium text-slate-800 dark:text-slate-200">CBSE LOC Candidates</p>
+                                    <p className="text-[10px] text-slate-400">Class 10 & 12 Roster (.csv)</p>
+                                </div>
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+
+                    {/* Parents Directory Link */}
                     {(isOwner || can("view_family")) && (
                         <Button
                             onClick={() => router.push("/dashboard/students/parents")}
                             variant="outline"
-                            size="xl"
+                            size="sm"
+                            className="h-9 px-3 gap-1.5 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 text-xs font-semibold cursor-pointer shadow-2xs"
                         >
-                            <Users className="h-4 w-4 mr-2" />
-                            Parents Directory
+                            <Users className="h-3.5 w-3.5 text-slate-500" />
+                            <span>Parents Directory</span>
                         </Button>
                     )}
+
+                    {/* Secondary Operations Dropdown */}
                     {(isOwner || can("add_student")) && (
-                        <>
-                            <Button
-                                onClick={() => router.push("/dashboard/portal-access/students")}
-                                variant="outline"
-                                size="xl"
-                            >
-                                <Lock className="h-4 w-4 mr-2" />
-                                Portal Activation
-                            </Button>
-                            <Button
-                                onClick={() => router.push("/dashboard/students/admissions")}
-                                size="xl"
-                            >
-                                <UserPlus className="h-4 w-4 mr-2" />
-                                New Admission
-                            </Button>
-                        </>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-9 px-2.5 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 text-xs cursor-pointer shadow-2xs"
+                                    title="More Options"
+                                >
+                                    <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-52 p-1.5 rounded-xl shadow-lg">
+                                <DropdownMenuItem
+                                    onClick={() => router.push("/dashboard/portal-access/students")}
+                                    className="flex items-center gap-2 p-2 rounded-lg cursor-pointer text-xs"
+                                >
+                                    <Lock className="h-4 w-4 text-slate-500" />
+                                    <span>Portal Access Activation</span>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    onClick={() => router.push("/dashboard/students/promotions")}
+                                    className="flex items-center gap-2 p-2 rounded-lg cursor-pointer text-xs"
+                                >
+                                    <GraduationCap className="h-4 w-4 text-slate-500" />
+                                    <span>Promotion & Transfer Hub</span>
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    )}
+
+                    {/* Primary Hero CTA Button */}
+                    {(isOwner || can("add_student")) && (
+                        <Button
+                            onClick={() => router.push("/dashboard/students/admissions")}
+                            size="sm"
+                            className="h-9 px-4 gap-1.5 bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs rounded-lg shadow-sm cursor-pointer transition active:scale-95"
+                        >
+                            <UserPlus className="h-3.5 w-3.5 stroke-[2.5]" />
+                            <span>New Admission</span>
+                        </Button>
                     )}
                 </div>
             </div>
 
-            {/* Stats Summary could go here */}
+            {/* 2. Quick Segmentation Tabs */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+                {[
+                    { id: "all", label: "All Students", count: totalCount },
+                    { id: "active", label: "Active", count: totalCount },
+                    { id: "inactive", label: "Inactive / Transferred" },
+                ].map((tab) => {
+                    const isActive = statusFilter === tab.id;
+                    return (
+                        <button
+                            key={tab.id}
+                            onClick={() => setStatusFilter(tab.id)}
+                            className={`px-3 py-1.5 rounded-lg font-semibold transition cursor-pointer flex items-center gap-1.5 ${
+                                isActive
+                                    ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-2xs"
+                                    : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200/80 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800"
+                            }`}
+                        >
+                            <span>{tab.label}</span>
+                            {tab.count !== undefined && (
+                                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                                    isActive ? "bg-white/20 text-white dark:bg-slate-900/20 dark:text-slate-900" : "bg-slate-100 dark:bg-slate-800 text-slate-500"
+                                }`}>
+                                    {tab.count}
+                                </span>
+                            )}
+                        </button>
+                    );
+                })}
+            </div>
 
-            {/* Filter Bar */}
-            <div className="flex flex-col md:flex-row gap-4 items-center justify-between p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
-                <div className="relative flex-1 w-full max-w-md">
+            {/* 3. Search, Filter & Quick Narrowing Bar */}
+            <div className="p-3 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl shadow-2xs flex flex-col md:flex-row gap-2.5 items-center justify-between">
+                {/* Search Input */}
+                <div className="relative flex-1 w-full">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                    <Input aria-label="Search students by name or ID..."
-                        placeholder="Search students by name or ID..."
-                        className="pl-10 h-10 rounded-xl border-slate-100 dark:border-slate-800 focus:border-sky-500"
+                    <Input
+                        aria-label="Search students by name or ID..."
+                        placeholder="Search student by name, enrollment ID (e.g. SV/2025/0012) or PEN..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-9 pr-8 h-9 text-xs rounded-lg border-slate-200 dark:border-slate-800 focus:border-sky-500 focus:ring-1 focus:ring-sky-500/20 bg-slate-50/50 dark:bg-slate-950/50"
                     />
+                    {searchQuery && (
+                        <button
+                            onClick={() => setSearchQuery("")}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-slate-400 hover:text-slate-600"
+                        >
+                            <X className="h-3.5 w-3.5" />
+                        </button>
+                    )}
                 </div>
-                <div className="flex items-center gap-2">
-                    <Button variant="outline" size="lg">
-                        <Filter className="h-4 w-4 mr-2" />
-                        Filters
-                    </Button>
+
+                {/* Instant Class & Section Dropdowns */}
+                <div className="flex items-center gap-2 w-full md:w-auto shrink-0">
+                    {/* Grade Selector */}
+                    {availableGrades.length > 0 && (
+                        <select
+                            value={gradeFilter}
+                            onChange={(e) => setGradeFilter(e.target.value)}
+                            className="h-9 px-2.5 py-1 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 focus:outline-hidden focus:ring-1 focus:ring-sky-500"
+                        >
+                            <option value="all">All Grades ({availableGrades.length})</option>
+                            {availableGrades.map((g) => (
+                                <option key={g} value={g}>{g}</option>
+                            ))}
+                        </select>
+                    )}
+
+                    {/* Section Selector */}
+                    {availableSections.length > 0 && (
+                        <select
+                            value={sectionFilter}
+                            onChange={(e) => setSectionFilter(e.target.value)}
+                            className="h-9 px-2.5 py-1 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 focus:outline-hidden focus:ring-1 focus:ring-sky-500"
+                        >
+                            <option value="all">All Sections</option>
+                            {availableSections.map((s) => (
+                                <option key={s} value={s}>Sec {s}</option>
+                            ))}
+                        </select>
+                    )}
+
+                    {/* Clear Filters Indicator */}
+                    {(gradeFilter !== "all" || sectionFilter !== "all" || searchQuery) && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                                setGradeFilter("all");
+                                setSectionFilter("all");
+                                setSearchQuery("");
+                            }}
+                            className="h-9 px-2 text-xs text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                        >
+                            Reset
+                        </Button>
+                    )}
                 </div>
             </div>
 
+            {/* 4. Enterprise Student Table */}
             <TableShell
                 footer={
                     data && (
-                        <Pagination
-                            page={page}
-                            pageSize={PAGE_SIZE}
-                            count={data.count}
-                            onPageChange={handlePageChange}
-                            className="border-t border-slate-200 dark:border-slate-800"
-                        />
+                        <div className="flex flex-col sm:flex-row items-center justify-between p-3 gap-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/40">
+                            <span className="text-xs text-slate-500 dark:text-slate-400">
+                                Showing <span className="font-semibold text-slate-700 dark:text-slate-200">{filteredStudents.length}</span> of {totalCount} students
+                            </span>
+                            <Pagination
+                                page={page}
+                                pageSize={PAGE_SIZE}
+                                count={data.count}
+                                onPageChange={handlePageChange}
+                            />
+                        </div>
                     )
                 }
             >
                 <Table>
-                    <TableHeader className="bg-slate-50 dark:bg-slate-800/50">
-                        <TableRow>
-                            <TableHead className="py-4 pl-6">Student Name</TableHead>
-                            <TableHead>Enrollment ID / PEN</TableHead>
-                            <TableHead>Level / Grade</TableHead>
-                            <TableHead>Section</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead>Account</TableHead>
-                            <TableHead className="text-right pr-6">Actions</TableHead>
+                    <TableHeader className="bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200/80 dark:border-slate-800">
+                        <TableRow className="hover:bg-transparent">
+                            <TableHead className="py-3.5 pl-5 text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                                Student Name
+                            </TableHead>
+                            <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                                Enrollment / PEN
+                            </TableHead>
+                            <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                                Academic Class & Section
+                            </TableHead>
+                            <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                                Status
+                            </TableHead>
+                            <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                                Portal Access
+                            </TableHead>
+                            <TableHead className="text-right pr-5 text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                                Actions
+                            </TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {students && students.length > 0 ? (
-                            students.map((student: any) => (
-                                <TableRow key={student.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
-                                    <TableCell className="py-4 pl-6">
-                                        <div className="flex items-center gap-3">
-                                            <div className="h-10 w-10 rounded-full bg-sky-100 dark:bg-sky-900/40 text-sky-600 flex items-center justify-center font-bold text-sm shrink-0">
-                                                {student.full_name[0]}
-                                            </div>
-                                            <div>
-                                                <div className="flex items-center gap-2">
-                                                    <span className="font-semibold">{student.full_name}</span>
-                                                    {student.is_rte && (
-                                                        <Badge variant="outline" className="border-amber-500 text-amber-600 dark:text-amber-400 text-[10px] px-1 py-0">
-                                                            RTE 25%
-                                                        </Badge>
-                                                    )}
-                                                    {student.caste_category && student.caste_category !== "GEN" && (
-                                                        <Badge variant="secondary" className="text-[10px] px-1 py-0">
-                                                            {student.caste_category}
-                                                        </Badge>
+                        {filteredStudents && filteredStudents.length > 0 ? (
+                            filteredStudents.map((student: any) => {
+                                const avatarStyle = getAvatarStyle(student.full_name);
+                                const initials = getInitials(student.full_name);
+
+                                return (
+                                    <TableRow
+                                        key={student.id}
+                                        className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors border-b border-slate-100 dark:border-slate-800/70"
+                                    >
+                                        {/* Student Name & Badges */}
+                                        <TableCell className="py-3 pl-5">
+                                            <div className="flex items-center gap-3">
+                                                {/* Colorful Deterministic Avatar */}
+                                                <div
+                                                    className={`h-9 w-9 rounded-full flex items-center justify-center font-bold text-xs shrink-0 border ${avatarStyle.bg} ${avatarStyle.text} ${avatarStyle.border}`}
+                                                >
+                                                    {initials}
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                        <span
+                                                            onClick={() => router.push(`/dashboard/students/edit/${student.id}`)}
+                                                            className="font-semibold text-xs text-slate-900 dark:text-slate-100 hover:text-sky-600 dark:hover:text-sky-400 cursor-pointer transition truncate"
+                                                        >
+                                                            {student.full_name}
+                                                        </span>
+                                                        {student.is_rte && (
+                                                            <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300/80">
+                                                                RTE 25%
+                                                            </span>
+                                                        )}
+                                                        {student.caste_category && student.caste_category !== "GEN" && (
+                                                            <span className="px-1.5 py-0.2 rounded text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                                                                {student.caste_category}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    {student.apaar_id && (
+                                                        <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                                                            APAAR: {student.apaar_id}
+                                                        </p>
                                                     )}
                                                 </div>
-                                                {student.apaar_id && (
-                                                    <p className="text-[11px] text-slate-400 font-mono">APAAR: {student.apaar_id}</p>
+                                            </div>
+                                        </TableCell>
+
+                                        {/* Enrollment ID & PEN */}
+                                        <TableCell>
+                                            <code className="text-xs font-semibold font-mono text-slate-800 dark:text-slate-200 bg-slate-100/70 dark:bg-slate-800/70 px-1.5 py-0.5 rounded border border-slate-200/60 dark:border-slate-700">
+                                                {student.enrollment_id}
+                                            </code>
+                                            {student.pen && (
+                                                <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                                                    PEN: {student.pen}
+                                                </p>
+                                            )}
+                                        </TableCell>
+
+                                        {/* Class & Section (Clean Combined Chip) */}
+                                        <TableCell>
+                                            <div className="inline-flex items-center gap-1.5">
+                                                <span className="font-medium text-xs text-slate-800 dark:text-slate-200">
+                                                    {student.level || "Unassigned"}
+                                                </span>
+                                                {student.section && student.section !== "Unassigned" ? (
+                                                    <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-sky-50 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300 border border-sky-200 dark:border-sky-800">
+                                                        Sec {student.section}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-[10px] text-slate-400 italic">No Sec</span>
                                                 )}
                                             </div>
-                                        </div>
-                                    </TableCell>
-                                    <TableCell>
-                                        <code className="text-xs font-semibold">
-                                            {student.enrollment_id}
-                                        </code>
-                                        {student.pen && (
-                                            <p className="text-[11px] text-slate-500 font-mono">PEN: {student.pen}</p>
-                                        )}
-                                    </TableCell>
-                                    <TableCell className="font-medium text-sky-600">{student.level}</TableCell>
-                                    <TableCell>{student.section || 'Unassigned'}</TableCell>
-                                    <TableCell className="capitalize">
-                                        {student.status}
-                                    </TableCell>
-                                    <TableCell>
-                                        {student.has_account ? (
-                                            <>
-                                                Activated
-                                            </>
-                                        ) : (
-                                            <>
-                                                Offline
-                                            </>
-                                        )}
-                                    </TableCell>
-                                    <TableCell className="text-right pr-6">
-                                        <DropdownMenu>
-                                            <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg">
-                                                    <MoreHorizontal className="h-4 w-4" />
-                                                </Button>
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent align="end" className="w-48 p-2 rounded-xl">
-                                                {canEdit && (
-                                                    <DropdownMenuItem
-                                                        onClick={() => router.push(`/dashboard/students/edit/${student.id}`)}
-                                                        className="rounded-lg gap-2 cursor-pointer focus:bg-sky-50 focus:text-sky-600 dark:focus:bg-sky-900/20 dark:focus:text-sky-400"
+                                        </TableCell>
+
+                                        {/* Status Badge */}
+                                        <TableCell>
+                                            {student.status === "active" ? (
+                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-500/20">
+                                                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                                                    Active
+                                                </span>
+                                            ) : (
+                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700 capitalize">
+                                                    {student.status || "Inactive"}
+                                                </span>
+                                            )}
+                                        </TableCell>
+
+                                        {/* Portal Account Badge */}
+                                        <TableCell>
+                                            {student.has_account ? (
+                                                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
+                                                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                                                    <span>Activated</span>
+                                                </span>
+                                            ) : (
+                                                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-400">
+                                                    <span className="h-1.5 w-1.5 rounded-full bg-slate-300 dark:bg-slate-600" />
+                                                    <span>Offline</span>
+                                                </span>
+                                            )}
+                                        </TableCell>
+
+                                        {/* Row Actions */}
+                                        <TableCell className="text-right pr-5">
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-8 w-8 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
                                                     >
-                                                        <Pencil className="h-4 w-4" />
-                                                        Edit
-                                                    </DropdownMenuItem>
-                                                )}
-                                                {canDelete && (
+                                                        <MoreHorizontal className="h-4 w-4 text-slate-500" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end" className="w-48 p-1.5 rounded-xl shadow-lg">
+                                                    {/* Collect Fees Direct Shortcut */}
                                                     <DropdownMenuItem
-                                                        onClick={() => setStudentToDelete(student.id)}
-                                                        className="rounded-lg gap-2 cursor-pointer text-red-600 focus:bg-red-50 focus:text-red-600 dark:focus:bg-red-900/20"
+                                                        onClick={() => router.push(`/dashboard/fees/collect?search=${student.enrollment_id}`)}
+                                                        className="flex items-center gap-2 p-2 rounded-lg cursor-pointer text-xs focus:bg-emerald-50 focus:text-emerald-700 dark:focus:bg-emerald-950/40"
                                                     >
-                                                        <Trash2 className="h-4 w-4" />
-                                                        Delete
+                                                        <CreditCard className="h-4 w-4 text-emerald-600" />
+                                                        <span>Collect Fees</span>
                                                     </DropdownMenuItem>
-                                                )}
-                                            </DropdownMenuContent>
-                                        </DropdownMenu>
-                                    </TableCell>
-                                </TableRow>
-                            ))
+
+                                                    {canEdit && (
+                                                        <DropdownMenuItem
+                                                            onClick={() => router.push(`/dashboard/students/edit/${student.id}`)}
+                                                            className="flex items-center gap-2 p-2 rounded-lg cursor-pointer text-xs focus:bg-sky-50 focus:text-sky-600 dark:focus:bg-sky-950/40"
+                                                        >
+                                                            <Pencil className="h-4 w-4 text-sky-600" />
+                                                            <span>Edit Profile</span>
+                                                        </DropdownMenuItem>
+                                                    )}
+
+                                                    {canDelete && (
+                                                        <>
+                                                            <DropdownMenuSeparator />
+                                                            <DropdownMenuItem
+                                                                onClick={() => setStudentToDelete(student.id)}
+                                                                className="flex items-center gap-2 p-2 rounded-lg cursor-pointer text-xs text-rose-600 focus:bg-rose-50 dark:focus:bg-rose-950/40"
+                                                            >
+                                                                <Trash2 className="h-4 w-4" />
+                                                                <span>Delete Student</span>
+                                                            </DropdownMenuItem>
+                                                        </>
+                                                    )}
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        </TableCell>
+                                    </TableRow>
+                                );
+                            })
                         ) : (
                             <TableRow>
-                                <TableCell colSpan={7} className="h-48 text-center">
+                                <TableCell colSpan={6} className="h-48 text-center">
                                     <EmptyState
-                                        icon={<GraduationCap className="h-12 w-12 mb-2 opacity-20" />}
-                                        title="No students found."
+                                        icon={<GraduationCap className="h-10 w-10 mb-2 opacity-20 mx-auto" />}
+                                        title="No matching students found."
+                                        description="Try adjusting your search criteria or class filters."
                                     />
                                 </TableCell>
                             </TableRow>
@@ -336,11 +664,12 @@ export default function StudentsPage() {
                 </Table>
             </TableShell>
 
+            {/* Delete Student Modal */}
             <ConfirmationDialog
                 open={!!studentToDelete}
                 onOpenChange={(open) => !open && setStudentToDelete(null)}
-                title="Are you sure?"
-                description="This action cannot be undone. This will permanently delete the student profile and their academic records from the system."
+                title="Delete Student Record?"
+                description="This will permanently delete the student profile and their academic enrollments. This action cannot be reversed."
                 confirmLabel="Delete Student"
                 onConfirm={() => {
                     if (studentToDelete) {
@@ -348,9 +677,9 @@ export default function StudentsPage() {
                         setStudentToDelete(null);
                     }
                 }}
-                contentClassName="rounded-3xl"
-                cancelClassName="rounded-xl h-11"
-                confirmClassName="rounded-xl h-11"
+                contentClassName="rounded-2xl"
+                cancelClassName="rounded-lg h-9 text-xs"
+                confirmClassName="rounded-lg h-9 text-xs bg-rose-600 hover:bg-rose-500"
             />
         </div>
     );
