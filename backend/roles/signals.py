@@ -35,6 +35,9 @@ SYSTEM_ROLES = [
             "view_all_leaves",
             "manage_staff_leaves",
             "manage_leave_types",
+            "view_ptm",
+            "manage_ptm",
+            "record_ptm_feedback",
         ],
     },
     {
@@ -50,6 +53,8 @@ SYSTEM_ROLES = [
             "cancel_own_leave",
             "view_homework",
             "manage_homework",
+            "view_ptm",
+            "record_ptm_feedback",
         ],
     },
     {

@@ -258,6 +258,9 @@ export const getMenuItems = (
         if (can("view_child_fees") || can("pay_child_fees")) {
             parentPortalChildren.push({ label: "Fees", href: "/dashboard/parent-portal/fees" });
         }
+        if (can("view_child_ptm") || can("view_own_children")) {
+            parentPortalChildren.push({ label: "PTM Meetings", href: "/dashboard/parent-portal/ptm" });
+        }
 
         menuItems.push({
             label: "Parent Portal",
@@ -307,6 +310,15 @@ export const getMenuItems = (
             label: "Front Office",
             icon: ShieldCheck,
             href: "/dashboard/front-office"
+        });
+    }
+
+    // 7.9 Parent-Teacher Meetings (PTM)
+    if (can("view_ptm") || can("manage_ptm") || can("record_ptm_feedback")) {
+        menuItems.push({
+            label: "PTM Meetings",
+            icon: CalendarCheck,
+            href: "/dashboard/ptm"
         });
     }
 

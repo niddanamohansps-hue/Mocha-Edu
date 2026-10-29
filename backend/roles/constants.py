@@ -941,4 +941,29 @@ SYSTEM_PERMISSIONS = [
         "module": "Front Office",
         "description": "Log inward and outward postal and courier dispatches",
     },
+    # Parent-Teacher Meetings (PTM)
+    {
+        "codename": "view_ptm",
+        "name": "View Parent-Teacher Meetings",
+        "module": "PTM",
+        "description": "View PTM sessions, slot rosters, and meeting schedules",
+    },
+    {
+        "codename": "manage_ptm",
+        "name": "Manage Parent-Teacher Meetings",
+        "module": "PTM",
+        "description": "Create, schedule, publish PTM sessions, generate slots, and manage attendance",
+    },
+    {
+        "codename": "record_ptm_feedback",
+        "name": "Record PTM Feedback & Notes",
+        "module": "PTM",
+        "description": "View assigned PTM slots, record meeting notes, feedback, and action items",
+    },
+    {
+        "codename": "view_child_ptm",
+        "name": "Book & View Child PTM Slots",
+        "module": "PTM",
+        "description": "View upcoming PTM sessions and book or manage meeting time slots for linked children",
+    },
 ]
