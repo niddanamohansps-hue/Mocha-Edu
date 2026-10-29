@@ -45,6 +45,8 @@ export interface ApplicationFilters {
     level?: string;
     reviewer?: string;
     search?: string;
+    page?: number;
+    page_size?: number;
 }
 
 export const useAdmissionsDashboard = () => {
@@ -158,23 +160,30 @@ export const useConvertEnquiry = () => {
     });
 };
 
+export interface PaginatedApplications {
+    results: AdmissionApplication[];
+    count: number;
+}
+
 export const useApplications = (filters?: ApplicationFilters) => {
     const { data: user } = useMe();
     return useQuery({
         queryKey: [ADMISSIONS_KEY, "applications", user?.id, filters],
-        queryFn: async () => {
-            const params: Record<string, string> = {};
+        queryFn: async (): Promise<PaginatedApplications> => {
+            const params: Record<string, string | number> = {};
             if (filters?.status) params.status = filters.status;
             if (filters?.academic_year) params.academic_year = filters.academic_year;
             if (filters?.level) params.level = filters.level;
             if (filters?.reviewer) params.reviewer = filters.reviewer;
             if (filters?.search) params.search = filters.search;
+            if (filters?.page) params.page = filters.page;
+            if (filters?.page_size) params.page_size = filters.page_size;
 
             const res = await axiosInstance.get("/admissions/applications/", { params });
             const data = res.data;
-            if (Array.isArray(data)) return data as AdmissionApplication[];
-            if (data && Array.isArray(data.results)) return data.results as AdmissionApplication[];
-            return [] as AdmissionApplication[];
+            if (Array.isArray(data)) return { results: data as AdmissionApplication[], count: data.length };
+            if (data && Array.isArray(data.results)) return { results: data.results as AdmissionApplication[], count: data.count ?? data.results.length };
+            return { results: [], count: 0 };
         },
         enabled: !!user,
     });

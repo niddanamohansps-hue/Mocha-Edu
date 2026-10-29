@@ -19,6 +19,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Pagination } from "@/components/ui/pagination";
 import { useApplications } from "@/hooks/useAdmissions";
 import { useAcademicLevels, useAcademicYears } from "@/hooks/useAcademics";
 import { useAcademicYear } from "@/providers/AcademicYearProvider";
@@ -83,6 +84,23 @@ function getInitials(name: string) {
     return name.slice(0, 2).toUpperCase();
 }
 
+function formatDate(dateStr?: string | null) {
+    if (!dateStr) return "—";
+    try {
+        // Handle date-only strings like YYYY-MM-DD cleanly without timezone shifts
+        if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+            const [y, m, d] = dateStr.split("-").map(Number);
+            const date = new Date(y, m - 1, d);
+            return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+        }
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return dateStr.split("T")[0];
+        return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    } catch {
+        return dateStr.split("T")[0];
+    }
+}
+
 export default function ApplicationsTab() {
     const { can, isOwner } = usePermissions();
     const canManageApplications = isOwner || can("manage_admission_applications");
@@ -91,6 +109,9 @@ export default function ApplicationsTab() {
     const activeYear = selectedYear || currentYear;
     const { data: levels = [] } = useAcademicLevels();
     const { data: years = [] } = useAcademicYears();
+
+    const [page, setPage] = useState(1);
+    const PAGE_SIZE = 20;
 
     const [search, setSearch] = useState("");
     const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -102,14 +123,47 @@ export default function ApplicationsTab() {
     const [newAppOpen, setNewAppOpen] = useState(false);
 
     const {
-        data: applications = [],
+        data,
         isLoading,
     } = useApplications({
         search: search || undefined,
         status: statusFilter === "all" ? undefined : (statusFilter as ApplicationStatus),
         level: levelFilter === "all" ? undefined : levelFilter,
         academic_year: yearFilter === "all" ? undefined : yearFilter,
+        page,
+        page_size: PAGE_SIZE,
     });
+
+    const applications = data?.results || [];
+    const totalCount = data?.count || 0;
+
+    const handleSearchChange = (val: string) => {
+        setSearch(val);
+        setPage(1);
+    };
+
+    const handleStatusChange = (val: string) => {
+        setStatusFilter(val);
+        setPage(1);
+    };
+
+    const handleLevelChange = (val: string) => {
+        setLevelFilter(val);
+        setPage(1);
+    };
+
+    const handleYearChange = (val: string) => {
+        setYearFilter(val);
+        setPage(1);
+    };
+
+    const handleResetFilters = () => {
+        setSearch("");
+        setStatusFilter("all");
+        setLevelFilter("all");
+        setYearFilter("all");
+        setPage(1);
+    };
 
     const handleOpenDetail = (id: string) => {
         setSelectedApplicationId(id);
@@ -158,12 +212,12 @@ export default function ApplicationsTab() {
                         aria-label="Search by name, app #, enq #, phone..."
                         placeholder="Search by student name, application number, phone..."
                         value={search}
-                        onChange={(e) => setSearch(e.target.value)}
+                        onChange={(e) => handleSearchChange(e.target.value)}
                         className="pl-9 pr-8 h-9 text-xs rounded-lg border-slate-200 dark:border-slate-800 focus:border-sky-500 focus:ring-1 focus:ring-sky-500/20 bg-slate-50/50 dark:bg-slate-950/50"
                     />
                     {search && (
                         <button
-                            onClick={() => setSearch("")}
+                            onClick={() => handleSearchChange("")}
                             className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-slate-400 hover:text-slate-600"
                         >
                             <X className="h-3.5 w-3.5" />
@@ -175,7 +229,7 @@ export default function ApplicationsTab() {
                 <div className="flex items-center gap-2 w-full md:w-auto shrink-0 justify-between sm:justify-start">
                     {/* Grade Level Select */}
                     <div className="w-38 sm:w-44">
-                        <Select value={levelFilter} onValueChange={setLevelFilter}>
+                        <Select value={levelFilter} onValueChange={handleLevelChange}>
                             <SelectTrigger className="h-9 text-xs rounded-lg bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
                                 <SelectValue placeholder="All Grades" />
                             </SelectTrigger>
@@ -192,7 +246,7 @@ export default function ApplicationsTab() {
 
                     {/* Academic Year Select */}
                     <div className="w-36 sm:w-40">
-                        <Select value={yearFilter} onValueChange={setYearFilter}>
+                        <Select value={yearFilter} onValueChange={handleYearChange}>
                             <SelectTrigger className="h-9 text-xs rounded-lg bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
                                 <SelectValue placeholder="All Years" />
                             </SelectTrigger>
@@ -211,11 +265,7 @@ export default function ApplicationsTab() {
                         <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => {
-                                setLevelFilter("all");
-                                setYearFilter("all");
-                                setSearch("");
-                            }}
+                            onClick={handleResetFilters}
                             className="h-9 px-2 text-xs text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40"
                         >
                             Reset
@@ -232,7 +282,7 @@ export default function ApplicationsTab() {
                         <button
                             key={opt.value}
                             type="button"
-                            onClick={() => setStatusFilter(opt.value)}
+                            onClick={() => handleStatusChange(opt.value)}
                             className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
                                 active
                                     ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-2xs"
@@ -320,7 +370,7 @@ export default function ApplicationsTab() {
                                                 </code>
                                                 <div className="text-[10px] text-slate-400 flex items-center gap-1 mt-1 font-medium">
                                                     <Calendar className="w-3 h-3" />
-                                                    <span>{app.submission_date || app.created_at.split("T")[0]}</span>
+                                                    <span>{formatDate(app.submission_date || app.created_at)}</span>
                                                 </div>
                                             </TableCell>
 
@@ -337,7 +387,7 @@ export default function ApplicationsTab() {
                                                             {fullName}
                                                         </div>
                                                         <div className="text-[10px] text-slate-400 capitalize">
-                                                            {app.gender} • DOB: {app.date_of_birth}
+                                                            {app.gender} • DOB: {formatDate(app.date_of_birth)}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -360,7 +410,7 @@ export default function ApplicationsTab() {
                                                 </div>
                                                 <div className="text-[10px] text-slate-400 flex items-center gap-1 capitalize">
                                                     <Phone className="w-3 h-3 text-slate-400" />
-                                                    <span>{app.guardian_phone} ({app.guardian_relationship})</span>
+                                                    <span>{app.guardian_phone}{app.guardian_relationship ? ` (${app.guardian_relationship})` : ""}</span>
                                                 </div>
                                             </TableCell>
 
@@ -387,6 +437,17 @@ export default function ApplicationsTab() {
                             </TableBody>
                         </Table>
                     </div>
+                )}
+
+                {/* Enterprise Pagination Footer */}
+                {!isLoading && totalCount > 0 && (
+                    <Pagination
+                        page={page}
+                        pageSize={PAGE_SIZE}
+                        count={totalCount}
+                        onPageChange={setPage}
+                        className="border-t border-slate-200/80 dark:border-slate-800 px-4 py-3 bg-slate-50/40 dark:bg-slate-900/40"
+                    />
                 )}
             </div>
 
