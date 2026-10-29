@@ -1,135 +1,270 @@
 "use client";
 
-import React from 'react';
-import { UseFormReturn, useFieldArray } from 'react-hook-form';
-import { FloatingLabelInput } from '@/components/ui/floating-label-input';
+import React from "react";
+import { UseFormReturn, useFieldArray } from "react-hook-form";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import {
     Select,
     SelectContent,
     SelectItem,
     SelectTrigger,
     SelectValue,
-} from '@/components/ui/select';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Plus, Trash2, Users } from 'lucide-react';
-import { cn } from '@/lib/utils';
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Plus, Trash2, Users, ShieldCheck, Phone, Briefcase } from "lucide-react";
 
 interface GuardianDetailsStepProps {
     form: UseFormReturn<any>;
 }
 
 export default function GuardianDetailsStep({ form }: GuardianDetailsStepProps) {
-    const { register, control, setValue, formState: { errors } } = form;
+    const {
+        register,
+        control,
+        setValue,
+        watch,
+        formState: { errors },
+    } = form;
 
     const { fields, append, remove } = useFieldArray({
         control,
-        name: "parents"
+        name: "parents",
     });
 
+    const parentsErrors = errors.parents as any;
+
     return (
-        <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
-            <div className="flex justify-end">
-                <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => append({
-                        first_name: '',
-                        last_name: '',
-                        phone: '',
-                        gender: 'male',
-                        relation: 'father',
-                        is_primary: fields.length === 0
-                    })}
-                    className="rounded-xl border-sky-200 text-sky-600 hover:bg-sky-50 dark:border-sky-800 dark:hover:bg-sky-900/20 h-10 px-4"
-                >
-                    <Plus className="h-4 w-4 mr-2" /> Add Parent
-                </Button>
-            </div>
+        <div className="space-y-4">
+            {/* Guardian Cards */}
+            <div className="space-y-3.5">
+                {fields.map((field, index) => {
+                    const isPrimary = index === 0;
+                    const relationValue = watch(`parents.${index}.relation`) || (isPrimary ? "father" : "mother");
+                    const genderValue = watch(`parents.${index}.gender`) || (relationValue === "mother" ? "female" : "male");
+                    const isPrimaryChecked = watch(`parents.${index}.is_primary`) ?? isPrimary;
 
-            {fields.length === 0 && (
-                <div className={cn(
-                    "py-16 text-center bg-slate-50/50 dark:bg-slate-800/20 rounded-4xl border-2 border-dashed transition-colors",
-                    errors.parents ? "border-red-200 bg-red-50/30 dark:border-red-900/20" : "border-slate-200 dark:border-slate-800"
-                )}>
-                    <Users className={cn("h-12 w-12 mx-auto mb-4", errors.parents ? "text-red-300" : "text-slate-300")} />
-                    <p className={cn("font-medium", errors.parents ? "text-red-500" : "text-slate-500")}>
-                        {errors.parents?.message as string || "No parents added yet."}
-                    </p>
-                    <p className="text-slate-400 text-xs mt-1">At least one primary guardian is recommended.</p>
-                </div>
-            )}
-
-            <div className="space-y-6">
-                {fields.map((field, index) => (
-                    <div key={field.id} className="p-8 bg-white dark:bg-slate-900/50 rounded-4xl border border-slate-100 dark:border-slate-800 relative animate-in zoom-in-95 duration-300 shadow-sm hover:shadow-md transition-shadow">
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => remove(index)}
-                            className="absolute top-6 right-6 text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 h-9 w-9 rounded-xl transition-colors"
+                    return (
+                        <div
+                            key={field.id}
+                            className={`p-4 rounded-xl border transition-all ${
+                                isPrimary
+                                    ? "bg-slate-50/50 dark:bg-slate-900/40 border-slate-200/80 dark:border-slate-800"
+                                    : "bg-white dark:bg-slate-900 border-slate-200/70 dark:border-slate-800"
+                            }`}
                         >
-                            <Trash2 className="h-4.5 w-4.5" />
-                        </Button>
+                            {/* Card Header */}
+                            <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100 dark:border-slate-800">
+                                <div className="flex items-center gap-2">
+                                    <div className="h-6 w-6 rounded-lg bg-sky-100 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 flex items-center justify-center font-bold text-xs">
+                                        {index + 1}
+                                    </div>
+                                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                                        {isPrimary ? "Primary Guardian / Parent" : `Secondary Guardian (${index + 1})`}
+                                    </span>
+                                    {isPrimary && (
+                                        <Badge className="bg-sky-50 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300 border border-sky-300/80 font-semibold text-[10px] py-0">
+                                            Required
+                                        </Badge>
+                                    )}
+                                </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                            <FloatingLabelInput
-                                id={`parents.${index}.first_name`}
-                                label="First Name"
-                                {...register(`parents.${index}.first_name`)}
-                                error={(errors.parents as any)?.[index]?.first_name?.message}
-                            />
-                            <FloatingLabelInput
-                                id={`parents.${index}.last_name`}
-                                label="Last Name"
-                                {...register(`parents.${index}.last_name`)}
-                                error={(errors.parents as any)?.[index]?.last_name?.message}
-                            />
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <FloatingLabelInput
-                                id={`parents.${index}.phone`}
-                                label="Phone Number"
-                                {...register(`parents.${index}.phone`)}
-                                error={(errors.parents as any)?.[index]?.phone?.message}
-                            />
-                            <div className="space-y-2">
-                                <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500 ml-1">Relation</Label>
-                                <Select
-                                    onValueChange={(val) => setValue(`parents.${index}.relation`, val)}
-                                    defaultValue={(field as any).relation}
-                                >
-                                    <SelectTrigger className="h-12 rounded-xl border-slate-200 bg-white dark:bg-slate-900 shadow-sm">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent className="rounded-xl">
-                                        <SelectItem value="father">Father</SelectItem>
-                                        <SelectItem value="mother">Mother</SelectItem>
-                                        <SelectItem value="guardian">Legal Guardian</SelectItem>
-                                        <SelectItem value="other">Other</SelectItem>
-                                    </SelectContent>
-                                </Select>
+                                {!isPrimary && (
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => remove(index)}
+                                        className="h-7 px-2 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-xs"
+                                    >
+                                        <Trash2 className="h-3.5 w-3.5 mr-1" />
+                                        <span>Remove</span>
+                                    </Button>
+                                )}
                             </div>
-                            <div className="flex items-center h-full pt-6 pl-2">
-                                <label className="flex items-center gap-3 cursor-pointer group">
-                                    <div className="relative flex items-center">
+
+                            {/* Inputs Grid */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                                {/* Relation */}
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                        Relationship <span className="text-rose-500">*</span>
+                                    </Label>
+                                    <Select
+                                        value={relationValue}
+                                        onValueChange={(val) => {
+                                            setValue(`parents.${index}.relation`, val, { shouldValidate: true });
+                                            // Automatically set gender heuristic if mother/father
+                                            if (val === "mother") setValue(`parents.${index}.gender`, "female");
+                                            if (val === "father") setValue(`parents.${index}.gender`, "male");
+                                        }}
+                                    >
+                                        <SelectTrigger className="h-9.5 text-xs rounded-lg border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+                                            <SelectValue placeholder="Relation" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="father" className="text-xs">Father</SelectItem>
+                                            <SelectItem value="mother" className="text-xs">Mother</SelectItem>
+                                            <SelectItem value="guardian" className="text-xs">Legal Guardian</SelectItem>
+                                            <SelectItem value="other" className="text-xs">Other Relation</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                {/* First Name */}
+                                <div className="space-y-1.5">
+                                    <Label htmlFor={`parents.${index}.first_name`} className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                        First Name <span className="text-rose-500">*</span>
+                                    </Label>
+                                    <Input
+                                        id={`parents.${index}.first_name`}
+                                        placeholder="e.g. Ramesh"
+                                        {...register(`parents.${index}.first_name`)}
+                                        className={`h-9.5 text-xs rounded-lg border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 focus:border-sky-500 focus:ring-1 focus:ring-sky-500/20 ${
+                                            parentsErrors?.[index]?.first_name ? "border-rose-400" : ""
+                                        }`}
+                                    />
+                                    {parentsErrors?.[index]?.first_name && (
+                                        <p className="text-[11px] font-medium text-rose-500">
+                                            {parentsErrors[index].first_name.message}
+                                        </p>
+                                    )}
+                                </div>
+
+                                {/* Last Name */}
+                                <div className="space-y-1.5">
+                                    <Label htmlFor={`parents.${index}.last_name`} className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                        Last Name <span className="text-rose-500">*</span>
+                                    </Label>
+                                    <Input
+                                        id={`parents.${index}.last_name`}
+                                        placeholder="e.g. Sharma"
+                                        {...register(`parents.${index}.last_name`)}
+                                        className={`h-9.5 text-xs rounded-lg border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 focus:border-sky-500 focus:ring-1 focus:ring-sky-500/20 ${
+                                            parentsErrors?.[index]?.last_name ? "border-rose-400" : ""
+                                        }`}
+                                    />
+                                    {parentsErrors?.[index]?.last_name && (
+                                        <p className="text-[11px] font-medium text-rose-500">
+                                            {parentsErrors[index].last_name.message}
+                                        </p>
+                                    )}
+                                </div>
+
+                                {/* Phone */}
+                                <div className="space-y-1.5">
+                                    <Label htmlFor={`parents.${index}.phone`} className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                        Phone Number <span className="text-rose-500">*</span>
+                                    </Label>
+                                    <div className="relative">
+                                        <Phone className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                                        <Input
+                                            id={`parents.${index}.phone`}
+                                            placeholder="+91-9876543210"
+                                            {...register(`parents.${index}.phone`)}
+                                            className={`pl-8 h-9.5 text-xs rounded-lg border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 focus:border-sky-500 focus:ring-1 focus:ring-sky-500/20 ${
+                                                parentsErrors?.[index]?.phone ? "border-rose-400" : ""
+                                            }`}
+                                        />
+                                    </div>
+                                    {parentsErrors?.[index]?.phone && (
+                                        <p className="text-[11px] font-medium text-rose-500">
+                                            {parentsErrors[index].phone.message}
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Secondary Row: Occupation & Primary Flag */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 pt-3">
+                                <div className="space-y-1.5">
+                                    <Label htmlFor={`parents.${index}.occupation`} className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                        Occupation <span className="text-slate-400 font-normal">(Optional)</span>
+                                    </Label>
+                                    <div className="relative">
+                                        <Briefcase className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                                        <Input
+                                            id={`parents.${index}.occupation`}
+                                            placeholder="e.g. Civil Engineer / Business"
+                                            {...register(`parents.${index}.occupation`)}
+                                            className="pl-8 h-9.5 text-xs rounded-lg border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 focus:border-sky-500 focus:ring-1 focus:ring-sky-500/20"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                        Gender
+                                    </Label>
+                                    <Select
+                                        value={genderValue}
+                                        onValueChange={(val) => setValue(`parents.${index}.gender`, val)}
+                                    >
+                                        <SelectTrigger className="h-9.5 text-xs rounded-lg border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+                                            <SelectValue placeholder="Gender" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="male" className="text-xs">Male</SelectItem>
+                                            <SelectItem value="female" className="text-xs">Female</SelectItem>
+                                            <SelectItem value="other" className="text-xs">Other</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div className="sm:col-span-2 flex items-center pt-5 pl-1">
+                                    <label className="flex items-center gap-2.5 cursor-pointer">
                                         <input
                                             type="checkbox"
                                             {...register(`parents.${index}.is_primary`)}
-                                            className="peer h-6 w-6 rounded-lg border-2 border-slate-200 dark:border-slate-800 text-sky-600 focus:ring-sky-500 transition-all checked:border-sky-600 appearance-none bg-white dark:bg-slate-900"
+                                            defaultChecked={isPrimary}
+                                            className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500 rounded-sm"
                                         />
-                                        <div className="absolute inset-0 flex items-center justify-center opacity-0 peer-checked:opacity-100 transition-opacity">
-                                            <div className="h-2 w-2 bg-sky-600 rounded-full" />
-                                        </div>
-                                    </div>
-                                    <span className="text-sm font-bold text-slate-500 group-hover:text-sky-600 transition-colors">Primary Contact</span>
-                                </label>
+                                        <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                                            Mark as primary contact for emergency notifications & SMS alerts
+                                        </span>
+                                    </label>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                ))}
+                    );
+                })}
+            </div>
+
+            {/* If zero parents (fallback), or Add Secondary button */}
+            <div className="flex items-center justify-between pt-1">
+                {fields.length < 2 ? (
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                            append({
+                                first_name: "",
+                                last_name: "",
+                                phone: "",
+                                gender: "female",
+                                relation: "mother",
+                                occupation: "",
+                                is_primary: false,
+                            })
+                        }
+                        className="h-9 px-3 gap-1.5 text-xs font-semibold rounded-lg border-dashed border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-sky-400 hover:text-sky-600 dark:hover:text-sky-400 cursor-pointer"
+                    >
+                        <Plus className="h-3.5 w-3.5" />
+                        <span>Add Secondary Guardian (e.g. Mother / Co-Guardian)</span>
+                    </Button>
+                ) : (
+                    <span className="text-[11px] text-slate-400">
+                        Maximum 2 guardians configured for direct walk-in enrollment.
+                    </span>
+                )}
+
+                {errors.parents?.message && (
+                    <p className="text-[11px] font-medium text-rose-500">
+                        {errors.parents.message as string}
+                    </p>
+                )}
             </div>
         </div>
     );

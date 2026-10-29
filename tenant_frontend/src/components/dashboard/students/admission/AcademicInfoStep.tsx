@@ -1,114 +1,205 @@
-import { UseFormReturn } from 'react-hook-form';
-import { FloatingLabelInput } from '@/components/ui/floating-label-input';
+"use client";
+
+import React, { useEffect } from "react";
+import { UseFormReturn } from "react-hook-form";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
     Select,
     SelectContent,
     SelectItem,
     SelectTrigger,
     SelectValue,
-} from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
-import { useAcademicLevels, useSections } from '@/hooks/useAcademics'; // Import hooks
+} from "@/components/ui/select";
+import { useAcademicLevels, useSections, useAcademicYears } from "@/hooks/useAcademics";
+import { useAcademicYear } from "@/providers/AcademicYearProvider";
+import { GraduationCap, School, Calendar } from "lucide-react";
 
 interface AcademicInfoStepProps {
     form: UseFormReturn<any>;
 }
 
 export default function AcademicInfoStep({ form }: AcademicInfoStepProps) {
-    const { register, formState: { errors }, setValue, watch } = form;
+    const {
+        register,
+        formState: { errors },
+        setValue,
+        watch,
+    } = form;
 
-    // Fetch dynamic academic data
-    const { data: levels, isLoading: isLoadingLevels } = useAcademicLevels();
-    const { data: allSections } = useSections();
+    const { selectedYear, currentYear } = useAcademicYear();
+    const activeYear = selectedYear || currentYear;
 
-    const selectedLevelId = watch('level_id');
+    const { data: levels = [], isLoading: isLoadingLevels } = useAcademicLevels();
+    const { data: allSections = [], isLoading: isLoadingSections } = useSections();
+    const { data: years = [] } = useAcademicYears();
+
+    const selectedLevelId = watch("level_id") || "";
+    const selectedSectionId = watch("section_id") || "";
+    const selectedAcademicYear = watch("academic_year") || activeYear?.name || "2026-27";
+
+    // Auto-fill academic year if not yet set
+    useEffect(() => {
+        if (!watch("academic_year") && activeYear?.name) {
+            setValue("academic_year", activeYear.name, { shouldValidate: true });
+        }
+    }, [activeYear, setValue, watch]);
 
     // Filter sections for the selected level
-    const availableSections = allSections?.filter(s => s.level === selectedLevelId) || [];
+    const availableSections = allSections.filter((s) => s.level === selectedLevelId);
 
     return (
-        <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                    <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500 ml-1">Enrolling Into Grade/Level</Label>
+        <div className="space-y-4">
+            {/* Academic Cohort & Placement Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                {/* Academic Year */}
+                <div className="space-y-1.5">
+                    <Label htmlFor="academic_year" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        Academic Year <span className="text-rose-500">*</span>
+                    </Label>
                     <Select
+                        value={selectedAcademicYear}
+                        onValueChange={(val) => setValue("academic_year", val, { shouldValidate: true })}
+                    >
+                        <SelectTrigger
+                            id="academic_year"
+                            className="h-9.5 text-xs rounded-lg border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
+                        >
+                            <SelectValue placeholder="Select Academic Year" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {years.length > 0 ? (
+                                years.map((y) => (
+                                    <SelectItem key={y.id} value={y.name} className="text-xs">
+                                        {y.name} {y.is_current ? "(Current)" : ""}
+                                    </SelectItem>
+                                ))
+                            ) : (
+                                <SelectItem value="2026-27" className="text-xs">2026-27 (Current)</SelectItem>
+                            )}
+                        </SelectContent>
+                    </Select>
+                    {errors.academic_year && (
+                        <p className="text-[11px] font-medium text-rose-500">{errors.academic_year.message as string}</p>
+                    )}
+                </div>
+
+                {/* Enrolling Grade / Level */}
+                <div className="space-y-1.5">
+                    <Label htmlFor="level_id" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        Grade / Class Level <span className="text-rose-500">*</span>
+                    </Label>
+                    <Select
+                        value={selectedLevelId}
                         onValueChange={(val) => {
-                            setValue('level_id', val);
-                            setValue('section_id', ''); // Reset section when level changes
+                            setValue("level_id", val, { shouldValidate: true });
+                            setValue("section_id", ""); // Reset section on level switch
                         }}
-                        defaultValue={watch('level_id')}
                     >
-                        <SelectTrigger className="h-12 rounded-xl border-slate-200 focus:ring-sky-500 bg-white dark:bg-slate-900 shadow-sm">
-                            <SelectValue placeholder={isLoadingLevels ? "Loading levels..." : "Select Level"} />
+                        <SelectTrigger
+                            id="level_id"
+                            className={`h-9.5 text-xs rounded-lg border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 ${
+                                errors.level_id ? "border-rose-400" : ""
+                            }`}
+                        >
+                            <SelectValue placeholder={isLoadingLevels ? "Loading classes..." : "Select Class / Grade"} />
                         </SelectTrigger>
-                        <SelectContent className="rounded-xl border-slate-200">
-                            {levels?.map((level) => (
-                                <SelectItem key={level.id} value={level.id}>
-                                    {level.program_name} - {level.name}
+                        <SelectContent>
+                            {levels.map((lvl) => (
+                                <SelectItem key={lvl.id} value={lvl.id} className="text-xs">
+                                    {lvl.name} {lvl.program_name ? `(${lvl.program_name})` : ""}
                                 </SelectItem>
                             ))}
                         </SelectContent>
                     </Select>
-                    {errors.level_id && <p className="text-xs font-semibold text-red-500 px-1">{errors.level_id.message as string}</p>}
+                    {errors.level_id && (
+                        <p className="text-[11px] font-medium text-rose-500">{errors.level_id.message as string}</p>
+                    )}
                 </div>
 
-                <div className="space-y-2">
-                    <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500 ml-1">Section (Optional)</Label>
+                {/* Section Allocation */}
+                <div className="space-y-1.5">
+                    <Label htmlFor="section_id" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        Section Allocation <span className="text-slate-400 font-normal">(Optional)</span>
+                    </Label>
                     <Select
-                        onValueChange={(val) => setValue('section_id', val)}
-                        defaultValue={watch('section_id')}
-                        disabled={!selectedLevelId || availableSections.length === 0}
+                        value={selectedSectionId}
+                        onValueChange={(val) => setValue("section_id", val === "unassigned" ? "" : val)}
+                        disabled={!selectedLevelId}
                     >
-                        <SelectTrigger className="h-12 rounded-xl border-slate-200 focus:ring-sky-500 bg-white dark:bg-slate-900 shadow-sm">
-                            <SelectValue placeholder={
-                                !selectedLevelId
-                                    ? "Select Level First"
-                                    : availableSections.length === 0
-                                        ? "No Sections Found"
-                                        : "Select Section"
-                            } />
+                        <SelectTrigger
+                            id="section_id"
+                            className="h-9.5 text-xs rounded-lg border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
+                        >
+                            <SelectValue
+                                placeholder={
+                                    !selectedLevelId
+                                        ? "Choose Grade First"
+                                        : availableSections.length === 0
+                                        ? "No Sections Configured"
+                                        : "Select Section (or unassigned)"
+                                }
+                            />
                         </SelectTrigger>
-                        <SelectContent className="rounded-xl border-slate-200">
-                            {availableSections.map((section) => (
-                                <SelectItem key={section.id} value={section.id}>
-                                    {section.name} (Cap: {section.capacity})
+                        <SelectContent>
+                            <SelectItem value="unassigned" className="text-xs text-slate-400">
+                                Unassigned / Auto-allocate
+                            </SelectItem>
+                            {availableSections.map((sec) => (
+                                <SelectItem key={sec.id} value={sec.id} className="text-xs">
+                                    Section {sec.name} {sec.capacity ? `(Cap: ${sec.capacity})` : ""}
                                 </SelectItem>
                             ))}
                         </SelectContent>
                     </Select>
-                    {errors.section_id && <p className="text-xs font-semibold text-red-500 px-1">{errors.section_id.message as string}</p>}
+                </div>
+
+                {/* Admission Date */}
+                <div className="space-y-1.5">
+                    <Label htmlFor="admission_date" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        Date of Admission <span className="text-slate-400 font-normal">(Default: Today)</span>
+                    </Label>
+                    <Input
+                        id="admission_date"
+                        type="date"
+                        {...register("admission_date")}
+                        className="h-9.5 text-xs rounded-lg border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 focus:border-sky-500 focus:ring-1 focus:ring-sky-500/20"
+                    />
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FloatingLabelInput
-                    id="academic_year"
-                    label="Academic Year"
-                    {...register('academic_year')}
-                    error={errors.academic_year?.message as string}
-                />
-                <FloatingLabelInput
-                    id="admission_date"
-                    label="Admission Date"
-                    type="date"
-                    {...register('admission_date')}
-                    error={errors.admission_date?.message as string}
-                />
-            </div>
+            {/* Previous Academic History */}
+            <div className="pt-2">
+                <div className="flex items-center gap-2 mb-3">
+                    <School className="w-3.5 h-3.5 text-slate-400" />
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                        Prior Schooling & Transfer History (Optional)
+                    </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <div className="space-y-1.5">
+                        <Label htmlFor="previous_school" className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                            Previous School Name
+                        </Label>
+                        <Input
+                            id="previous_school"
+                            placeholder="e.g. St. Xavier's High School"
+                            {...register("previous_school")}
+                            className="h-9.5 text-xs rounded-lg border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 focus:border-sky-500 focus:ring-1 focus:ring-sky-500/20"
+                        />
+                    </div>
 
-            <div className="pt-6 border-t border-slate-100 dark:border-slate-800">
-                <h3 className="font-bold text-slate-400 uppercase text-[10px] tracking-[0.2em] mb-6">Previous Academic History</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <FloatingLabelInput
-                        id="previous_school"
-                        label="Previous School Name"
-                        {...register('previous_school')}
-                    />
-                    <FloatingLabelInput
-                        id="last_grade_passed"
-                        label="Last Grade Passed"
-                        {...register('last_grade_passed')}
-                    />
+                    <div className="space-y-1.5">
+                        <Label htmlFor="last_grade_passed" className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                            Last Grade / Class Passed
+                        </Label>
+                        <Input
+                            id="last_grade_passed"
+                            placeholder="e.g. Grade 5 / Percentage: 88%"
+                            {...register("last_grade_passed")}
+                            className="h-9.5 text-xs rounded-lg border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 focus:border-sky-500 focus:ring-1 focus:ring-sky-500/20"
+                        />
+                    </div>
                 </div>
             </div>
         </div>
