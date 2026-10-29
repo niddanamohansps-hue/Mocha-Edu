@@ -59,6 +59,14 @@ export interface Student {
     section: string;
     status: string;
     has_account: boolean;
+    apaar_id?: string;
+    pen?: string;
+    caste_category?: string;
+    is_rte?: boolean;
+    aadhaar_last_4?: string;
+    mother_name?: string;
+    father_name?: string;
+    guardian_name?: string;
 }
 
 export interface AccountCreationData {

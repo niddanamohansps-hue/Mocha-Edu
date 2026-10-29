@@ -11,6 +11,7 @@ from django.utils import timezone
 from django.utils.crypto import constant_time_compare, salted_hmac
 
 
+from .cbse import check_student_fee_dues, date_to_words
 from .models import Certificate, CertificateSequence
 
 logger = logging.getLogger(__name__)
@@ -187,6 +188,8 @@ def _latest_enrollment(student):
 
 
 def _student_snapshot(student, certificate_type, extra):
+    from profiles.models import InstitutionProfile
+
     enrollment = _latest_enrollment(student)
     profile = student.profile
     snap = {
@@ -198,8 +201,57 @@ def _student_snapshot(student, certificate_type, extra):
         "section_name": enrollment.section.name if enrollment and enrollment.section else "",
     }
     if certificate_type == Certificate.Type.TRANSFER:
-        # Printed on a TC by convention; the public verifier never returns it.
-        snap["date_of_birth"] = profile.date_of_birth.isoformat() if profile.date_of_birth else None
+        institution = InstitutionProfile.objects.first()
+        snap["affiliation_number"] = getattr(institution, "affiliation_number", "") or ""
+        snap["school_code"] = getattr(institution, "school_code", "") or ""
+        snap["udise_code"] = getattr(institution, "udise_code", "") or ""
+        snap["board_name"] = getattr(institution, "board_name", "CBSE") or "CBSE"
+
+        snap["pen"] = getattr(student, "pen", "") or ""
+        snap["apaar_id"] = getattr(student, "apaar_id", "") or ""
+        caste_cat = getattr(student, "caste_category", "GEN")
+        snap["caste_category"] = caste_cat
+        snap["caste_category_label"] = getattr(student, "get_caste_category_display", lambda: caste_cat)()
+        snap["is_rte"] = getattr(student, "is_rte", False)
+
+        snap["mother_name"] = extra.get("mother_name") or getattr(student, "get_mother_name", lambda: "")()
+        snap["father_name"] = extra.get("father_name") or getattr(student, "get_father_name", lambda: "")()
+        snap["guardian_name"] = extra.get("guardian_name") or getattr(student, "get_guardian_name", lambda: "")()
+
+        if profile.date_of_birth:
+            snap["date_of_birth"] = profile.date_of_birth.isoformat()
+            snap["dob_figures"] = profile.date_of_birth.strftime("%d-%m-%Y")
+            snap["dob_words"] = date_to_words(profile.date_of_birth)
+        else:
+            snap["date_of_birth"] = None
+            snap["dob_figures"] = ""
+            snap["dob_words"] = ""
+
+        auto_dues, auto_concession = check_student_fee_dues(student)
+        snap["dues_paid_up_to"] = extra.get("dues_paid_up_to") or auto_dues
+        snap["fee_concession"] = extra.get("fee_concession") or auto_concession
+
+        if enrollment and enrollment.level:
+            subjects_qs = enrollment.level.subjects.values_list("name", flat=True)
+            auto_subjects = ", ".join(subjects_qs)
+        else:
+            auto_subjects = ""
+        snap["subjects_studied"] = extra.get("subjects_studied") or auto_subjects
+
+        snap["nationality"] = extra.get("nationality") or "Indian"
+        snap["admission_class"] = extra.get("admission_class") or (enrollment.level.name if enrollment and enrollment.level else "")
+        snap["class_last_studied"] = extra.get("class_last_studied") or (enrollment.level.name if enrollment and enrollment.level else "")
+        snap["last_exam_result"] = extra.get("last_exam_result") or "Passed"
+        snap["failed_status"] = extra.get("failed_status") or "No"
+        snap["qualified_for_promotion"] = extra.get("qualified_for_promotion") or "Yes"
+        snap["promoted_to_class"] = extra.get("promoted_to_class") or ""
+        snap["total_working_days"] = extra.get("total_working_days") or ""
+        snap["working_days_present"] = extra.get("working_days_present") or ""
+        snap["ncc_scout_guide"] = extra.get("ncc_scout_guide") or "No"
+        snap["games_activities"] = extra.get("games_activities") or ""
+        snap["application_date"] = extra.get("application_date") or timezone.localdate().isoformat()
+        snap["remarks"] = extra.get("remarks") or ""
+
     snap.update(extra)
     return snap, (enrollment.academic_year if enrollment else "")
 
@@ -298,6 +350,17 @@ def _build_content_unchecked(certificate_type, subject, data):
                 "leaving_date": leaving.isoformat(), "reason": reason, "conduct": conduct,
                 "exit_action": exit_record.action, "exit_recorded_on": exit_record.created_at.date().isoformat(),
             }
+            cbse_tc_keys = [
+                "mother_name", "father_name", "guardian_name", "nationality",
+                "caste_category", "admission_class", "class_last_studied",
+                "last_exam_result", "failed_status", "subjects_studied",
+                "qualified_for_promotion", "promoted_to_class", "dues_paid_up_to",
+                "fee_concession", "total_working_days", "working_days_present",
+                "ncc_scout_guide", "games_activities", "remarks", "application_date",
+            ]
+            for k in cbse_tc_keys:
+                if k in data and data[k] not in (None, ""):
+                    extra[k] = str(data[k]).strip() if not isinstance(data[k], datetime.date) else data[k].isoformat()
         elif certificate_type == Certificate.Type.BONAFIDE:
             _require(status in BONAFIDE_ELIGIBLE_STATUSES, "A bonafide certificate requires a currently active student.")
             extra = {"purpose": reason}

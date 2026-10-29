@@ -121,6 +121,10 @@ class StudentListView(APIView):
                     ),
                     "status": s.status,
                     "has_account": s.profile.user_id is not None,
+                    "apaar_id": s.apaar_id,
+                    "pen": s.pen,
+                    "caste_category": s.caste_category,
+                    "is_rte": s.is_rte,
                 }
             )
 
@@ -296,6 +300,17 @@ class StudentDetailView(APIView):
             "section": current.section.name if current and current.section else "",
             "academic_year": current.academic_year if current else "",
             "admission_date": student.admission_date,
+            "apaar_id": student.apaar_id,
+            "pen": student.pen,
+            "caste_category": student.caste_category,
+            "is_rte": student.is_rte,
+            "aadhaar_last_4": student.aadhaar_last_4,
+            "mother_tongue": student.mother_tongue,
+            "social_category": student.social_category,
+            "religion": student.religion,
+            "mother_name": student.get_mother_name(),
+            "father_name": student.get_father_name(),
+            "guardian_name": student.get_guardian_name(),
             "parents": parents_data,  # Include parents for editing
         }
 
@@ -614,3 +629,24 @@ class PromotionReverseView(APIView):
             changes={"original_promotion_record_id": str(record.id), "student": str(record.student_id)},
         )
         return Response(PromotionRecordSerializer(reversal).data, status=status.HTTP_201_CREATED)
+
+
+class UdiseExportView(APIView):
+    permission_classes = [IsAuthenticated, HasPermission("view_student")]
+
+    def get(self, request):
+        from .exports import export_udise_plus_csv
+        students = Student.objects.filter(status="active").select_related("profile").prefetch_related("enrollments__level", "enrollments__section", "parent_links__parent__profile")
+        return export_udise_plus_csv(students)
+
+
+class CbseLocExportView(APIView):
+    permission_classes = [IsAuthenticated, HasPermission("view_student")]
+
+    def get(self, request):
+        from .exports import export_cbse_loc_csv
+        level_id = request.query_params.get("level")
+        students = Student.objects.filter(status="active").select_related("profile").prefetch_related("enrollments__level__subjects", "enrollments__section", "parent_links__parent__profile")
+        if level_id:
+            students = students.filter(enrollments__level_id=level_id, enrollments__is_current=True)
+        return export_cbse_loc_csv(students)

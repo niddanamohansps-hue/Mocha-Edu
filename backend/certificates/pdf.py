@@ -263,6 +263,210 @@ def render_certificate_pdf(cert, verify_url, institution_logo=None, signature=No
     return buf.getvalue()
 
 
+
+
+def render_cbse_tc_pdf(cert, verify_url, institution_logo=None, signature=None, signatory_name="", signatory_title=""):
+    """
+    Renders an official 20-Point CBSE Transfer / School Leaving Certificate
+    under CBSE Examination Bye-Laws.
+    """
+    _ensure_fonts()
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    c.setTitle(f"CBSE Transfer Certificate {cert.certificate_number}")
+    c.setAuthor(cert.snapshot.get("school_name", ""))
+    c.setCreator("EduSekai")
+    width, height = A4
+    margin = 10 * mm
+
+    # Double Border (Navy Blue #1E3A8A / #0369A1)
+    c.setStrokeColor(HexColor("#1E3A8A"))
+    c.setLineWidth(1.6)
+    c.rect(margin, margin, width - 2 * margin, height - 2 * margin)
+    c.setStrokeColor(HexColor("#0369A1"))
+    c.setLineWidth(0.6)
+    c.rect(margin + 2 * mm, margin + 2 * mm, width - 2 * margin - 4 * mm, height - 2 * margin - 4 * mm)
+
+    s = cert.snapshot
+    y = height - margin - 6 * mm
+
+    # Optional Logo
+    if institution_logo is not None:
+        c.drawImage(institution_logo, margin + 5 * mm, y - 18 * mm, 18 * mm, 18 * mm, preserveAspectRatio=True, mask="auto")
+
+    # School Name
+    c.setFillColor(HexColor("#0F172A"))
+    name_lines, name_size = fit_lines(s.get("school_name", ""), FONT_BOLD, width - 2 * margin - 45 * mm, 2, 16, 12)
+    c.setFont(FONT_BOLD, name_size)
+    line_gap = name_size * 1.2
+    for i, line in enumerate(name_lines):
+        c.drawCentredString(width / 2, y - 3 * mm - i * line_gap, line)
+    y -= 4 * mm + len(name_lines) * line_gap
+
+    # Statutory Affiliation & School Code Header
+    aff_no = s.get("affiliation_number", "")
+    sch_code = s.get("school_code", "")
+    udise = s.get("udise_code", "")
+    board = s.get("board_name", "CBSE") or "CBSE"
+
+    sub_parts = []
+    if aff_no:
+        sub_parts.append(f"Affiliation No.: {aff_no}")
+    if sch_code:
+        sub_parts.append(f"School Code: {sch_code}")
+    if udise:
+        sub_parts.append(f"UDISE Code: {udise}")
+
+    c.setFont(FONT, 8)
+    c.setFillColor(HexColor("#334155"))
+    if sub_parts:
+        c.drawCentredString(width / 2, y, "  |  ".join(sub_parts))
+        y -= 4 * mm
+    c.drawCentredString(width / 2, y, f"(Affiliated to {board}, New Delhi)")
+    y -= 6.5 * mm
+
+    # Certificate Title Box
+    title_box_h = 6 * mm
+    title_box_w = 90 * mm
+    title_box_x = width / 2 - title_box_w / 2
+    c.setFillColor(HexColor("#F1F5F9"))
+    c.setStrokeColor(HexColor("#0284C7"))
+    c.setLineWidth(0.8)
+    c.roundRect(title_box_x, y - title_box_h, title_box_w, title_box_h, 2 * mm, fill=1, stroke=1)
+    c.setFillColor(HexColor("#0F172A"))
+    c.setFont(FONT_BOLD, 10.5)
+    c.drawCentredString(width / 2, y - 4.5 * mm, "TRANSFER CERTIFICATE")
+    y -= 9.5 * mm
+
+    # Meta Identifier Box: TC No, Admission No, PEN, APAAR ID
+    meta_x = margin + 5 * mm
+    meta_w = width - 2 * margin - 10 * mm
+    meta_h = 6.2 * mm
+    c.setFillColor(HexColor("#F8FAFC"))
+    c.setStrokeColor(HexColor("#CBD5E1"))
+    c.setLineWidth(0.5)
+    c.rect(meta_x, y - meta_h, meta_w, meta_h, fill=1, stroke=1)
+
+    c.setFont(FONT_BOLD, 7.5)
+    c.setFillColor(black)
+    col_w = meta_w / 4.0
+    c.drawString(meta_x + 3 * mm, y - 4.4 * mm, f"TC No: {cert.certificate_number}")
+    c.drawString(meta_x + col_w + 2 * mm, y - 4.4 * mm, f"Adm No: {s.get('enrollment_id', 'N/A')}")
+    c.drawString(meta_x + 2 * col_w + 2 * mm, y - 4.4 * mm, f"PEN: {s.get('pen', 'N/A') or 'N/A'}")
+    c.drawString(meta_x + 3 * col_w + 2 * mm, y - 4.4 * mm, f"APAAR: {s.get('apaar_id', 'N/A') or 'N/A'}")
+    y -= 9.2 * mm
+
+    # 20 Statutory Points
+    points = [
+        ("1. Name of Pupil", s.get("holder_name", "")),
+        ("2. Mother's Name", s.get("mother_name", "") or "N/A"),
+        ("3. Father's / Guardian's Name", s.get("father_name", "") or s.get("guardian_name", "") or "N/A"),
+        ("4. Date of Birth (in figures)", s.get("dob_figures", "") or _fmt_date(s.get("date_of_birth"))),
+        ("    Date of Birth (in words)", s.get("dob_words", "") or "N/A"),
+        ("5. Nationality", s.get("nationality", "Indian")),
+        ("6. Whether SC / ST / OBC category", s.get("caste_category_label") or s.get("caste_category") or "General"),
+        ("7. Date of first admission in school with class", f"{_fmt_date(s.get('admission_date'))}, Class: {s.get('admission_class', '')}".strip(", ")),
+        ("8. Class in which the pupil last studied", s.get("class_last_studied") or s.get("level_name", "") or "N/A"),
+        ("9. School / Board Annual Examination last taken with result", s.get("last_exam_result", "Passed")),
+        ("10. Whether failed, if so once/twice in same class", s.get("failed_status", "No")),
+        ("11. Subjects studied", s.get("subjects_studied", "") or "All Prescribed Subjects"),
+        ("12. Whether qualified for promotion to higher class",
+            f"{s.get('qualified_for_promotion', 'Yes')}" + (f" (to Class {s['promoted_to_class']})" if s.get("promoted_to_class") else "")),
+        ("13. Month up to which pupil has paid school dues", s.get("dues_paid_up_to", "All school dues cleared")),
+        ("14. Any fee concession availed of, if so, the nature", s.get("fee_concession", "No")),
+        ("15. Total No. of working days in academic session", str(s.get("total_working_days", "") or "N/A")),
+        ("16. Total No. of working days pupil present in school", str(s.get("working_days_present", "") or "N/A")),
+        ("17. Whether NCC Cadet / Boy Scout / Girl Guide", s.get("ncc_scout_guide", "No")),
+        ("18. Games played or extra-curricular activities", s.get("games_activities", "") or "N/A"),
+        ("19. General conduct", s.get("conduct", "Good") or "Good"),
+        ("20. Date of application for certificate", _fmt_date(s.get("application_date")) or _fmt_date(cert.issue_date)),
+        ("21. Date of issue of certificate", _fmt_date(cert.issue_date)),
+        ("22. Reasons for leaving the school", s.get("reason", "") or "Course Completed"),
+        ("23. Any other remarks", s.get("remarks", "") or "None"),
+    ]
+
+    left_x = margin + 6 * mm
+    label_w = 95 * mm
+    val_x = left_x + label_w + 3 * mm
+    val_w = width - margin - val_x - 6 * mm
+
+    row_h = 6.0 * mm
+
+    for idx, (label, val) in enumerate(points):
+        row_y = y - idx * row_h
+        if idx % 2 == 1:
+            c.setFillColor(HexColor("#F8FAFC"))
+            c.rect(left_x - 2 * mm, row_y - 1.5 * mm, width - 2 * margin - 8 * mm, row_h, fill=1, stroke=0)
+
+        c.setFillColor(HexColor("#334155"))
+        c.setFont(FONT, 7.8)
+        c.drawString(left_x, row_y, label)
+
+        c.setFillColor(HexColor("#0F172A"))
+        c.setFont(FONT_BOLD, 7.8)
+        val_str = str(val or "")
+        lines, sz = fit_lines(val_str, FONT_BOLD, val_w, 1, 7.8, 6.5)
+        c.setFont(FONT_BOLD, sz)
+        if lines:
+            c.drawString(val_x, row_y, lines[0])
+
+    # Signature Block (Prepared by, Checked by, Principal)
+    sig_w = (width - 2 * margin - 12 * mm) / 3.0
+    sig_base_y = margin + 18 * mm
+    c.setStrokeColor(HexColor("#94A3B8"))
+    c.setLineWidth(0.6)
+
+    # Col 1: Prepared by
+    c.line(margin + 6 * mm, sig_base_y, margin + 6 * mm + sig_w - 6 * mm, sig_base_y)
+    c.setFont(FONT_BOLD, 8)
+    c.setFillColor(HexColor("#1E293B"))
+    c.drawCentredString(margin + 6 * mm + (sig_w - 6 * mm) / 2.0, sig_base_y - 4 * mm, "Prepared by")
+    c.setFont(FONT, 7)
+    c.drawCentredString(margin + 6 * mm + (sig_w - 6 * mm) / 2.0, sig_base_y - 7.5 * mm, "(Class Teacher / Clerk)")
+
+    # Col 2: Checked by
+    c.line(margin + 6 * mm + sig_w, sig_base_y, margin + 6 * mm + 2 * sig_w - 6 * mm, sig_base_y)
+    c.setFont(FONT_BOLD, 8)
+    c.drawCentredString(margin + 6 * mm + sig_w + (sig_w - 6 * mm) / 2.0, sig_base_y - 4 * mm, "Checked by")
+    c.setFont(FONT, 7)
+    c.drawCentredString(margin + 6 * mm + sig_w + (sig_w - 6 * mm) / 2.0, sig_base_y - 7.5 * mm, "(Coordinator / Admin)")
+
+    # Col 3: Principal
+    c.line(margin + 6 * mm + 2 * sig_w, sig_base_y, margin + 6 * mm + 3 * sig_w - 6 * mm, sig_base_y)
+    if signature is not None:
+        c.drawImage(signature, margin + 6 * mm + 2 * sig_w + 6 * mm, sig_base_y + 1 * mm, 36 * mm, 12 * mm, preserveAspectRatio=True, mask="auto")
+    c.setFont(FONT_BOLD, 8)
+    c.drawCentredString(margin + 6 * mm + 2 * sig_w + (sig_w - 6 * mm) / 2.0, sig_base_y - 4 * mm, signatory_name or "Principal")
+    c.setFont(FONT, 7)
+    c.drawCentredString(margin + 6 * mm + 2 * sig_w + (sig_w - 6 * mm) / 2.0, sig_base_y - 7.5 * mm, signatory_title or "Sign & Official Seal")
+
+    # Verification QR Code
+    qr_size = 18 * mm
+    qr_x = margin + 5 * mm
+    qr_y = margin + 3.5 * mm
+    _draw_qr(c, verify_url, qr_x, qr_y, qr_size)
+    c.setFont(FONT, 6.5)
+    c.setFillColor(HexColor("#64748B"))
+    c.drawString(qr_x + qr_size + 2.5 * mm, qr_y + 11 * mm, "Statutory Verification:")
+    c.drawString(qr_x + qr_size + 2.5 * mm, qr_y + 7.5 * mm, "Scan QR to verify this CBSE TC")
+    c.drawString(qr_x + qr_size + 2.5 * mm, qr_y + 4 * mm, f"Serial: {cert.certificate_number}")
+
+    # Watermark if not active/issued
+    if cert.status != Certificate.Status.ISSUED:
+        label = "CANCELLED" if cert.status == Certificate.Status.CANCELLED else "SUPERSEDED"
+        c.saveState()
+        c.setFillColor(Color(0.85, 0.1, 0.1, alpha=0.22))
+        c.setFont(FONT_BOLD, 75)
+        c.translate(width / 2, height / 2)
+        c.rotate(35)
+        c.drawCentredString(0, 0, label)
+        c.restoreState()
+
+    c.showPage()
+    c.save()
+    return buf.getvalue()
+
+
 # --- ID card ---------------------------------------------------------------------------
 
 ID_CARD_SIZE = (85.6 * mm, 54 * mm)  # CR80

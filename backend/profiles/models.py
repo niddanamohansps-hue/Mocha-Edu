@@ -94,6 +94,12 @@ class InstitutionProfile(models.Model):
     established_date = models.DateField(null=True, blank=True)
     website = models.URLField(blank=True)
 
+    # Statutory Indian School Board Details (CBSE, ICSE, State Boards, UDISE+)
+    affiliation_number = models.CharField(max_length=50, blank=True, help_text="Board Affiliation Number (e.g. CBSE 2130123)")
+    school_code = models.CharField(max_length=50, blank=True, help_text="Board Examination School Code")
+    udise_code = models.CharField(max_length=20, blank=True, help_text="11-digit UDISE+ School Code")
+    board_name = models.CharField(max_length=100, blank=True, default="CBSE")
+
     # Social links
     facebook_url = models.URLField(blank=True)
     instagram_url = models.URLField(blank=True)

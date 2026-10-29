@@ -31,6 +31,11 @@ COLUMNS = [
     Column("guardian_name", False, "", "Only when the guardian is not the father or mother."),
     Column("guardian_phone", False, ""),
     Column("guardian_relation", False, "", "e.g. Uncle, Grandmother."),
+    Column("pen", False, "20241234567", "11-digit Permanent Education Number from UDISE+."),
+    Column("apaar_id", False, "987654321012", "12-digit Automated Permanent Academic Account Registry ID."),
+    Column("caste_category", False, "General", "General, OBC, SC, ST, or EWS."),
+    Column("is_rte", False, "No", "Yes or No. Right to Education Act Section 12(1)(c) 25% quota student."),
+    Column("aadhaar_last_4", False, "1234", "Last 4 digits of Aadhaar (for identity verification)."),
 ]
 
 NOTES = [
@@ -144,6 +149,31 @@ def check(rows):
         if not any(p["phone"] for p in parents):
             result.error(n, "father_phone", "Give at least one parent or guardian with a mobile number.")
         clean["parents"] = parents
+
+        pen_val = text(raw.get("pen"), 11).strip()
+        apaar_val = text(raw.get("apaar_id"), 12).strip()
+        if pen_val and (len(pen_val) != 11 or not pen_val.isalnum()):
+            result.error(n, "pen", "PEN must be exactly 11 alphanumeric characters.")
+        if apaar_val and (len(apaar_val) != 12 or not apaar_val.isdigit()):
+            result.error(n, "apaar_id", "APAAR ID must be exactly 12 digits.")
+
+        caste_raw = text(raw.get("caste_category"), 20).strip().upper()
+        caste_map = {"GENERAL": "GEN", "GEN": "GEN", "OBC": "OBC", "SC": "SC", "ST": "ST", "EWS": "EWS"}
+        caste_val = caste_map.get(caste_raw, "GEN") if caste_raw else "GEN"
+
+        rte_raw = text(raw.get("is_rte"), 10).strip().lower()
+        is_rte_val = rte_raw in ("yes", "y", "true", "1")
+
+        aadh_raw = text(raw.get("aadhaar_last_4"), 4).strip()
+        if aadh_raw and (len(aadh_raw) != 4 or not aadh_raw.isdigit()):
+            result.error(n, "aadhaar_last_4", "Aadhaar last 4 must be exactly 4 digits.")
+
+        clean["pen"] = pen_val
+        clean["apaar_id"] = apaar_val
+        clean["caste_category"] = caste_val
+        clean["is_rte"] = is_rte_val
+        clean["aadhaar_last_4"] = aadh_raw
+
         clean["year"] = year
         result.rows.append(clean)
     return result
@@ -176,8 +206,17 @@ def save(rows):
             address=row.get("address", ""),
         )
         student = Student.objects.create(
-            profile=profile, enrollment_id=row["admission_no"] or f"STD-{uuid.uuid4().hex[:8].upper()}",
+            profile=profile,
+            enrollment_id=row["admission_no"] or f"STD-{uuid.uuid4().hex[:8].upper()}",
             admission_date=row.get("admission_date"),
+            pen=row.get("pen", ""),
+            apaar_id=row.get("apaar_id", ""),
+            caste_category=row.get("caste_category", "GEN"),
+            is_rte=row.get("is_rte", False),
+            aadhaar_last_4=row.get("aadhaar_last_4", ""),
+            father_name=next((p["name"] for p in row.get("parents", []) if p["relation"] == "father"), ""),
+            mother_name=next((p["name"] for p in row.get("parents", []) if p["relation"] == "mother"), ""),
+            guardian_name=next((p["name"] for p in row.get("parents", []) if p["relation"] == "guardian"), ""),
         )
         StudentLevel.objects.create(student=student, level=row["level"], section=row.get("section"),
                                     academic_year=row["year"].name, academic_year_ref=row["year"], is_current=True)

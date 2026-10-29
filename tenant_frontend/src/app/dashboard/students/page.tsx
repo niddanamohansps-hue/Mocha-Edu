@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import axiosInstance from "@/lib/axios";
+import { toast } from "sonner";
 import { useStudents, useDeleteStudent } from "@/hooks/useStudents";
 import { usePermissions } from "@/providers/PermissionProvider";
 import { Button } from "@/components/ui/button";
@@ -15,7 +17,8 @@ import {
     Lock,
     Pencil,
     Trash2,
-    Users
+    Users,
+    Download
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -56,6 +59,46 @@ export default function StudentsPage() {
     const students = data?.results;
     const { mutate: deleteStudent } = useDeleteStudent();
     const [studentToDelete, setStudentToDelete] = useState<string | null>(null);
+    const [exportingUdise, setExportingUdise] = useState(false);
+    const [exportingCbseLoc, setExportingCbseLoc] = useState(false);
+
+    const handleExportUdise = async () => {
+        try {
+            setExportingUdise(true);
+            const response = await axiosInstance.get("/students/export/udise/", { responseType: "blob" });
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement("a");
+            link.href = url;
+            link.setAttribute("download", `udise_plus_sdms_${new Date().toISOString().split("T")[0]}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            toast.success("UDISE+ SDMS export downloaded successfully");
+        } catch (e) {
+            toast.error("Failed to export UDISE+ data");
+        } finally {
+            setExportingUdise(false);
+        }
+    };
+
+    const handleExportCbseLoc = async () => {
+        try {
+            setExportingCbseLoc(true);
+            const response = await axiosInstance.get("/students/export/cbse-loc/", { responseType: "blob" });
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement("a");
+            link.href = url;
+            link.setAttribute("download", `cbse_loc_candidates_${new Date().toISOString().split("T")[0]}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            toast.success("CBSE LOC candidate export downloaded successfully");
+        } catch (e) {
+            toast.error("Failed to export CBSE LOC data");
+        } finally {
+            setExportingCbseLoc(false);
+        }
+    };
 
     const handlePageChange = (nextPage: number) => {
         const params = new URLSearchParams(searchParams.toString());
@@ -96,7 +139,29 @@ export default function StudentsPage() {
                     </p>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
+                    {canView && (
+                        <>
+                            <Button
+                                onClick={handleExportUdise}
+                                variant="outline"
+                                size="xl"
+                                disabled={exportingUdise}
+                            >
+                                <Download className="h-4 w-4 mr-2 text-emerald-600" />
+                                {exportingUdise ? "Exporting..." : "UDISE+ Export"}
+                            </Button>
+                            <Button
+                                onClick={handleExportCbseLoc}
+                                variant="outline"
+                                size="xl"
+                                disabled={exportingCbseLoc}
+                            >
+                                <Download className="h-4 w-4 mr-2 text-indigo-600" />
+                                {exportingCbseLoc ? "Exporting..." : "CBSE LOC"}
+                            </Button>
+                        </>
+                    )}
                     {(isOwner || can("view_family")) && (
                         <Button
                             onClick={() => router.push("/dashboard/students/parents")}
@@ -165,7 +230,7 @@ export default function StudentsPage() {
                     <TableHeader className="bg-slate-50 dark:bg-slate-800/50">
                         <TableRow>
                             <TableHead className="py-4 pl-6">Student Name</TableHead>
-                            <TableHead>Enrollment ID</TableHead>
+                            <TableHead>Enrollment ID / PEN</TableHead>
                             <TableHead>Level / Grade</TableHead>
                             <TableHead>Section</TableHead>
                             <TableHead>Status</TableHead>
@@ -179,16 +244,36 @@ export default function StudentsPage() {
                                 <TableRow key={student.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
                                     <TableCell className="py-4 pl-6">
                                         <div className="flex items-center gap-3">
-                                            <div className="h-10 w-10 rounded-full bg-sky-100 dark:bg-sky-900/40 text-sky-600 flex items-center justify-center font-bold text-sm">
+                                            <div className="h-10 w-10 rounded-full bg-sky-100 dark:bg-sky-900/40 text-sky-600 flex items-center justify-center font-bold text-sm shrink-0">
                                                 {student.full_name[0]}
                                             </div>
-                                            <span className="font-semibold">{student.full_name}</span>
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-semibold">{student.full_name}</span>
+                                                    {student.is_rte && (
+                                                        <Badge variant="outline" className="border-amber-500 text-amber-600 dark:text-amber-400 text-[10px] px-1 py-0">
+                                                            RTE 25%
+                                                        </Badge>
+                                                    )}
+                                                    {student.caste_category && student.caste_category !== "GEN" && (
+                                                        <Badge variant="secondary" className="text-[10px] px-1 py-0">
+                                                            {student.caste_category}
+                                                        </Badge>
+                                                    )}
+                                                </div>
+                                                {student.apaar_id && (
+                                                    <p className="text-[11px] text-slate-400 font-mono">APAAR: {student.apaar_id}</p>
+                                                )}
+                                            </div>
                                         </div>
                                     </TableCell>
                                     <TableCell>
-                                        <code className="text-xs">
+                                        <code className="text-xs font-semibold">
                                             {student.enrollment_id}
                                         </code>
+                                        {student.pen && (
+                                            <p className="text-[11px] text-slate-500 font-mono">PEN: {student.pen}</p>
+                                        )}
                                     </TableCell>
                                     <TableCell className="font-medium text-sky-600">{student.level}</TableCell>
                                     <TableCell>{student.section || 'Unassigned'}</TableCell>

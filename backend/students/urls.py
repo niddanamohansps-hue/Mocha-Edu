@@ -10,6 +10,8 @@ from .views import (
     PromotionHistoryView,
     PromotionPreviewView,
     PromotionReverseView,
+    UdiseExportView,
+    CbseLocExportView,
 )
 
 urlpatterns = [
@@ -37,4 +39,6 @@ urlpatterns = [
         PromotionReverseView.as_view(),
         name="promotion-reverse",
     ),
+    path("export/udise/", UdiseExportView.as_view(), name="student-export-udise"),
+    path("export/cbse-loc/", CbseLocExportView.as_view(), name="student-export-cbse-loc"),
 ]

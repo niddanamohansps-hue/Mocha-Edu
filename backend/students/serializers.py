@@ -38,6 +38,23 @@ class StudentEnrollmentSerializer(serializers.Serializer):
     previous_school = serializers.CharField(required=False, allow_blank=True)
     last_grade_passed = serializers.CharField(required=False, allow_blank=True)
 
+    # Statutory Indian Compliance
+    apaar_id = serializers.CharField(max_length=12, required=False, allow_blank=True, default="")
+    pen = serializers.CharField(max_length=11, required=False, allow_blank=True, default="")
+    caste_category = serializers.ChoiceField(
+        choices=[("GEN", "General"), ("OBC", "OBC"), ("SC", "SC"), ("ST", "ST"), ("EWS", "EWS")],
+        required=False,
+        default="GEN",
+    )
+    is_rte = serializers.BooleanField(required=False, default=False)
+    aadhaar_last_4 = serializers.CharField(max_length=4, required=False, allow_blank=True, default="")
+    mother_tongue = serializers.CharField(max_length=50, required=False, allow_blank=True, default="Hindi")
+    social_category = serializers.CharField(max_length=50, required=False, allow_blank=True, default="")
+    religion = serializers.CharField(max_length=50, required=False, allow_blank=True, default="")
+    mother_name = serializers.CharField(max_length=100, required=False, allow_blank=True, default="")
+    father_name = serializers.CharField(max_length=100, required=False, allow_blank=True, default="")
+    guardian_name = serializers.CharField(max_length=100, required=False, allow_blank=True, default="")
+
     # Parent Info (Nested)
     parents = serializers.ListField(
         child=serializers.DictField(), required=False, default=[]
@@ -87,6 +104,17 @@ class StudentEnrollmentSerializer(serializers.Serializer):
             profile=profile,
             enrollment_id=f"STD-{uuid.uuid4().hex[:8].upper()}",
             admission_date=validated_data.get("admission_date"),
+            apaar_id=validated_data.get("apaar_id", "").strip(),
+            pen=validated_data.get("pen", "").strip(),
+            caste_category=validated_data.get("caste_category", "GEN"),
+            is_rte=validated_data.get("is_rte", False),
+            aadhaar_last_4=validated_data.get("aadhaar_last_4", "").strip(),
+            mother_tongue=validated_data.get("mother_tongue", "Hindi"),
+            social_category=validated_data.get("social_category", ""),
+            religion=validated_data.get("religion", ""),
+            mother_name=validated_data.get("mother_name", "").strip(),
+            father_name=validated_data.get("father_name", "").strip(),
+            guardian_name=validated_data.get("guardian_name", "").strip(),
         )
 
         # 4. Create Academic History
@@ -154,6 +182,13 @@ class StudentEnrollmentSerializer(serializers.Serializer):
         # 2. Update Student Record
         if "admission_date" in validated_data:
             instance.admission_date = validated_data["admission_date"]
+        for field in [
+            "apaar_id", "pen", "caste_category", "is_rte", "aadhaar_last_4",
+            "mother_tongue", "social_category", "religion", "mother_name",
+            "father_name", "guardian_name"
+        ]:
+            if field in validated_data:
+                setattr(instance, field, validated_data[field])
         instance.save()
 
         # 3. Update or Create Level Info

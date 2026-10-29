@@ -28,6 +28,52 @@ class Student(models.Model):
         default="active",
     )
 
+    # Statutory Indian School Compliance & Identity
+    apaar_id = models.CharField(
+        max_length=12,
+        blank=True,
+        default="",
+        help_text="12-digit Automated Permanent Academic Account Registry ID",
+    )
+    pen = models.CharField(
+        max_length=11,
+        blank=True,
+        default="",
+        help_text="11-digit Permanent Education Number from UDISE+",
+    )
+    caste_category = models.CharField(
+        max_length=10,
+        choices=[
+            ("GEN", "General"),
+            ("OBC", "OBC"),
+            ("SC", "SC"),
+            ("ST", "ST"),
+            ("EWS", "EWS"),
+        ],
+        default="GEN",
+    )
+    is_rte = models.BooleanField(
+        default=False,
+        help_text="Right to Education Act Section 12(1)(c) 25% quota student",
+    )
+    aadhaar_last_4 = models.CharField(
+        max_length=4,
+        blank=True,
+        default="",
+        help_text="Last 4 digits of Aadhaar (masked for UIDAI compliance)",
+    )
+    aadhaar_verified = models.BooleanField(default=False)
+    mother_tongue = models.CharField(max_length=50, blank=True, default="Hindi")
+    social_category = models.CharField(max_length=50, blank=True, default="")
+    religion = models.CharField(max_length=50, blank=True, default="")
+    cwsn_status = models.CharField(max_length=50, blank=True, default="", help_text="Children with Special Needs status")
+    bpl_status = models.BooleanField(default=False, help_text="Below Poverty Line")
+
+    # Cached parent names for instant board/statutory certificates and imports
+    mother_name = models.CharField(max_length=100, blank=True, default="")
+    father_name = models.CharField(max_length=100, blank=True, default="")
+    guardian_name = models.CharField(max_length=100, blank=True, default="")
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -36,10 +82,39 @@ class Student(models.Model):
             models.Index(
                 fields=["status", "admission_date"], name="student_status_date_idx"
             ),
+            models.Index(fields=["pen"], name="student_pen_idx"),
+            models.Index(fields=["apaar_id"], name="student_apaar_idx"),
         ]
 
     def __str__(self):
         return f"{self.profile.first_name} - {self.enrollment_id}"
+
+    def get_father_name(self):
+        if self.father_name:
+            return self.father_name
+        rel = self.parent_links.filter(relation_type="father").select_related("parent__profile").first()
+        if rel and rel.parent and rel.parent.profile:
+            p = rel.parent.profile
+            return f"{p.first_name} {p.last_name}".strip()
+        return ""
+
+    def get_mother_name(self):
+        if self.mother_name:
+            return self.mother_name
+        rel = self.parent_links.filter(relation_type="mother").select_related("parent__profile").first()
+        if rel and rel.parent and rel.parent.profile:
+            p = rel.parent.profile
+            return f"{p.first_name} {p.last_name}".strip()
+        return ""
+
+    def get_guardian_name(self):
+        if self.guardian_name:
+            return self.guardian_name
+        rel = self.parent_links.filter(relation_type="guardian").select_related("parent__profile").first()
+        if rel and rel.parent and rel.parent.profile:
+            p = rel.parent.profile
+            return f"{p.first_name} {p.last_name}".strip()
+        return ""
 
 
 class AcademicHistory(models.Model):

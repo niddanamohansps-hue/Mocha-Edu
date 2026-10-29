@@ -161,7 +161,10 @@ class CertificateViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, views
     def download_pdf(self, request, pk=None):
         cert = self.get_object()
         verify_url = idcards.frontend_url(request, f"/verify/certificate/{cert.verification_id}")
-        content = pdf.render_certificate_pdf(cert, verify_url, **_pdf_assets())
+        if cert.certificate_type == Certificate.Type.TRANSFER and request.query_params.get("format") != "legacy":
+            content = pdf.render_cbse_tc_pdf(cert, verify_url, **_pdf_assets())
+        else:
+            content = pdf.render_certificate_pdf(cert, verify_url, **_pdf_assets())
         log_action(request, action="certificate_downloaded", model_name="Certificate", object_id=cert.id)
         return _pdf_response(content, f"{cert.certificate_number}.pdf")
 
