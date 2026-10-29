@@ -42,6 +42,7 @@ urlpatterns = [
     path("api/audit-logs/", include("core.urls")),
     path("api/calendar-events/", include("academics.calendar_urls")),
     path("api/admissions/", include("students.admissions_urls")),
+    path("api/expenses/", include("expenses.urls")),
 ]
 
 import posixpath

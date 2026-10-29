@@ -291,6 +291,15 @@ export const getMenuItems = (
         });
     }
 
+    // 7.7 Expenses & School Cashbook
+    if (can("view_expenses")) {
+        menuItems.push({
+            label: "Expenses & Cashbook",
+            icon: Wallet,
+            href: "/dashboard/expenses"
+        });
+    }
+
     // 7. Administration
     const adminChildren: SidebarItemType[] = [];
 

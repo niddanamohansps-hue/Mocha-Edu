@@ -891,4 +891,29 @@ SYSTEM_PERMISSIONS = [
         "module": "Question Bank",
         "description": "Approve, send back, release and withdraw question papers prepared by someone else, and see who opened them",
     },
+    # Expenses & Cashbook
+    {
+        "codename": "view_expenses",
+        "name": "View Expenses & Cashbook",
+        "module": "Expenses",
+        "description": "View expense vouchers, daily cashbook, and financial reports",
+    },
+    {
+        "codename": "record_expenses",
+        "name": "Record Expenses & Cash Entries",
+        "module": "Expenses",
+        "description": "Create, edit drafts, and submit expense vouchers and direct cash entries",
+    },
+    {
+        "codename": "approve_expenses",
+        "name": "Approve Expenses",
+        "module": "Expenses",
+        "description": "Approve or cancel expense vouchers",
+    },
+    {
+        "codename": "manage_expense_settings",
+        "name": "Manage Expense Categories & Accounts",
+        "module": "Expenses",
+        "description": "Create, edit, and deactivate expense categories and payment accounts",
+    },
 ]
