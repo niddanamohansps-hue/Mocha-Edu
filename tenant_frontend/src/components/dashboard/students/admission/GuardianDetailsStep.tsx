@@ -38,8 +38,84 @@ export default function GuardianDetailsStep({ form }: GuardianDetailsStepProps) 
     return (
         <div className="space-y-4">
             {/* Guardian Cards */}
-            <div className="space-y-3.5">
-                {fields.map((field, index) => {
+            {fields.length === 0 ? (
+                <div className="p-8 text-center rounded-xl border border-dashed border-slate-300 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 space-y-3">
+                    <div className="w-10 h-10 rounded-full bg-sky-100 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 flex items-center justify-center mx-auto">
+                        <Users className="w-5 h-5" />
+                    </div>
+                    <div>
+                        <h5 className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                            No Guardians Added Yet
+                        </h5>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                            At least one primary parent or guardian is required for admission
+                        </p>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+                        <Button
+                            type="button"
+                            size="sm"
+                            onClick={() =>
+                                append({
+                                    first_name: "",
+                                    last_name: "",
+                                    phone: "",
+                                    gender: "male",
+                                    relation: "father",
+                                    occupation: "",
+                                    is_primary: true,
+                                })
+                            }
+                            className="h-8 px-3 text-xs font-semibold bg-sky-600 hover:bg-sky-500 text-white gap-1.5 cursor-pointer"
+                        >
+                            <Plus className="h-3.5 w-3.5" />
+                            <span>Add Father</span>
+                        </Button>
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                                append({
+                                    first_name: "",
+                                    last_name: "",
+                                    phone: "",
+                                    gender: "female",
+                                    relation: "mother",
+                                    occupation: "",
+                                    is_primary: true,
+                                })
+                            }
+                            className="h-8 px-3 text-xs font-semibold border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 gap-1.5 cursor-pointer"
+                        >
+                            <Plus className="h-3.5 w-3.5" />
+                            <span>Add Mother</span>
+                        </Button>
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                                append({
+                                    first_name: "",
+                                    last_name: "",
+                                    phone: "",
+                                    gender: "other",
+                                    relation: "guardian",
+                                    occupation: "",
+                                    is_primary: true,
+                                })
+                            }
+                            className="h-8 px-3 text-xs font-semibold border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 gap-1.5 cursor-pointer"
+                        >
+                            <Plus className="h-3.5 w-3.5" />
+                            <span>Add Guardian</span>
+                        </Button>
+                    </div>
+                </div>
+            ) : (
+                <div className="space-y-3.5">
+                    {fields.map((field, index) => {
                     const isPrimary = index === 0;
                     const relationValue = watch(`parents.${index}.relation`) || (isPrimary ? "father" : "mother");
                     const genderValue = watch(`parents.${index}.gender`) || (relationValue === "mother" ? "female" : "male");
@@ -230,6 +306,7 @@ export default function GuardianDetailsStep({ form }: GuardianDetailsStepProps) 
                     );
                 })}
             </div>
+            )}
 
             {/* If zero parents (fallback), or Add Secondary button */}
             <div className="flex items-center justify-between pt-1">
