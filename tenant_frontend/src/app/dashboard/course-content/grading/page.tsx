@@ -57,7 +57,8 @@ const AVATAR_PALETTES = [
     { bg: "bg-teal-100 dark:bg-teal-950/70", text: "text-teal-700 dark:text-teal-300", border: "border-teal-300/60 dark:border-teal-800" },
 ];
 
-function getAvatarStyle(name: string) {
+function getAvatarStyle(name?: string | null) {
+    if (!name || typeof name !== "string") return AVATAR_PALETTES[0];
     let hash = 0;
     for (let i = 0; i < name.length; i++) {
         hash = name.charCodeAt(i) + ((hash << 5) - hash);
@@ -66,9 +67,9 @@ function getAvatarStyle(name: string) {
     return AVATAR_PALETTES[index];
 }
 
-function getInitials(name: string) {
-    if (!name) return "ST";
-    const parts = name.trim().split(/\s+/);
+function getInitials(name?: string | null) {
+    if (!name || typeof name !== "string") return "ST";
+    const parts = name.trim().split(/\s+/).filter(Boolean);
     if (parts.length >= 2) {
         return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
     }
@@ -374,11 +375,13 @@ export default function GradingPage() {
                                                 </div>
                                                 <div>
                                                     <div className="font-semibold text-xs text-slate-900 dark:text-slate-100">
-                                                        {sub.student_name}
+                                                        {sub.student_name || "Enrolled Student"}
                                                     </div>
-                                                    <code className="text-[10px] font-mono text-slate-400 bg-slate-100 dark:bg-slate-800 px-1 py-0.2 rounded">
-                                                        {sub.student_enrollment_id}
-                                                    </code>
+                                                    {sub.student_enrollment_id && (
+                                                        <code className="text-[10px] font-mono text-slate-400 bg-slate-100 dark:bg-slate-800 px-1 py-0.2 rounded">
+                                                            {sub.student_enrollment_id}
+                                                        </code>
+                                                    )}
                                                 </div>
                                             </div>
                                         </TableCell>

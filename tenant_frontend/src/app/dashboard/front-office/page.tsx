@@ -54,7 +54,8 @@ const AVATAR_PALETTES = [
     { bg: "bg-amber-100 dark:bg-amber-950/70", text: "text-amber-700 dark:text-amber-300", border: "border-amber-300/60 dark:border-amber-800" },
 ];
 
-function getAvatarStyle(name: string) {
+function getAvatarStyle(name?: string | null) {
+    if (!name || typeof name !== "string") return AVATAR_PALETTES[0];
     let hash = 0;
     for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
     const index = Math.abs(hash) % AVATAR_PALETTES.length;

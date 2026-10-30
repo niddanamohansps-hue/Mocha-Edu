@@ -71,7 +71,8 @@ const AVATAR_PALETTES = [
     { bg: "bg-teal-100 dark:bg-teal-950/70", text: "text-teal-700 dark:text-teal-300", border: "border-teal-300/60 dark:border-teal-800" },
 ];
 
-function getAvatarStyle(name: string) {
+function getAvatarStyle(name?: string | null) {
+    if (!name || typeof name !== "string") return AVATAR_PALETTES[0];
     let hash = 0;
     for (let i = 0; i < name.length; i++) {
         hash = name.charCodeAt(i) + ((hash << 5) - hash);
