@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { usePermissions } from "@/providers/PermissionProvider";
+import { Compass, Bus, Users, Receipt } from "lucide-react";
 
 export {
     Field,
@@ -18,10 +19,10 @@ export {
 } from "@/components/dashboard/inventory/shared";
 
 const TABS = [
-    { href: "/dashboard/transport", label: "Routes", exact: true },
-    { href: "/dashboard/transport/fleet", label: "Vehicles & drivers" },
-    { href: "/dashboard/transport/students", label: "Students" },
-    { href: "/dashboard/transport/billing", label: "Billing" },
+    { href: "/dashboard/transport", label: "Routes & Schedules", icon: Compass, exact: true },
+    { href: "/dashboard/transport/fleet", label: "Fleet & Crew", icon: Bus },
+    { href: "/dashboard/transport/students", label: "Student Roster", icon: Users },
+    { href: "/dashboard/transport/billing", label: "Monthly Billing", icon: Receipt },
 ];
 
 export function TransportNav() {
@@ -29,21 +30,23 @@ export function TransportNav() {
     const { can } = usePermissions();
     if (!can("view_transport")) return null;
     return (
-        <nav className="flex flex-wrap gap-1 border-b border-slate-200 dark:border-slate-800" aria-label="Transport sections">
+        <nav className="flex items-center gap-1 border-b border-slate-200/80 dark:border-slate-800 pb-px overflow-x-auto scrollbar-none" aria-label="Transport sections">
             {TABS.map((tab) => {
                 const active = tab.exact ? pathname === tab.href : pathname.startsWith(tab.href);
+                const Icon = tab.icon;
                 return (
                     <Link
                         key={tab.href}
                         href={tab.href}
                         aria-current={active ? "page" : undefined}
-                        className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors ${
+                        className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-semibold border-b-2 transition-all cursor-pointer whitespace-nowrap ${
                             active
-                                ? "border-sky-600 text-sky-700 dark:text-sky-400"
-                                : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                                ? "border-sky-600 text-sky-600 dark:text-sky-400 bg-sky-50/50 dark:bg-sky-950/20 rounded-t-lg"
+                                : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:border-slate-300"
                         }`}
                     >
-                        {tab.label}
+                        <Icon className={`w-3.5 h-3.5 ${active ? "text-sky-600 dark:text-sky-400" : "text-slate-400"}`} />
+                        <span>{tab.label}</span>
                     </Link>
                 );
             })}
