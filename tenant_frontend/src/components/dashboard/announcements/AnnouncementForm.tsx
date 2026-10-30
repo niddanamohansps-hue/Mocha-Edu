@@ -10,9 +10,25 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-
-const SELECT_CLASS =
-    "w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent px-3 py-2 text-sm disabled:opacity-60 disabled:cursor-not-allowed";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import {
+    Megaphone,
+    Users,
+    GraduationCap,
+    Briefcase,
+    Layers,
+    Save,
+    LoaderCircle,
+    Mail,
+    AlertCircle,
+} from "lucide-react";
 
 export function AnnouncementForm({ existing }: { existing?: Announcement }) {
     const router = useRouter();
@@ -32,8 +48,6 @@ export function AnnouncementForm({ existing }: { existing?: Announcement }) {
     const [sendEmail, setSendEmail] = useState(existing?.send_email ?? false);
     const [errors, setErrors] = useState<Record<string, string>>({});
 
-    // "Everyone" is offered only to holders of broadcast_announcements; the API
-    // enforces this again at publish time.
     const audiences = (Object.keys(AUDIENCE_LABELS) as AudienceType[]).filter(
         (key) => key !== "all" || can("broadcast_announcements") || existing?.audience_type === "all"
     );
@@ -66,97 +80,173 @@ export function AnnouncementForm({ existing }: { existing?: Announcement }) {
     };
 
     return (
-        <form onSubmit={submit} className="space-y-5 max-w-2xl" noValidate>
-            <div className="space-y-2">
-                <Label htmlFor="title">Title</Label>
-                <Input id="title" value={title} maxLength={200} onChange={(e) => setTitle(e.target.value)} />
-                {errors.title && <p className="text-xs text-red-600">{errors.title}</p>}
-            </div>
-
-            <div className="space-y-2">
-                <Label htmlFor="body">Message</Label>
-                <Textarea id="body" rows={7} value={body} onChange={(e) => setBody(e.target.value)} />
-                {errors.body && <p className="text-xs text-red-600">{errors.body}</p>}
-            </div>
-
-            {isScheduled && (
-                <div className="rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-3 text-xs text-amber-800 dark:text-amber-300">
-                    <p className="font-semibold mb-0.5">Audience settings locked</p>
-                    <p>
-                        The audience of a scheduled announcement cannot be modified directly. To change the recipient audience, cancel the schedule first from the announcement actions.
-                    </p>
+        <form onSubmit={submit} className="space-y-6 max-w-3xl" noValidate>
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-6 shadow-2xs space-y-5">
+                {/* Title */}
+                <div className="space-y-2">
+                    <Label htmlFor="title" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        Notice Title <span className="text-rose-500">*</span>
+                    </Label>
+                    <Input
+                        id="title"
+                        value={title}
+                        maxLength={200}
+                        onChange={(e) => setTitle(e.target.value)}
+                        placeholder="e.g. Annual Sports Meet 2026 Schedule & Guidelines"
+                        className="h-10 text-xs border-slate-200 dark:border-slate-800 font-medium"
+                    />
+                    {errors.title && <p className="text-xs text-rose-600 font-medium">{errors.title}</p>}
                 </div>
-            )}
 
-            <div className="space-y-2">
-                <Label htmlFor="audience">Send to</Label>
-                <select
-                    id="audience"
-                    className={SELECT_CLASS}
-                    value={audience}
-                    disabled={isScheduled}
-                    onChange={(e) => setAudience(e.target.value as AudienceType)}
+                {/* Message Body */}
+                <div className="space-y-2">
+                    <Label htmlFor="body" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        Notice Content &amp; Instructions <span className="text-rose-500">*</span>
+                    </Label>
+                    <Textarea
+                        id="body"
+                        rows={7}
+                        value={body}
+                        onChange={(e) => setBody(e.target.value)}
+                        placeholder="Type the full announcement message here. You can include dates, venues, guidelines, and point of contacts..."
+                        className="text-xs border-slate-200 dark:border-slate-800 font-normal leading-relaxed"
+                    />
+                    {errors.body && <p className="text-xs text-rose-600 font-medium">{errors.body}</p>}
+                </div>
+
+                {/* Audience Warning if Scheduled */}
+                {isScheduled && (
+                    <div className="rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-3.5 text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2.5">
+                        <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
+                        <div>
+                            <p className="font-bold">Audience settings locked</p>
+                            <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-0.5">
+                                The recipient audience of a scheduled announcement cannot be modified directly. To alter the target audience, cancel the schedule first.
+                            </p>
+                        </div>
+                    </div>
+                )}
+
+                {/* Audience Selection */}
+                <div className="space-y-2">
+                    <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        Target Audience <span className="text-rose-500">*</span>
+                    </Label>
+                    <Select
+                        value={audience}
+                        disabled={isScheduled}
+                        onValueChange={(val) => setAudience(val as AudienceType)}
+                    >
+                        <SelectTrigger className="h-10 text-xs border-slate-200 dark:border-slate-800 font-medium">
+                            <SelectValue placeholder="Select target audience" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {audiences.map((key) => (
+                                <SelectItem key={key} value={key} className="text-xs cursor-pointer">
+                                    {AUDIENCE_LABELS[key]}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+
+                {/* Specific Section Selector */}
+                {audience === "section" && (
+                    <div className="space-y-2 animate-in fade-in duration-200">
+                        <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                            Academic Section <span className="text-rose-500">*</span>
+                        </Label>
+                        <Select
+                            value={sectionId}
+                            disabled={isScheduled}
+                            onValueChange={setSectionId}
+                        >
+                            <SelectTrigger className="h-10 text-xs border-slate-200 dark:border-slate-800 font-medium">
+                                <SelectValue placeholder="Select a section..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {(sections ?? []).map((s) => (
+                                    <SelectItem key={s.id} value={s.id} className="text-xs">
+                                        {s.level_name} - {s.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        {errors.audience_section && (
+                            <p className="text-xs text-rose-600 font-medium">{errors.audience_section}</p>
+                        )}
+                    </div>
+                )}
+
+                {/* Specific Level Selector */}
+                {audience === "level" && (
+                    <div className="space-y-2 animate-in fade-in duration-200">
+                        <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                            Grade Level <span className="text-rose-500">*</span>
+                        </Label>
+                        <Select
+                            value={levelId}
+                            disabled={isScheduled}
+                            onValueChange={setLevelId}
+                        >
+                            <SelectTrigger className="h-10 text-xs border-slate-200 dark:border-slate-800 font-medium">
+                                <SelectValue placeholder="Select a grade level..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {(levels ?? []).map((l) => (
+                                    <SelectItem key={l.id} value={l.id} className="text-xs">
+                                        {l.program_name} - {l.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        {errors.audience_level && (
+                            <p className="text-xs text-rose-600 font-medium">{errors.audience_level}</p>
+                        )}
+                    </div>
+                )}
+
+                {/* Email Dispatch Checkbox */}
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                    <label className="flex items-start gap-2.5 text-xs text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+                        <Checkbox
+                            checked={sendEmail}
+                            onCheckedChange={(val) => setSendEmail(Boolean(val))}
+                            className="mt-0.5"
+                        />
+                        <div>
+                            <span className="font-semibold text-slate-900 dark:text-white">
+                                Also broadcast by email
+                            </span>
+                            <p className="text-[11px] text-slate-400 mt-0.5">
+                                Dispatches an email notification to recipients with verified email addresses. Others receive in-app portal notifications.
+                            </p>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            {/* Actions Bar */}
+            <div className="flex items-center gap-3">
+                <Button
+                    type="submit"
+                    disabled={pending}
+                    className="h-9 px-5 gap-2 bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs rounded-lg shadow-sm cursor-pointer transition active:scale-95"
                 >
-                    {audiences.map((key) => (
-                        <option key={key} value={key}>
-                            {AUDIENCE_LABELS[key]}
-                        </option>
-                    ))}
-                </select>
-            </div>
-
-            {audience === "section" && (
-                <div className="space-y-2">
-                    <Label htmlFor="section">Section</Label>
-                    <select
-                        id="section"
-                        className={SELECT_CLASS}
-                        value={sectionId}
-                        disabled={isScheduled}
-                        onChange={(e) => setSectionId(e.target.value)}
-                    >
-                        <option value="">Select a section</option>
-                        {(sections ?? []).map((s) => (
-                            <option key={s.id} value={s.id}>
-                                {s.level_name} - {s.name}
-                            </option>
-                        ))}
-                    </select>
-                    {errors.audience_section && <p className="text-xs text-red-600">{errors.audience_section}</p>}
-                </div>
-            )}
-
-            {audience === "level" && (
-                <div className="space-y-2">
-                    <Label htmlFor="level">Level</Label>
-                    <select
-                        id="level"
-                        className={SELECT_CLASS}
-                        value={levelId}
-                        disabled={isScheduled}
-                        onChange={(e) => setLevelId(e.target.value)}
-                    >
-                        <option value="">Select a level</option>
-                        {(levels ?? []).map((l) => (
-                            <option key={l.id} value={l.id}>
-                                {l.program_name} - {l.name}
-                            </option>
-                        ))}
-                    </select>
-                    {errors.audience_level && <p className="text-xs text-red-600">{errors.audience_level}</p>}
-                </div>
-            )}
-
-            <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
-                <input type="checkbox" checked={sendEmail} onChange={(e) => setSendEmail(e.target.checked)} />
-                Also send by email (recipients without an email address get the in-app notification only)
-            </label>
-
-            <div className="flex gap-3">
-                <Button type="submit" disabled={pending}>
-                    {pending ? "Saving..." : existing ? "Save changes" : "Save draft"}
+                    {pending ? (
+                        <LoaderCircle className="h-4 w-4 animate-spin" />
+                    ) : (
+                        <Save className="h-4 w-4" />
+                    )}
+                    <span>{existing ? "Save Changes" : "Save Notice Draft"}</span>
                 </Button>
-                <Button type="button" variant="outline" disabled={pending} onClick={() => router.back()}>
+                <Button
+                    type="button"
+                    variant="outline"
+                    disabled={pending}
+                    onClick={() => router.back()}
+                    className="h-9 text-xs font-semibold"
+                >
                     Cancel
                 </Button>
             </div>
