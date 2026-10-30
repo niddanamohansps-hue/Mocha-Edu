@@ -1,146 +1,551 @@
 "use client";
 
-import { ResponsiveList } from "@/components/common/ResponsiveList";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { History, LoaderCircle, Lock, Upload } from "lucide-react";
+import {
+    History,
+    LoaderCircle,
+    Lock,
+    Upload,
+    CheckCircle2,
+    AlertCircle,
+    Award,
+    FileSpreadsheet,
+    HelpCircle,
+    RotateCcw,
+    Sparkles,
+    Search,
+    X,
+    Clock,
+    User,
+    Users,
+    GraduationCap,
+    Save,
+    FileText,
+    ArrowRight,
+    TrendingUp,
+} from "lucide-react";
 import axiosInstance from "@/lib/axios";
 import {
-    importErrors, useExaminations, useExamSchedules, useImportMarks, useMarksHistory, useRequestRecheck, useScheduleMarks,
-    useSetGrace, useSubmitExamMarks,
+    importErrors,
+    useExaminations,
+    useExamSchedules,
+    useImportMarks,
+    useMarksHistory,
+    useRequestRecheck,
+    useScheduleMarks,
+    useSetGrace,
+    useSubmitExamMarks,
 } from "@/hooks/useExaminations";
-import { ATTENDANCE_LABELS, MarkAttendance, MarksImportResult, SavedMark } from "@/types/Examinations";
+import {
+    ATTENDANCE_LABELS,
+    MarkAttendance,
+    MarksImportResult,
+    SavedMark,
+} from "@/types/Examinations";
 import { usePermissions } from "@/providers/PermissionProvider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Field, FormDialog, SELECT_CLASS, formatDateTime } from "@/components/dashboard/inventory/shared";
+import { Badge } from "@/components/ui/badge";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
+import { TableShell } from "@/components/common/table/TableShell";
 import Unauthorized from "@/components/Unauthorized";
 import { LoadingState } from "@/components/feedback/LoadingState";
 import { EmptyState } from "@/components/feedback/EmptyState";
 import { ErrorState } from "@/components/feedback/ErrorState";
+import { toast } from "sonner";
 
-type Row = { marks_obtained: string; attendance: MarkAttendance; remarks: string; components?: Record<string, string> };
+type Row = {
+    marks_obtained: string;
+    attendance: MarkAttendance;
+    remarks: string;
+    components?: Record<string, string>;
+};
 
-const TEXTAREA = "w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent px-3 py-2 text-sm min-h-[70px]";
+const AVATAR_PALETTES = [
+    { bg: "bg-sky-100 dark:bg-sky-950/70", text: "text-sky-700 dark:text-sky-300", border: "border-sky-300/60 dark:border-sky-800" },
+    { bg: "bg-emerald-100 dark:bg-emerald-950/70", text: "text-emerald-700 dark:text-emerald-300", border: "border-emerald-300/60 dark:border-emerald-800" },
+    { bg: "bg-indigo-100 dark:bg-indigo-950/70", text: "text-indigo-700 dark:text-indigo-300", border: "border-indigo-300/60 dark:border-indigo-800" },
+    { bg: "bg-purple-100 dark:bg-purple-950/70", text: "text-purple-700 dark:text-purple-300", border: "border-purple-300/60 dark:border-purple-800" },
+    { bg: "bg-amber-100 dark:bg-amber-950/70", text: "text-amber-700 dark:text-amber-300", border: "border-amber-300/60 dark:border-amber-800" },
+    { bg: "bg-rose-100 dark:bg-rose-950/70", text: "text-rose-700 dark:text-rose-300", border: "border-rose-300/60 dark:border-rose-800" },
+    { bg: "bg-teal-100 dark:bg-teal-950/70", text: "text-teal-700 dark:text-teal-300", border: "border-teal-300/60 dark:border-teal-800" },
+];
 
-function GraceDialog({ mark, max, onClose }: { mark: SavedMark; max: string; onClose: () => void }) {
+function getAvatarStyle(name: string) {
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+        hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const index = Math.abs(hash) % AVATAR_PALETTES.length;
+    return AVATAR_PALETTES[index];
+}
+
+function getInitials(name: string) {
+    if (!name) return "ST";
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+    return name.slice(0, 2).toUpperCase();
+}
+
+function formatDateTime(iso: string | null) {
+    if (!iso) return "—";
+    try {
+        const d = new Date(iso);
+        return d.toLocaleDateString("en-IN", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+        });
+    } catch {
+        return iso;
+    }
+}
+
+// -------------------------------------------------------------
+// Grace Marks Dialog
+// -------------------------------------------------------------
+function GraceDialog({
+    mark,
+    max,
+    onClose,
+}: {
+    mark: SavedMark;
+    max: string;
+    onClose: () => void;
+}) {
     const setGrace = useSetGrace();
-    const [grace, setGraceValue] = useState(Number(mark.grace_marks) ? String(Number(mark.grace_marks)) : "");
+    const [grace, setGraceValue] = useState(
+        Number(mark.grace_marks) ? String(Number(mark.grace_marks)) : ""
+    );
     const [reason, setReason] = useState("");
     const [error, setError] = useState<string | null>(null);
-    const room = Number(max) - Number(mark.marks_obtained ?? 0);
+
+    const maxNum = Number(max);
+    const currentNum = Number(mark.marks_obtained ?? 0);
+    const room = Math.max(0, maxNum - currentNum);
+
+    const handleSave = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!/^\d+(\.\d{1,2})?$/.test(grace.trim())) {
+            return setError("Enter grace marks as a valid positive number.");
+        }
+        if (Number(grace) > room) {
+            return setError(`At most ${room} grace marks fit under the maximum score (${maxNum}).`);
+        }
+        if (!reason.trim()) {
+            return setError("Please provide a reason; it will be preserved in the audit log.");
+        }
+        setError(null);
+        setGrace.mutate(
+            { markId: mark.id, grace_marks: grace.trim(), reason: reason.trim() },
+            {
+                onSuccess: () => {
+                    toast.success(`Grace marks awarded to ${mark.student_name}`);
+                    onClose();
+                },
+                onError: (err: any) => {
+                    setError(err?.message || "Failed to save grace marks");
+                },
+            }
+        );
+    };
+
     return (
-        <FormDialog
-            open onOpenChange={(o) => !o && onClose()}
-            title={`Grace marks: ${mark.student_name}`}
-            description={`Marks ${Number(mark.marks_obtained)} of ${Number(max)}. At most ${room} grace marks fit. 0 removes them.`}
-            submitLabel="Save" pending={setGrace.isPending} error={error}
-            onSubmit={() => {
-                if (!/^\d+(\.\d{1,2})?$/.test(grace.trim())) return setError("Enter grace marks as a number.");
-                if (Number(grace) > room) return setError(`At most ${room} grace marks fit under the maximum.`);
-                if (!reason.trim()) return setError("Give a reason; it is kept with the mark's history.");
-                setError(null);
-                setGrace.mutate({ markId: mark.id, grace_marks: grace.trim(), reason: reason.trim() }, { onSuccess: onClose });
-            }}
-        >
-            <Field label="Grace marks" htmlFor="gr-marks"><Input id="gr-marks" inputMode="decimal" value={grace} onChange={(e) => setGraceValue(e.target.value)} /></Field>
-            <Field label="Reason" htmlFor="gr-reason"><textarea id="gr-reason" className={TEXTAREA} maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
-        </FormDialog>
+        <Dialog open onOpenChange={(o) => !o && onClose()}>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle className="text-base font-bold flex items-center gap-2">
+                        <Award className="h-5 w-5 text-amber-500" />
+                        <span>Award Grace Marks: {mark.student_name}</span>
+                    </DialogTitle>
+                    <DialogDescription className="text-xs">
+                        Current score is {currentNum} of {maxNum} max marks. Headroom available:{" "}
+                        <span className="font-bold text-slate-800 dark:text-slate-200">
+                            +{room} marks
+                        </span>
+                        . Setting 0 removes grace.
+                    </DialogDescription>
+                </DialogHeader>
+
+                <form onSubmit={handleSave} className="space-y-4 pt-2">
+                    {error && (
+                        <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-700 dark:text-rose-300">
+                            {error}
+                        </div>
+                    )}
+
+                    <div className="space-y-1.5">
+                        <Label htmlFor="gr-marks" className="text-xs font-semibold">
+                            Grace Marks to Award <span className="text-rose-500">*</span>
+                        </Label>
+                        <Input
+                            id="gr-marks"
+                            type="number"
+                            inputMode="decimal"
+                            step="any"
+                            value={grace}
+                            onChange={(e) => setGraceValue(e.target.value)}
+                            placeholder={`0 to ${room}`}
+                            className="h-9 text-xs"
+                        />
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <Label htmlFor="gr-reason" className="text-xs font-semibold">
+                            Administrative Justification <span className="text-rose-500">*</span>
+                        </Label>
+                        <Textarea
+                            id="gr-reason"
+                            rows={3}
+                            maxLength={500}
+                            value={reason}
+                            onChange={(e) => setReason(e.target.value)}
+                            placeholder="e.g. Approved condonation for sports attendance / borderline moderation"
+                            className="text-xs"
+                        />
+                    </div>
+
+                    <DialogFooter className="pt-2 gap-2">
+                        <Button type="button" variant="outline" size="sm" onClick={onClose}>
+                            Cancel
+                        </Button>
+                        <Button
+                            type="submit"
+                            size="sm"
+                            disabled={setGrace.isPending}
+                            className="bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs"
+                        >
+                            {setGrace.isPending && <LoaderCircle className="h-4 w-4 animate-spin mr-1.5" />}
+                            Apply Grace Marks
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
     );
 }
 
+// -------------------------------------------------------------
+// Ask for Recheck Dialog
+// -------------------------------------------------------------
 function RecheckDialog({ mark, onClose }: { mark: SavedMark; onClose: () => void }) {
     const ask = useRequestRecheck();
     const [reason, setReason] = useState("");
     const [error, setError] = useState<string | null>(null);
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!reason.trim()) {
+            return setError("Please state specifically what should be re-evaluated.");
+        }
+        setError(null);
+        ask.mutate(
+            { mark: mark.id, reason: reason.trim() },
+            {
+                onSuccess: () => {
+                    toast.success(`Recheck request submitted for ${mark.student_name}`);
+                    onClose();
+                },
+                onError: (err: any) => setError(err?.message || "Failed to submit request"),
+            }
+        );
+    };
+
     return (
-        <FormDialog
-            open onOpenChange={(o) => !o && onClose()}
-            title={`Ask for a recheck: ${mark.student_name}`}
-            description="Someone who manages marks re-checks the answer script and accepts or rejects the request."
-            submitLabel="Ask" pending={ask.isPending} error={error}
-            onSubmit={() => {
-                if (!reason.trim()) return setError("Say what should be re-checked.");
-                setError(null);
-                ask.mutate({ mark: mark.id, reason: reason.trim() }, { onSuccess: onClose });
-            }}
-        >
-            <Field label="What should be re-checked" htmlFor="rc-reason"><textarea id="rc-reason" className={TEXTAREA} maxLength={1000} value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
-        </FormDialog>
+        <Dialog open onOpenChange={(o) => !o && onClose()}>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle className="text-base font-bold flex items-center gap-2">
+                        <RotateCcw className="h-5 w-5 text-sky-600" />
+                        <span>Request Paper Re-evaluation</span>
+                    </DialogTitle>
+                    <DialogDescription className="text-xs">
+                        Initiate a formal re-check of answer script for{" "}
+                        <span className="font-semibold text-slate-800 dark:text-slate-200">
+                            {mark.student_name}
+                        </span>
+                        . An examination administrator will audit the paper.
+                    </DialogDescription>
+                </DialogHeader>
+
+                <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+                    {error && (
+                        <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 text-xs text-rose-700">
+                            {error}
+                        </div>
+                    )}
+
+                    <div className="space-y-1.5">
+                        <Label htmlFor="rc-reason" className="text-xs font-semibold">
+                            Scope of Re-evaluation <span className="text-rose-500">*</span>
+                        </Label>
+                        <Textarea
+                            id="rc-reason"
+                            rows={3}
+                            maxLength={1000}
+                            value={reason}
+                            onChange={(e) => setReason(e.target.value)}
+                            placeholder="e.g. Question 4(b) unchecked on page 5 or mark totalling mismatch"
+                            className="text-xs"
+                        />
+                    </div>
+
+                    <DialogFooter className="pt-2 gap-2">
+                        <Button type="button" variant="outline" size="sm" onClick={onClose}>
+                            Cancel
+                        </Button>
+                        <Button
+                            type="submit"
+                            size="sm"
+                            disabled={ask.isPending}
+                            className="bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs"
+                        >
+                            {ask.isPending && <LoaderCircle className="h-4 w-4 animate-spin mr-1.5" />}
+                            Submit Recheck Request
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
     );
 }
 
-function ImportDialog({ scheduleId, needsReason, onClose }: { scheduleId: string; needsReason: boolean; onClose: () => void }) {
+// -------------------------------------------------------------
+// Import Marks Dialog
+// -------------------------------------------------------------
+function ImportDialog({
+    scheduleId,
+    needsReason,
+    onClose,
+}: {
+    scheduleId: string;
+    needsReason: boolean;
+    onClose: () => void;
+}) {
     const run = useImportMarks();
     const [file, setFile] = useState<File | null>(null);
     const [preview, setPreview] = useState<MarksImportResult | null>(null);
     const [errors, setErrors] = useState<string[]>([]);
     const [reason, setReason] = useState("");
+
     const send = (dryRun: boolean) => {
-        if (!file) return setErrors(["Choose a CSV file."]);
-        if (!dryRun && needsReason && !reason.trim()) return setErrors(["This schedule is locked. Give a reason for changing marks."]);
+        if (!file) return setErrors(["Please choose a CSV file."]);
+        if (!dryRun && needsReason && !reason.trim()) {
+            return setErrors(["This schedule is locked. Provide a justification for updating marks."]);
+        }
         setErrors([]);
-        run.mutate({ scheduleId, file, dryRun, reason: reason.trim() }, {
-            onSuccess: (data) => (dryRun ? setPreview(data) : onClose()),
-            onError: (e) => { setPreview(null); setErrors(importErrors(e)); },
-        });
+        run.mutate(
+            { scheduleId, file, dryRun, reason: reason.trim() },
+            {
+                onSuccess: (data) => {
+                    if (dryRun) {
+                        setPreview(data);
+                        toast.info(`Verified ${data.total} rows successfully.`);
+                    } else {
+                        toast.success("Marks imported successfully!");
+                        onClose();
+                    }
+                },
+                onError: (e) => {
+                    setPreview(null);
+                    setErrors(importErrors(e));
+                },
+            }
+        );
     };
+
     return (
-        <FormDialog
-            open onOpenChange={(o) => !o && onClose()}
-            title="Import marks from a CSV file"
-            description="Columns: enrollment_id, marks, and optionally attendance (present, absent, medical, malpractice, exempt) and remarks. Check the file first; nothing is saved if any line is wrong."
-            submitLabel={preview ? `Import ${preview.total} rows` : "Check the file"} pending={run.isPending}
-            error={errors.length ? errors.slice(0, 8).join("\n") + (errors.length > 8 ? `\n...and ${errors.length - 8} more` : "") : null}
-            onSubmit={() => send(!preview)}
-        >
-            <Field label="CSV file" htmlFor="im-file">
-                <input id="im-file" type="file" accept=".csv,text/csv" className="text-sm"
-                    onChange={(e) => { setFile(e.target.files?.[0] ?? null); setPreview(null); setErrors([]); }} />
-            </Field>
-            {needsReason && (
-                <Field label="Reason for changing locked marks" htmlFor="im-reason"><Input id="im-reason" maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
-            )}
-            {preview?.rows && (
-                <div className="max-h-56 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-800 text-sm">
-                    {preview.rows.map((r) => (
-                        <div key={r.line} className="flex justify-between gap-2 px-3 py-1 border-b border-slate-100 dark:border-slate-800 last:border-0">
-                            <span>{r.student_name} <span className="text-xs text-slate-500">({r.enrollment_id})</span></span>
-                            <span className="text-slate-600 dark:text-slate-300">{r.attendance === "present" ? (r.marks ?? "not marked") : ATTENDANCE_LABELS[r.attendance]}</span>
+        <Dialog open onOpenChange={(o) => !o && onClose()}>
+            <DialogContent className="sm:max-w-xl">
+                <DialogHeader>
+                    <DialogTitle className="text-base font-bold flex items-center gap-2">
+                        <FileSpreadsheet className="h-5 w-5 text-emerald-600" />
+                        <span>Batch Import Marks from CSV</span>
+                    </DialogTitle>
+                    <DialogDescription className="text-xs leading-relaxed">
+                        Expected columns: <code className="font-mono font-bold text-sky-600">enrollment_id</code>,{" "}
+                        <code className="font-mono font-bold text-sky-600">marks</code>, and optionally{" "}
+                        <code className="font-mono">attendance</code> (present, absent, medical, malpractice, exempt) and{" "}
+                        <code className="font-mono">remarks</code>. Pre-flight checks will run before saving.
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4 pt-2">
+                    {errors.length > 0 && (
+                        <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 text-xs text-rose-700 whitespace-pre-line max-h-36 overflow-y-auto">
+                            {errors.slice(0, 6).join("\n")}
+                            {errors.length > 6 && `\n...and ${errors.length - 6} more errors`}
                         </div>
-                    ))}
+                    )}
+
+                    <div className="space-y-1.5">
+                        <Label htmlFor="im-file" className="text-xs font-semibold">
+                            Select CSV Spreadsheet <span className="text-rose-500">*</span>
+                        </Label>
+                        <Input
+                            id="im-file"
+                            type="file"
+                            accept=".csv,text/csv"
+                            className="h-10 text-xs cursor-pointer"
+                            onChange={(e) => {
+                                setFile(e.target.files?.[0] ?? null);
+                                setPreview(null);
+                                setErrors([]);
+                            }}
+                        />
+                    </div>
+
+                    {needsReason && (
+                        <div className="space-y-1.5">
+                            <Label htmlFor="im-reason" className="text-xs font-semibold">
+                                Reason for modifying locked schedule <span className="text-rose-500">*</span>
+                            </Label>
+                            <Input
+                                id="im-reason"
+                                maxLength={500}
+                                value={reason}
+                                onChange={(e) => setReason(e.target.value)}
+                                placeholder="Audit justification..."
+                                className="h-9 text-xs"
+                            />
+                        </div>
+                    )}
+
+                    {preview?.rows && (
+                        <div className="space-y-2">
+                            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                                Pre-flight Validation Preview ({preview.total} Rows)
+                            </span>
+                            <div className="max-h-48 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-800 text-xs divide-y divide-slate-100 dark:divide-slate-800">
+                                {preview.rows.map((r) => (
+                                    <div key={r.line} className="flex items-center justify-between p-2">
+                                        <div>
+                                            <span className="font-semibold text-slate-900 dark:text-white">
+                                                {r.student_name}
+                                            </span>
+                                            <span className="text-[10px] font-mono text-slate-400 ml-1.5">
+                                                ({r.enrollment_id})
+                                            </span>
+                                        </div>
+                                        <Badge
+                                            variant="outline"
+                                            className="text-[11px] font-bold bg-slate-50 dark:bg-slate-900"
+                                        >
+                                            {r.attendance === "present"
+                                                ? `${r.marks ?? "Not marked"} marks`
+                                                : ATTENDANCE_LABELS[r.attendance]}
+                                        </Badge>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    <DialogFooter className="pt-2 gap-2">
+                        <Button type="button" variant="outline" size="sm" onClick={onClose}>
+                            Cancel
+                        </Button>
+                        <Button
+                            type="button"
+                            size="sm"
+                            disabled={run.isPending || !file}
+                            onClick={() => send(!preview)}
+                            className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs"
+                        >
+                            {run.isPending && <LoaderCircle className="h-4 w-4 animate-spin mr-1.5" />}
+                            {preview ? `Commit Import (${preview.total} Rows)` : "Check CSV Format"}
+                        </Button>
+                    </DialogFooter>
                 </div>
-            )}
-        </FormDialog>
+            </DialogContent>
+        </Dialog>
     );
 }
 
+// -------------------------------------------------------------
+// History Timeline Panel
+// -------------------------------------------------------------
 function HistoryPanel({ scheduleId }: { scheduleId: string }) {
     const { data, isLoading, isError } = useMarksHistory(scheduleId, true);
     if (isLoading) return <LoadingState className="py-6" />;
     if (isError) return <ErrorState message="Could not load the history." />;
-    if (!data?.length) return <p className="text-sm text-slate-500">No marks entered yet.</p>;
+    if (!data?.length) return <p className="text-xs text-slate-500">No marks entered yet.</p>;
+
     const show = (marks: string | null, attendance: string, grace?: string) =>
-        attendance && attendance !== "present" ? ATTENDANCE_LABELS[attendance as MarkAttendance] ?? attendance
-            : marks === null ? "blank" : `${Number(marks)}${grace && Number(grace) ? ` +${Number(grace)}` : ""}`;
+        attendance && attendance !== "present"
+            ? ATTENDANCE_LABELS[attendance as MarkAttendance] ?? attendance
+            : marks === null
+            ? "blank"
+            : `${Number(marks)}${grace && Number(grace) ? ` +${Number(grace)}` : ""}`;
+
     return (
-        <ul className="text-sm space-y-2 max-h-80 overflow-y-auto">
+        <ul className="text-xs space-y-2.5 max-h-72 overflow-y-auto pr-1">
             {data.map((c) => (
-                <li key={c.id}>
-                    <span className="font-medium">{c.student_name}</span> <span className="text-xs text-slate-500">({c.enrollment_id})</span>:{" "}
-                    {c.kind === "entry" ? `entered ${show(c.new_marks, c.new_attendance)}`
-                        : c.kind === "grace" ? `grace ${Number(c.old_grace)} → ${Number(c.new_grace)}`
-                        : `${c.kind === "recheck" ? "recheck" : c.kind === "import" ? "import" : "changed"} ${show(c.old_marks, c.old_attendance)} → ${show(c.new_marks, c.new_attendance)}`}
-                    <span className="block text-xs text-slate-500">
-                        {c.changed_by || "someone"}, {formatDateTime(c.created_at)}{c.reason ? ` · ${c.reason}` : ""}
-                    </span>
+                <li
+                    key={c.id}
+                    className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-950/50 border border-slate-100 dark:border-slate-800 space-y-1"
+                >
+                    <div className="flex items-center justify-between">
+                        <span className="font-semibold text-slate-900 dark:text-white">
+                            {c.student_name}{" "}
+                            <span className="text-[10px] font-mono text-slate-400 font-normal">
+                                ({c.enrollment_id})
+                            </span>
+                        </span>
+                        <Badge variant="outline" className="text-[10px] capitalize">
+                            {c.kind}
+                        </Badge>
+                    </div>
+                    <div className="text-slate-600 dark:text-slate-300">
+                        {c.kind === "entry"
+                            ? `Entered ${show(c.new_marks, c.new_attendance)}`
+                            : c.kind === "grace"
+                            ? `Grace ${Number(c.old_grace)} → ${Number(c.new_grace)}`
+                            : `${c.kind === "recheck" ? "Recheck" : c.kind === "import" ? "Import" : "Changed"} ${show(
+                                  c.old_marks,
+                                  c.old_attendance
+                              )} → ${show(c.new_marks, c.new_attendance)}`}
+                    </div>
+                    <div className="text-[10px] text-slate-400">
+                        {c.changed_by || "Staff"}, {formatDateTime(c.created_at)}
+                        {c.reason ? ` • Justification: ${c.reason}` : ""}
+                    </div>
                 </li>
             ))}
         </ul>
     );
 }
 
+// -------------------------------------------------------------
+// Main Marks Entry Desk Component
+// -------------------------------------------------------------
 export default function MarksEntryPage() {
     const { can, isOwner } = usePermissions();
     const canEnter = isOwner || can("enter_marks");
@@ -153,28 +558,40 @@ export default function MarksEntryPage() {
 
     const schedule = schedules?.find((s) => s.id === scheduleId);
 
-    const { data: roster, isLoading: loadingRoster, isError: rosterError, refetch: refetchRoster } = useQuery({
+    const {
+        data: roster,
+        isLoading: loadingRoster,
+        isError: rosterError,
+        refetch: refetchRoster,
+    } = useQuery({
         queryKey: ["examinations", "roster", scheduleId],
         queryFn: async () => {
-            // The section's current, active students (the same rule the server applies to marks).
             const response = await axiosInstance.get(
                 `/attendance/sections/${schedule?.section}/roster/?date=${schedule?.date}`
             );
-            return response.data.students as { student: string; full_name: string; enrollment_id: string }[];
+            return response.data.students as {
+                student: string;
+                full_name: string;
+                enrollment_id: string;
+            }[];
         },
-        enabled: !!schedule,
+        enabled: Boolean(schedule),
     });
+
     const saved = useScheduleMarks(scheduleId || undefined);
 
     const [marks, setMarks] = useState<Record<string, Row>>({});
     const [reason, setReason] = useState("");
+    const [studentSearch, setStudentSearch] = useState("");
     const [grace, setGrace] = useState<SavedMark | null>(null);
     const [recheck, setRecheck] = useState<SavedMark | null>(null);
     const [importing, setImporting] = useState(false);
     const [showHistory, setShowHistory] = useState(false);
     const { mutate: submitMarks, isPending } = useSubmitExamMarks();
 
-    const savedByStudent = Object.fromEntries((saved.data?.marks ?? []).map((m) => [m.student, m]));
+    const savedByStudent = useMemo(() => {
+        return Object.fromEntries((saved.data?.marks ?? []).map((m) => [m.student, m]));
+    }, [saved.data?.marks]);
 
     useEffect(() => {
         if (!roster || !saved.data) return;
@@ -185,32 +602,45 @@ export default function MarksEntryPage() {
             const compMarksMap: Record<string, string> = {};
             if (m?.component_marks) {
                 for (const cm of m.component_marks) {
-                    compMarksMap[cm.component] = cm.marks_obtained === null ? "" : String(Number(cm.marks_obtained));
+                    compMarksMap[cm.component] =
+                        cm.marks_obtained === null ? "" : String(Number(cm.marks_obtained));
                 }
             }
             initial[s.student] = m
                 ? {
-                    marks_obtained: m.marks_obtained === null ? "" : String(Number(m.marks_obtained)),
-                    attendance: m.attendance,
-                    remarks: m.remarks,
-                    components: compMarksMap,
-                }
-                : { marks_obtained: "", attendance: "present", remarks: "", components: compMarksMap };
+                      marks_obtained:
+                          m.marks_obtained === null ? "" : String(Number(m.marks_obtained)),
+                      attendance: m.attendance,
+                      remarks: m.remarks,
+                      components: compMarksMap,
+                  }
+                : {
+                      marks_obtained: "",
+                      attendance: "present",
+                      remarks: "",
+                      components: compMarksMap,
+                  };
         }
         setMarks(initial);
         setReason("");
     }, [roster, saved.data]);
 
-    const published = !!saved.data?.is_published;
-    const locked = !!schedule?.is_locked;
+    const published = Boolean(saved.data?.is_published);
+    const locked = Boolean(schedule?.is_locked);
     const editable = !published && (!locked || canManage);
     const needsReason = locked && canManage && !published;
 
-    const update = (student: string, patch: Partial<Row>) => setMarks((prev) => ({ ...prev, [student]: { ...prev[student], ...patch } }));
+    const update = (student: string, patch: Partial<Row>) =>
+        setMarks((prev) => ({ ...prev, [student]: { ...prev[student], ...patch } }));
 
     const updateComponent = (student: string, componentId: string, val: string) => {
         setMarks((prev) => {
-            const studentRow = prev[student] || { marks_obtained: "", attendance: "present", remarks: "", components: {} };
+            const studentRow = prev[student] || {
+                marks_obtained: "",
+                attendance: "present",
+                remarks: "",
+                components: {},
+            };
             const updatedComps = { ...(studentRow.components || {}), [componentId]: val };
             const sum = Object.values(updatedComps).reduce((acc, curr) => {
                 const num = parseFloat(curr);
@@ -221,29 +651,93 @@ export default function MarksEntryPage() {
                 [student]: {
                     ...studentRow,
                     components: updatedComps,
-                    marks_obtained: Object.values(updatedComps).some((v) => v !== "") ? String(sum) : "",
+                    marks_obtained: Object.values(updatedComps).some((v) => v !== "")
+                        ? String(sum)
+                        : "",
                 },
             };
         });
     };
 
+    // Live Grade Statistics & Pass/Fail Calculations
+    const passMarks = Number(schedule?.pass_marks ?? 0);
+    const maxMarks = Number(schedule?.max_marks ?? 100);
+
+    const stats = useMemo(() => {
+        if (!roster || roster.length === 0) {
+            return { total: 0, graded: 0, present: 0, absent: 0, passed: 0, failed: 0, avg: 0, top: 0 };
+        }
+        const total = roster.length;
+        let graded = 0;
+        let present = 0;
+        let absent = 0;
+        let passed = 0;
+        let failed = 0;
+        let sumMarks = 0;
+        let top = 0;
+
+        for (const s of roster) {
+            const m = marks[s.student];
+            const att = m?.attendance ?? "present";
+            const val = parseFloat(m?.marks_obtained ?? "");
+
+            if (att === "present") {
+                present++;
+                if (!isNaN(val)) {
+                    graded++;
+                    sumMarks += val;
+                    if (val > top) top = val;
+                    if (val >= passMarks) passed++;
+                    else failed++;
+                }
+            } else {
+                absent++;
+            }
+        }
+
+        const avg = graded > 0 ? Math.round((sumMarks / graded) * 10) / 10 : 0;
+        return { total, graded, present, absent, passed, failed, avg, top };
+    }, [roster, marks, passMarks]);
+
+    // Filtered student roster by search input
+    const filteredRoster = useMemo(() => {
+        if (!roster) return [];
+        return roster.filter((s) => {
+            if (!studentSearch) return true;
+            const q = studentSearch.toLowerCase();
+            return s.full_name.toLowerCase().includes(q) || s.enrollment_id.toLowerCase().includes(q);
+        });
+    }, [roster, studentSearch]);
+
     const handleSubmit = () => {
-        if (!schedule) return;
+        if (!schedule || !editable) return;
         const records = Object.entries(marks).map(([student, m]) => ({
             student,
-            marks_obtained: m.attendance !== "present" || m.marks_obtained === "" ? null : Number(m.marks_obtained),
+            marks_obtained:
+                m.attendance !== "present" || m.marks_obtained === "" ? null : Number(m.marks_obtained),
             is_absent: ["absent", "medical", "malpractice"].includes(m.attendance),
             attendance: m.attendance,
             remarks: m.remarks,
-            components: schedule.components && schedule.components.length > 0 && m.components
-                ? Object.entries(m.components).map(([cid, score]) => ({
-                    component: cid,
-                    marks_obtained: score === "" ? null : Number(score),
-                    is_absent: ["absent", "medical", "malpractice"].includes(m.attendance),
-                }))
-                : undefined,
+            components:
+                schedule.components && schedule.components.length > 0 && m.components
+                    ? Object.entries(m.components).map(([cid, score]) => ({
+                          component: cid,
+                          marks_obtained: score === "" ? null : Number(score),
+                          is_absent: ["absent", "medical", "malpractice"].includes(m.attendance),
+                      }))
+                    : undefined,
         }));
-        submitMarks({ scheduleId: schedule.id, records, reason: reason.trim() });
+        submitMarks(
+            { scheduleId: schedule.id, records, reason: reason.trim() },
+            {
+                onSuccess: () => {
+                    toast.success("Examination marks committed successfully!");
+                },
+                onError: (err: any) => {
+                    toast.error(err?.message || "Failed to submit marks");
+                },
+            }
+        );
     };
 
     if (!canEnter) {
@@ -251,188 +745,647 @@ export default function MarksEntryPage() {
     }
 
     return (
-        <div className="space-y-6">
-            <div>
-                <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Marks Entry</h1>
-                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                    Only schedules you are assigned to teach are shown below. Every change is kept with who made it and why.
-                </p>
-            </div>
+        <div className="space-y-6 max-w-7xl mx-auto pb-24 animate-in fade-in duration-500">
+            {/* 1. Senior Executive Header */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200/80 dark:border-slate-800">
+                <div>
+                    <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2.5">
+                        <Award className="h-7 w-7 text-indigo-600 dark:text-indigo-400" />
+                        <span>Examinations &amp; Marks Entry Desk</span>
+                    </h1>
+                    <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
+                        High-density gradebook, component scoring (Theory / Practical), moderation headroom, and CSV batch imports
+                    </p>
+                </div>
 
-            <div className="flex flex-wrap gap-4 items-end">
-                <div className="w-64">
-                    <label className="text-xs font-medium text-slate-500 mb-1 block">Examination</label>
-                    <Select value={examinationId} onValueChange={(v) => { setExaminationId(v); setScheduleId(""); }}>
-                        <SelectTrigger><SelectValue placeholder="Select examination" /></SelectTrigger>
-                        <SelectContent>
-                            {examinations?.map((e) => <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>)}
-                        </SelectContent>
-                    </Select>
-                </div>
-                <div className="w-72">
-                    <label className="text-xs font-medium text-slate-500 mb-1 block">Schedule</label>
-                    <Select value={scheduleId} onValueChange={(v) => { setScheduleId(v); setShowHistory(false); }} disabled={!examinationId}>
-                        <SelectTrigger><SelectValue placeholder={schedules?.length ? "Select schedule" : "No assigned schedules"} /></SelectTrigger>
-                        <SelectContent>
-                            {schedules?.map((s) => (
-                                <SelectItem key={s.id} value={s.id}>{s.subject_name} - {s.section_name}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </div>
+                {/* Right Action Strip */}
                 {schedule && (
-                    <div className="flex gap-2 ml-auto">
-                        {editable && <Button variant="outline" className="gap-2" onClick={() => setImporting(true)}><Upload className="h-4 w-4" /> Import CSV</Button>}
-                        <Button variant="outline" className="gap-2" onClick={() => setShowHistory((v) => !v)}><History className="h-4 w-4" /> {showHistory ? "Hide history" : "History"}</Button>
+                    <div className="flex items-center gap-2 shrink-0">
+                        {editable && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setImporting(true)}
+                                className="h-9 px-3 gap-1.5 text-xs font-semibold border-slate-200 dark:border-slate-800 cursor-pointer shadow-2xs"
+                            >
+                                <Upload className="h-3.5 w-3.5 text-slate-500" />
+                                <span>Import CSV</span>
+                            </Button>
+                        )}
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowHistory((v) => !v)}
+                            className="h-9 px-3 gap-1.5 text-xs font-semibold border-slate-200 dark:border-slate-800 cursor-pointer shadow-2xs"
+                        >
+                            <History className="h-3.5 w-3.5 text-slate-500" />
+                            <span>{showHistory ? "Hide History" : "Audit History"}</span>
+                        </Button>
                     </div>
                 )}
             </div>
 
+            {/* 2. Control Card: Examination & Subject Schedule Selectors */}
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-2xs space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+                    {/* Examination Selector */}
+                    <div className="md:col-span-5 space-y-1.5">
+                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                            <GraduationCap className="h-3.5 w-3.5 text-slate-500" />
+                            Examination Term <span className="text-rose-500">*</span>
+                        </label>
+                        <Select
+                            value={examinationId}
+                            onValueChange={(v) => {
+                                setExaminationId(v);
+                                setScheduleId("");
+                            }}
+                        >
+                            <SelectTrigger className="h-10 text-xs border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 font-medium">
+                                <SelectValue placeholder="Select examination..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {examinations?.map((e) => (
+                                    <SelectItem key={e.id} value={e.id} className="text-xs">
+                                        {e.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    {/* Schedule Selector */}
+                    <div className="md:col-span-7 space-y-1.5">
+                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                            <FileText className="h-3.5 w-3.5 text-slate-500" />
+                            Assigned Subject &amp; Section Schedule <span className="text-rose-500">*</span>
+                        </label>
+                        <Select
+                            value={scheduleId}
+                            onValueChange={(v) => {
+                                setScheduleId(v);
+                                setShowHistory(false);
+                            }}
+                            disabled={!examinationId}
+                        >
+                            <SelectTrigger className="h-10 text-xs border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 font-medium">
+                                <SelectValue
+                                    placeholder={
+                                        schedules?.length
+                                            ? "Select subject & section..."
+                                            : "No schedules assigned for this exam"
+                                    }
+                                />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {schedules?.map((s) => (
+                                    <SelectItem key={s.id} value={s.id} className="text-xs">
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-semibold text-slate-900 dark:text-white">
+                                                {s.subject_name}
+                                            </span>
+                                            <span className="text-slate-400">• Section {s.section_name}</span>
+                                            <span className="text-[10px] text-slate-400">
+                                                ({s.date || "Date not set"})
+                                            </span>
+                                        </div>
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </div>
+
+                {/* Schedule Criteria Strip */}
+                {schedule && (
+                    <div className="flex items-center gap-2 text-xs flex-wrap pt-2 border-t border-slate-100 dark:border-slate-800">
+                        <Badge
+                            variant="outline"
+                            className="bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300"
+                        >
+                            Max Score: {maxMarks}
+                        </Badge>
+                        <Badge
+                            variant="outline"
+                            className="bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300"
+                        >
+                            Passing Benchmark: {passMarks}
+                        </Badge>
+                        {schedule.components && schedule.components.length > 0 && (
+                            <span className="text-[11px] text-slate-500">
+                                Components:{" "}
+                                {schedule.components.map((c) => `${c.name} (${Number(c.max_marks)})`).join(" + ")}
+                            </span>
+                        )}
+                    </div>
+                )}
+            </div>
+
+            {/* Status Banners */}
             {published && (
-                <div className="flex items-center gap-2 bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-400 text-sm font-medium px-4 py-3 rounded-xl">
-                    <Lock className="h-4 w-4" /> Results are published. Marks change only through a recheck or grace marks.
+                <div className="flex items-center gap-2 bg-sky-50 dark:bg-sky-950/40 text-sky-800 dark:text-sky-300 text-xs font-semibold px-4 py-3 rounded-xl border border-sky-200 dark:border-sky-800 shadow-2xs">
+                    <Lock className="h-4 w-4 shrink-0 text-sky-600" />
+                    <span>
+                        Examination results have been published to the student portal. Marks modification is restricted to administrative recheck approvals and grace moderation.
+                    </span>
                 </div>
             )}
             {!published && locked && (
-                <div className="flex items-center gap-2 bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 text-sm font-medium px-4 py-3 rounded-xl">
-                    <Lock className="h-4 w-4" /> {canManage ? "This schedule is locked. You can still correct marks, with a reason." : "This schedule is locked - marks cannot be edited."}
+                <div className="flex items-center gap-2 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 text-xs font-semibold px-4 py-3 rounded-xl border border-amber-200 dark:border-amber-800 shadow-2xs">
+                    <Lock className="h-4 w-4 shrink-0 text-amber-600" />
+                    <span>
+                        {canManage
+                            ? "This schedule is locked for auditing. Administrators can correct scores by submitting an audit reason below."
+                            : "This schedule is locked by the exam department. Marks entry is in read-only mode."}
+                    </span>
                 </div>
             )}
 
+            {/* Audit History Timeline Drawer */}
             {showHistory && scheduleId && (
-                <section className="rounded-2xl border border-slate-200 dark:border-slate-800 p-4 space-y-2">
-                    <h2 className="font-semibold text-slate-900 dark:text-white">History</h2>
+                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-2xs space-y-3 animate-in fade-in duration-300">
+                    <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+                        <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                            <History className="w-4 h-4 text-sky-600" />
+                            <span>Marks Audit Trail</span>
+                        </h2>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setShowHistory(false)}
+                            className="text-xs text-slate-400 hover:text-slate-700"
+                        >
+                            Close
+                        </Button>
+                    </div>
                     <HistoryPanel scheduleId={scheduleId} />
-                </section>
+                </div>
             )}
 
-            {scheduleId && (loadingRoster || saved.isLoading) && <LoadingState className="py-16" />}
+            {/* Empty, Loading, and Error States */}
+            {!scheduleId && (
+                <EmptyState
+                    title="Select an examination and assigned schedule"
+                    description="Choose your subject examination from the dropdown above to open the grading roster."
+                    className="py-16 text-slate-500"
+                />
+            )}
 
-            {scheduleId && (rosterError || saved.isError) && !loadingRoster && <ErrorState onRetry={() => { refetchRoster(); saved.refetch(); }} />}
+            {scheduleId && (loadingRoster || saved.isLoading) && <LoadingState className="py-20" />}
+
+            {scheduleId && (rosterError || saved.isError) && !loadingRoster && (
+                <ErrorState
+                    onRetry={() => {
+                        refetchRoster();
+                        saved.refetch();
+                    }}
+                />
+            )}
 
             {scheduleId && roster && roster.length === 0 && (
-                <EmptyState title="No students are currently enrolled in this section." className="py-16 text-slate-500 text-sm" />
+                <EmptyState
+                    title="No students are currently enrolled in this section"
+                    className="py-16 text-slate-500 text-sm"
+                />
             )}
 
+            {/* 3. Main Gradebook Desk View */}
             {scheduleId && roster && roster.length > 0 && schedule && saved.data && (
-                <>
-                    <ResponsiveList
-                        rows={roster}
-                        rowKey={(s) => s.student}
-                        columns={[
-                            {
-                                key: "student",
-                                header: "Student",
-                                primary: true,
-                                cell: (s) => (
-                                    <>
-                                        {s.full_name} <span className="text-slate-400 text-xs font-normal">({s.enrollment_id})</span>
-                                    </>
-                                ),
-                            },
-                            {
-                                key: "attendance",
-                                header: "Attendance",
-                                cell: (s) => (
-                                    <select
-                                        aria-label={`Attendance of ${s.full_name}`}
-                                        className={`${SELECT_CLASS} h-9 w-40`}
-                                        disabled={!editable}
-                                        value={marks[s.student]?.attendance ?? "present"}
-                                        onChange={(e) => update(s.student, { attendance: e.target.value as MarkAttendance })}
-                                    >
-                                        {(Object.keys(ATTENDANCE_LABELS) as MarkAttendance[]).map((a) => <option key={a} value={a}>{ATTENDANCE_LABELS[a]}</option>)}
-                                    </select>
-                                ),
-                            },
-                            ...(schedule.components && schedule.components.length > 0
-                                ? schedule.components.map((c) => ({
-                                    key: `comp_${c.id}`,
-                                    header: `${c.name} (${Number(c.max_marks)})`,
-                                    cell: (s: any) => (
-                                        <Input
-                                            type="number"
-                                            inputMode="decimal"
-                                            aria-label={`${c.name} marks for ${s.full_name}`}
-                                            className="h-9 w-20"
-                                            disabled={!editable || marks[s.student]?.attendance !== "present"}
-                                            value={marks[s.student]?.components?.[c.id] ?? ""}
-                                            onChange={(e) => updateComponent(s.student, c.id, e.target.value)}
-                                        />
-                                    ),
-                                }))
-                                : []),
-                            {
-                                key: "marks",
-                                header: schedule.components && schedule.components.length > 0
-                                    ? `Total (${Number(schedule.max_marks)})`
-                                    : `Marks (out of ${Number(schedule.max_marks)})`,
-                                cell: (s) => (
-                                    <Input
-                                        type="number"
-                                        inputMode="decimal"
-                                        aria-label={`Marks for ${s.full_name}`}
-                                        className="h-9 w-24"
-                                        disabled={!editable || marks[s.student]?.attendance !== "present" || (!!schedule.components && schedule.components.length > 0)}
-                                        value={marks[s.student]?.marks_obtained ?? ""}
-                                        onChange={(e) => update(s.student, { marks_obtained: e.target.value })}
-                                    />
-                                ),
-                            },
-                            {
-                                key: "grace",
-                                header: "Grace",
-                                cell: (s) => {
-                                    const m = savedByStudent[s.student];
-                                    const g = Number(m?.grace_marks ?? 0);
-                                    const canGrace = canManage && m && m.attendance === "present" && m.marks_obtained !== null;
-                                    return (
-                                        <span className="flex items-center gap-2 text-sm">
-                                            {g ? `+${g}` : "-"}
-                                            {canGrace && <Button size="sm" variant="ghost" onClick={() => setGrace(m)}>{g ? "Change" : "Add"}</Button>}
-                                            {published && m && m.attendance === "present" && m.marks_obtained !== null && (
-                                                <Button size="sm" variant="ghost" onClick={() => setRecheck(m)}>Recheck</Button>
-                                            )}
-                                        </span>
-                                    );
-                                },
-                            },
-                            {
-                                key: "remarks",
-                                header: "Remarks",
-                                cell: (s) => (
-                                    <Input
-                                        aria-label={`Remarks for ${s.full_name}`}
-                                        className="h-9"
-                                        disabled={!editable}
-                                        placeholder="Optional"
-                                        value={marks[s.student]?.remarks ?? ""}
-                                        onChange={(e) => update(s.student, { remarks: e.target.value })}
-                                    />
-                                ),
-                            },
-                        ]}
-                    />
-                    {editable && (
-                        <div className="flex flex-wrap justify-end items-end gap-3">
-                            <div className="w-full sm:w-96">
-                                <label htmlFor="marks-reason" className="text-xs font-medium text-slate-500 mb-1 block">
-                                    {needsReason ? "Reason for changing marks (required)" : "Reason for any change (optional)"}
-                                </label>
-                                <Input id="marks-reason" maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Totalling error on page 3" />
+                <div className="space-y-4">
+                    {/* 3A. Real-Time Grade Pulse & Performance Strip */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+                        <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl p-3 shadow-2xs">
+                            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
+                                Cohort Size
+                            </span>
+                            <div className="text-xl font-bold text-slate-900 dark:text-white mt-1">
+                                {stats.total}
                             </div>
-                            <Button onClick={handleSubmit} disabled={isPending} className="gap-2">
-                                {isPending && <LoaderCircle className="h-4 w-4 animate-spin" />}
-                                Submit Marks
-                            </Button>
+                            <span className="text-[10px] text-slate-400 font-medium">Students</span>
+                        </div>
+
+                        <div className="bg-white dark:bg-slate-900 border border-indigo-200/60 dark:border-indigo-900/60 rounded-xl p-3 shadow-2xs">
+                            <span className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider block">
+                                Graded
+                            </span>
+                            <div className="text-xl font-bold text-indigo-700 dark:text-indigo-300 mt-1">
+                                {stats.graded}
+                            </div>
+                            <span className="text-[10px] text-indigo-600/80 dark:text-indigo-400/80 font-medium">
+                                {Math.round((stats.graded / (stats.total || 1)) * 100)}% scored
+                            </span>
+                        </div>
+
+                        <div className="bg-white dark:bg-slate-900 border border-emerald-200/60 dark:border-emerald-900/60 rounded-xl p-3 shadow-2xs">
+                            <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider block">
+                                Passed
+                            </span>
+                            <div className="text-xl font-bold text-emerald-700 dark:text-emerald-300 mt-1">
+                                {stats.passed}
+                            </div>
+                            <span className="text-[10px] text-emerald-600/80 dark:text-emerald-400/80 font-medium">
+                                &gt;= {passMarks} Marks
+                            </span>
+                        </div>
+
+                        <div className="bg-white dark:bg-slate-900 border border-rose-200/60 dark:border-rose-900/60 rounded-xl p-3 shadow-2xs">
+                            <span className="text-[11px] font-semibold text-rose-600 dark:text-rose-400 uppercase tracking-wider block">
+                                Below Passing
+                            </span>
+                            <div className="text-xl font-bold text-rose-700 dark:text-rose-300 mt-1">
+                                {stats.failed}
+                            </div>
+                            <span className="text-[10px] text-rose-600/80 dark:text-rose-400/80 font-medium">
+                                Attention required
+                            </span>
+                        </div>
+
+                        <div className="bg-white dark:bg-slate-900 border border-amber-200/60 dark:border-amber-900/60 rounded-xl p-3 shadow-2xs">
+                            <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wider block">
+                                Absent / Exempt
+                            </span>
+                            <div className="text-xl font-bold text-amber-700 dark:text-amber-300 mt-1">
+                                {stats.absent}
+                            </div>
+                            <span className="text-[10px] text-amber-600/80 dark:text-amber-400/80 font-medium">
+                                Non-present
+                            </span>
+                        </div>
+
+                        <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl p-3 shadow-2xs">
+                            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
+                                Class Average
+                            </span>
+                            <div className="text-xl font-bold text-slate-900 dark:text-white mt-1">
+                                {stats.avg}
+                            </div>
+                            <span className="text-[10px] text-slate-400 font-medium">Out of {maxMarks}</span>
+                        </div>
+
+                        <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl p-3 shadow-2xs">
+                            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
+                                Class Highest
+                            </span>
+                            <div className="text-xl font-bold text-indigo-600 dark:text-indigo-400 mt-1">
+                                {stats.top}
+                            </div>
+                            <span className="text-[10px] text-slate-400 font-medium">Top score</span>
+                        </div>
+                    </div>
+
+                    {/* 3B. Student Quick Search */}
+                    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 p-3 shadow-2xs flex items-center justify-between gap-3">
+                        <div className="relative flex-1 max-w-sm">
+                            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <Input
+                                placeholder="Search student by name or enrollment ID..."
+                                value={studentSearch}
+                                onChange={(e) => setStudentSearch(e.target.value)}
+                                className="h-9 pl-8.5 pr-8 text-xs border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 font-medium"
+                            />
+                            {studentSearch && (
+                                <button
+                                    type="button"
+                                    onClick={() => setStudentSearch("")}
+                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                                >
+                                    <X className="w-3 h-3" />
+                                </button>
+                            )}
+                        </div>
+
+                        <span className="text-xs text-slate-400 font-medium">
+                            Showing {filteredRoster.length} of {roster.length} students
+                        </span>
+                    </div>
+
+                    {/* 3C. High-Density Gradebook Table */}
+                    <TableShell>
+                        <Table>
+                            <TableHeader className="bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200/80 dark:border-slate-800">
+                                <TableRow className="hover:bg-transparent">
+                                    <TableHead className="py-3 pl-4 text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider w-14">
+                                        #
+                                    </TableHead>
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider min-w-[200px]">
+                                        Student Candidate
+                                    </TableHead>
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider w-36">
+                                        Attendance
+                                    </TableHead>
+                                    {schedule.components && schedule.components.length > 0 &&
+                                        schedule.components.map((c) => (
+                                            <TableHead
+                                                key={c.id}
+                                                className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider w-24 text-center"
+                                            >
+                                                {c.name} ({Number(c.max_marks)})
+                                            </TableHead>
+                                        ))}
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider w-28 text-center">
+                                        Total Marks ({maxMarks})
+                                    </TableHead>
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider w-28">
+                                        Grace Marks
+                                    </TableHead>
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider pr-4 min-w-[180px]">
+                                        Teacher Remarks
+                                    </TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {filteredRoster.length === 0 ? (
+                                    <TableRow>
+                                        <TableCell
+                                            colSpan={6 + (schedule.components?.length || 0)}
+                                            className="h-28 text-center text-xs text-slate-500"
+                                        >
+                                            No students match your search filter.
+                                        </TableCell>
+                                    </TableRow>
+                                ) : (
+                                    filteredRoster.map((s, idx) => {
+                                        const m = marks[s.student] || {
+                                            marks_obtained: "",
+                                            attendance: "present",
+                                            remarks: "",
+                                            components: {},
+                                        };
+                                        const savedMark = savedByStudent[s.student];
+                                        const avatarStyle = getAvatarStyle(s.full_name);
+                                        const initials = getInitials(s.full_name);
+                                        const numScore = parseFloat(m.marks_obtained);
+                                        const isScored = !isNaN(numScore);
+                                        const isPassed = isScored && numScore >= passMarks;
+                                        const g = Number(savedMark?.grace_marks ?? 0);
+                                        const canGrace =
+                                            canManage &&
+                                            savedMark &&
+                                            savedMark.attendance === "present" &&
+                                            savedMark.marks_obtained !== null;
+
+                                        return (
+                                            <TableRow
+                                                key={s.student}
+                                                className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors border-b border-slate-100 dark:border-slate-800/70"
+                                            >
+                                                {/* Roll Number Index */}
+                                                <TableCell className="py-3 pl-4 font-mono text-xs text-slate-400 font-medium">
+                                                    #{String(idx + 1).padStart(2, "0")}
+                                                </TableCell>
+
+                                                {/* Student with Colorful Avatar */}
+                                                <TableCell className="py-3">
+                                                    <div className="flex items-center gap-2.5">
+                                                        <div
+                                                            className={`h-8 w-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 border ${avatarStyle.bg} ${avatarStyle.text} ${avatarStyle.border}`}
+                                                        >
+                                                            {initials}
+                                                        </div>
+                                                        <div>
+                                                            <div className="font-semibold text-xs text-slate-900 dark:text-slate-100">
+                                                                {s.full_name}
+                                                            </div>
+                                                            <div className="text-[10px] font-mono text-slate-400">
+                                                                {s.enrollment_id}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </TableCell>
+
+                                                {/* Attendance Selector */}
+                                                <TableCell className="py-3">
+                                                    <Select
+                                                        value={m.attendance}
+                                                        disabled={!editable}
+                                                        onValueChange={(val) =>
+                                                            update(s.student, {
+                                                                attendance: val as MarkAttendance,
+                                                            })
+                                                        }
+                                                    >
+                                                        <SelectTrigger className="h-8.5 text-xs font-semibold bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+                                                            <SelectValue />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {(
+                                                                Object.keys(
+                                                                    ATTENDANCE_LABELS
+                                                                ) as MarkAttendance[]
+                                                            ).map((a) => (
+                                                                <SelectItem
+                                                                    key={a}
+                                                                    value={a}
+                                                                    className="text-xs"
+                                                                >
+                                                                    {ATTENDANCE_LABELS[a]}
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </TableCell>
+
+                                                {/* Component Scores */}
+                                                {schedule.components &&
+                                                    schedule.components.length > 0 &&
+                                                    schedule.components.map((c) => (
+                                                        <TableCell key={c.id} className="py-3 text-center">
+                                                            <Input
+                                                                type="number"
+                                                                inputMode="decimal"
+                                                                disabled={
+                                                                    !editable || m.attendance !== "present"
+                                                                }
+                                                                value={m.components?.[c.id] ?? ""}
+                                                                onChange={(e) =>
+                                                                    updateComponent(
+                                                                        s.student,
+                                                                        c.id,
+                                                                        e.target.value
+                                                                    )
+                                                                }
+                                                                className="h-8.5 w-20 text-center mx-auto text-xs font-bold bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800"
+                                                                placeholder="0"
+                                                            />
+                                                        </TableCell>
+                                                    ))}
+
+                                                {/* Total Score with Pass/Fail Pill */}
+                                                <TableCell className="py-3 text-center">
+                                                    <div className="flex items-center justify-center gap-1.5">
+                                                        <Input
+                                                            type="number"
+                                                            inputMode="decimal"
+                                                            disabled={
+                                                                !editable ||
+                                                                m.attendance !== "present" ||
+                                                                Boolean(
+                                                                    schedule.components &&
+                                                                        schedule.components.length > 0
+                                                                )
+                                                            }
+                                                            value={m.marks_obtained}
+                                                            onChange={(e) =>
+                                                                update(s.student, {
+                                                                    marks_obtained: e.target.value,
+                                                                })
+                                                            }
+                                                            className={`h-8.5 w-20 text-center text-xs font-bold border-slate-200 dark:border-slate-800 ${
+                                                                Boolean(
+                                                                    schedule.components &&
+                                                                        schedule.components.length > 0
+                                                                )
+                                                                    ? "bg-slate-100 dark:bg-slate-800 cursor-not-allowed"
+                                                                    : "bg-white dark:bg-slate-900"
+                                                            }`}
+                                                            placeholder="0"
+                                                        />
+                                                        {isScored && m.attendance === "present" && (
+                                                            <span
+                                                                className={`h-2.5 w-2.5 rounded-full shrink-0 ${
+                                                                    isPassed
+                                                                        ? "bg-emerald-500"
+                                                                        : "bg-rose-500"
+                                                                }`}
+                                                                title={isPassed ? "Passing" : "Below passing"}
+                                                            />
+                                                        )}
+                                                    </div>
+                                                </TableCell>
+
+                                                {/* Grace Marks */}
+                                                <TableCell className="py-3">
+                                                    <div className="flex items-center gap-1.5 text-xs">
+                                                        {g > 0 ? (
+                                                            <Badge
+                                                                variant="outline"
+                                                                className="bg-amber-50 text-amber-700 border-amber-300 font-mono font-bold text-[11px]"
+                                                            >
+                                                                +{g}
+                                                            </Badge>
+                                                        ) : (
+                                                            <span className="text-slate-300 dark:text-slate-700">
+                                                                —
+                                                            </span>
+                                                        )}
+                                                        {canGrace && (
+                                                            <Button
+                                                                size="sm"
+                                                                variant="ghost"
+                                                                onClick={() => setGrace(savedMark)}
+                                                                className="h-7 px-1.5 text-[11px] text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                                                            >
+                                                                {g > 0 ? "Edit" : "Grace"}
+                                                            </Button>
+                                                        )}
+                                                        {published &&
+                                                            savedMark &&
+                                                            savedMark.attendance === "present" &&
+                                                            savedMark.marks_obtained !== null && (
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="ghost"
+                                                                    onClick={() => setRecheck(savedMark)}
+                                                                    className="h-7 px-1.5 text-[11px] text-sky-600 hover:text-sky-700 hover:bg-sky-50"
+                                                                >
+                                                                    Recheck
+                                                                </Button>
+                                                            )}
+                                                    </div>
+                                                </TableCell>
+
+                                                {/* Teacher Remarks */}
+                                                <TableCell className="py-3 pr-4">
+                                                    <Input
+                                                        disabled={!editable}
+                                                        placeholder="Add note..."
+                                                        value={m.remarks}
+                                                        onChange={(e) =>
+                                                            update(s.student, { remarks: e.target.value })
+                                                        }
+                                                        className="h-8.5 text-xs bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800"
+                                                    />
+                                                </TableCell>
+                                            </TableRow>
+                                        );
+                                    })
+                                )}
+                            </TableBody>
+                        </Table>
+                    </TableShell>
+
+                    {/* 3D. Sticky Bottom Docked Action Bar */}
+                    {editable && (
+                        <div className="sticky bottom-4 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl border border-slate-200/90 dark:border-slate-800 p-4 shadow-lg flex flex-col md:flex-row items-center justify-between gap-3">
+                            <div className="flex items-center gap-3 text-xs w-full md:w-auto">
+                                <div className="flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-300">
+                                    <Award className="w-4 h-4 text-indigo-600" />
+                                    <span>
+                                        {schedule.subject_name} • Section {schedule.section_name}
+                                    </span>
+                                </div>
+                                <span className="text-slate-300 dark:text-slate-700">|</span>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-indigo-600 font-semibold">
+                                        {stats.graded} of {stats.total} Graded
+                                    </span>
+                                    <span className="text-slate-300 dark:text-slate-700">•</span>
+                                    <span className="text-emerald-600 font-semibold">
+                                        {stats.passed} Passed
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full md:w-auto justify-end">
+                                <div className="w-full sm:w-72">
+                                    <Input
+                                        id="marks-reason"
+                                        maxLength={500}
+                                        value={reason}
+                                        onChange={(e) => setReason(e.target.value)}
+                                        placeholder={
+                                            needsReason
+                                                ? "Audit justification required..."
+                                                : "Optional reason for change..."
+                                        }
+                                        className="h-9 text-xs border-slate-200 dark:border-slate-800"
+                                    />
+                                </div>
+
+                                <Button
+                                    onClick={handleSubmit}
+                                    disabled={isPending || (needsReason && !reason.trim())}
+                                    className="h-9 px-5 gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs rounded-lg shadow-sm cursor-pointer transition active:scale-95 shrink-0"
+                                >
+                                    {isPending ? (
+                                        <LoaderCircle className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                        <Save className="h-4 w-4" />
+                                    )}
+                                    <span>Commit Examination Marks</span>
+                                </Button>
+                            </div>
                         </div>
                     )}
-                </>
+                </div>
             )}
 
-            {grace && schedule && <GraceDialog mark={grace} max={schedule.max_marks} onClose={() => setGrace(null)} />}
+            {/* Modals */}
+            {grace && schedule && (
+                <GraceDialog
+                    mark={grace}
+                    max={schedule.max_marks}
+                    onClose={() => setGrace(null)}
+                />
+            )}
             {recheck && <RecheckDialog mark={recheck} onClose={() => setRecheck(null)} />}
-            {importing && scheduleId && <ImportDialog scheduleId={scheduleId} needsReason={needsReason} onClose={() => setImporting(false)} />}
+            {importing && scheduleId && (
+                <ImportDialog
+                    scheduleId={scheduleId}
+                    needsReason={needsReason}
+                    onClose={() => setImporting(false)}
+                />
+            )}
         </div>
     );
 }
