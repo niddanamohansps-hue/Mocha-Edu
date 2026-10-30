@@ -368,12 +368,12 @@ function PromotionDeskContent() {
                             {/* Source Section */}
                             <div className="space-y-1">
                                 <label className="text-[11px] font-semibold text-slate-500">Section</label>
-                                <Select value={sectionId} onValueChange={(v) => updateParams({ sectionId: v })}>
+                                <Select value={sectionId || "ALL"} onValueChange={(v) => updateParams({ sectionId: v === "ALL" ? null : v })}>
                                     <SelectTrigger className="h-9 text-xs bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 font-medium">
                                         <SelectValue placeholder="All Sections" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="" className="text-xs">All Sections</SelectItem>
+                                        <SelectItem value="ALL" className="text-xs">All Sections</SelectItem>
                                         {sectionsForLevel.map((s) => (
                                             <SelectItem key={s.id} value={s.id} className="text-xs">
                                                 Section {s.name}
@@ -453,12 +453,12 @@ function PromotionDeskContent() {
                             {/* Target Section */}
                             <div className="space-y-1">
                                 <label className="text-[11px] font-semibold text-slate-500">Target Section</label>
-                                <Select value={targetSectionId} onValueChange={setTargetSectionId}>
+                                <Select value={targetSectionId || "UNASSIGNED"} onValueChange={(v) => setTargetSectionId(v === "UNASSIGNED" ? "" : v)}>
                                     <SelectTrigger className="h-9 text-xs bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 font-medium">
                                         <SelectValue placeholder="Unassigned" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="" className="text-xs">Unassigned</SelectItem>
+                                        <SelectItem value="UNASSIGNED" className="text-xs">Unassigned</SelectItem>
                                         {targetSectionsForLevel.map((s) => (
                                             <SelectItem key={s.id} value={s.id} className="text-xs">
                                                 Section {s.name}

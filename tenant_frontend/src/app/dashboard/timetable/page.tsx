@@ -568,8 +568,8 @@ export default function TimetablePage() {
                                 Assigned Instructor
                             </Label>
                             <Select
-                                value={form.instructor}
-                                onValueChange={(v) => setForm((f) => ({ ...f, instructor: v }))}
+                                value={form.instructor || "NONE"}
+                                onValueChange={(v) => setForm((f) => ({ ...f, instructor: v === "NONE" ? "" : v }))}
                             >
                                 <SelectTrigger className="h-9 text-xs">
                                     <SelectValue
@@ -581,7 +581,7 @@ export default function TimetablePage() {
                                     />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="" className="text-xs text-slate-400">
+                                    <SelectItem value="NONE" className="text-xs text-slate-400">
                                         No instructor assigned
                                     </SelectItem>
                                     {availableInstructors.map((a: any) => (
@@ -603,14 +603,14 @@ export default function TimetablePage() {
                                 Classroom / Laboratory
                             </Label>
                             <Select
-                                value={form.room}
-                                onValueChange={(v) => setForm((f) => ({ ...f, room: v }))}
+                                value={form.room || "NONE"}
+                                onValueChange={(v) => setForm((f) => ({ ...f, room: v === "NONE" ? "" : v }))}
                             >
                                 <SelectTrigger className="h-9 text-xs">
                                     <SelectValue placeholder="Select room..." />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="" className="text-xs text-slate-400">
+                                    <SelectItem value="NONE" className="text-xs text-slate-400">
                                         Unassigned room
                                     </SelectItem>
                                     {rooms?.map((r) => (
