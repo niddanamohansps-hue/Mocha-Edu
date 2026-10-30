@@ -11,3 +11,4 @@ export default function CourseContentLayout({ children }: { children: ReactNode 
         </div>
     );
 }
+
