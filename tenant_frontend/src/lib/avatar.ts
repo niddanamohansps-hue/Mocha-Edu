@@ -32,3 +32,4 @@ export function getInitials(name?: string | null, fallback = "ST") {
     }
     return fallback;
 }
+
