@@ -92,25 +92,39 @@ function ago(iso: string | null, now: number): string {
 
 const MIN_SAMPLE = 20;
 
-function speedEvaluation(p95: number | null, requests: number): { label: string; badge: string } {
+function speedEvaluation(
+    p95: number | null,
+    requests: number,
+    p50?: number | null
+): { label: string; badge: string } {
     if (requests < MIN_SAMPLE) {
         return {
             label: "Low Sample",
             badge: "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400",
         };
     }
-    if (p95 !== null && p95 <= 200) {
+    // Fast: median response is under 250ms
+    if (p50 !== null && p50 !== undefined && p50 <= 250 && (p95 === null || p95 <= 1600)) {
         return {
-            label: "Optimal",
+            label: "Fast",
             badge: "bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300",
         };
     }
-    if (p95 !== null && p95 <= 800) {
+    // Normal: median response is under 500ms
+    if (p50 !== null && p50 !== undefined && p50 <= 500 && (p95 === null || p95 <= 3200)) {
+        return {
+            label: "Normal",
+            badge: "bg-sky-50 text-sky-700 border-sky-300 dark:bg-sky-950/60 dark:text-sky-300",
+        };
+    }
+    // Moderate: median response is under 800ms
+    if (p50 !== null && p50 !== undefined && p50 <= 800) {
         return {
             label: "Moderate",
             badge: "bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/60 dark:text-amber-300",
         };
     }
+    // High Latency: median exceeds 800ms
     return {
         label: "High Latency",
         badge: "bg-rose-50 text-rose-700 border-rose-300 dark:bg-rose-950/60 dark:text-rose-300",
@@ -453,7 +467,7 @@ export default function SystemHealthPage() {
                                         {[...api.endpoints]
                                             .sort((x, y) => Number(y.requests >= MIN_SAMPLE) - Number(x.requests >= MIN_SAMPLE))
                                             .map((r) => {
-                                                const ev = speedEvaluation(r.p95_ms, r.requests);
+                                                const ev = speedEvaluation(r.p95_ms, r.requests, r.p50_ms);
                                                 const methodBadge = METHOD_BADGES[r.method] ?? "bg-slate-100 text-slate-700";
                                                 return (
                                                     <TableRow key={`${r.method} ${r.endpoint}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
