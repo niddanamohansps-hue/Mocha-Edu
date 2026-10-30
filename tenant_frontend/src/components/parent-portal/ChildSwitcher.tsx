@@ -47,16 +47,20 @@ export default function ChildSwitcher({ childOptions, selectedId, onChange }: Ch
     if (childOptions.length === 0) return null;
 
     return (
-        <div className="w-64">
+        <div className="w-full sm:w-72">
             <Select value={selectedId} onValueChange={handleChange}>
-                <SelectTrigger>
-                    <SelectValue placeholder="Select a child" />
+                <SelectTrigger className="h-10 text-xs font-semibold rounded-xl border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xs">
+                    <SelectValue placeholder="Select child" />
                 </SelectTrigger>
                 <SelectContent>
                     {childOptions.map((c) => (
-                        <SelectItem key={c.student_id} value={c.student_id}>
-                            {c.full_name}
-                            {c.level || c.section ? ` — ${[c.level, c.section].filter(Boolean).join(" ")}` : ""}
+                        <SelectItem key={c.student_id} value={c.student_id} className="text-xs">
+                            <span className="font-bold">{c.full_name}</span>
+                            {c.level || c.section ? (
+                                <span className="text-slate-400 ml-1.5 font-normal">
+                                    ({[c.level, c.section].filter(Boolean).join(" - ")})
+                                </span>
+                            ) : null}
                         </SelectItem>
                     ))}
                 </SelectContent>
