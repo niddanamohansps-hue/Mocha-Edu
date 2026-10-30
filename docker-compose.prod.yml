@@ -1,0 +1,155 @@
+# ==============================================================
+# School Sansar - Unified Production Docker Compose Stack
+# Multi-tenant Django 5 + Next.js 16 + Celery + PostgreSQL + Redis + Nginx
+# ==============================================================
+# Usage:
+#   docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+# ==============================================================
+
+version: '3.8'
+
+x-backend-base: &backend-base
+  build:
+    context: ./backend
+    dockerfile: Dockerfile
+  env_file:
+    - .env.production
+  environment:
+    - DEBUG=False
+    - DB_HOST=db
+    - DB_PORT=5432
+    - REDIS_CACHE_URL=redis://redis:6379/1
+    - CELERY_BROKER_URL=redis://redis:6379/2
+    - CELERY_RESULT_BACKEND=redis://redis:6379/3
+  depends_on:
+    db:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  volumes:
+    - media_data:/app/media
+    - static_data:/app/staticfiles
+  networks:
+    - schoolsansar_net
+  restart: unless-stopped
+
+services:
+  # ------------------------------------------------------------
+  # 1. PostgreSQL Relational Database (Multi-Tenant Schemas)
+  # ------------------------------------------------------------
+  db:
+    image: postgres:15-alpine
+    container_name: schoolsansar_db
+    environment:
+      POSTGRES_DB: ${DB_NAME:-schoolsansar_db}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-schoolsansar_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - schoolsansar_net
+    restart: unless-stopped
+
+  # ------------------------------------------------------------
+  # 2. Redis Memory Store (Cache & Message Broker)
+  # ------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: schoolsansar_redis
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - schoolsansar_net
+    restart: unless-stopped
+
+  # ------------------------------------------------------------
+  # 3. Django Web API (Gunicorn WSGI Application)
+  # ------------------------------------------------------------
+  backend:
+    <<: *backend-base
+    container_name: schoolsansar_backend
+    command: gunicorn config.wsgi -c gunicorn.conf.py
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/health/', timeout=5).status == 200 else 1)\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    expose:
+      - "8000"
+
+  # ------------------------------------------------------------
+  # 4. Celery Async Task Worker (Queues, Notifications, Emails)
+  # ------------------------------------------------------------
+  celery_worker:
+    <<: *backend-base
+    container_name: schoolsansar_worker
+    command: celery -A config worker --loglevel=info --concurrency=${CELERY_CONCURRENCY:-4}
+
+  # ------------------------------------------------------------
+  # 5. Celery Beat Scheduler (Daily Roll Call, Fee Reminders)
+  # ------------------------------------------------------------
+  celery_beat:
+    <<: *backend-base
+    container_name: schoolsansar_beat
+    command: celery -A config beat --loglevel=info
+
+  # ------------------------------------------------------------
+  # 6. Next.js Tenant Frontend (Production Container)
+  # ------------------------------------------------------------
+  frontend:
+    build:
+      context: ./tenant_frontend
+      dockerfile: Dockerfile.prod
+    container_name: schoolsansar_frontend
+    environment:
+      - NODE_ENV=production
+      - PORT=3555
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000/api}
+    depends_on:
+      - backend
+    expose:
+      - "3555"
+    networks:
+      - schoolsansar_net
+    restart: unless-stopped
+
+  # ------------------------------------------------------------
+  # 7. Nginx Edge Reverse Proxy (Routing & SSL Termination)
+  # ------------------------------------------------------------
+  nginx:
+    image: nginx:alpine
+    container_name: schoolsansar_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./deploy/nginx/conf.d:/etc/nginx/conf.d:ro
+      - media_data:/var/www/media:ro
+      - static_data:/var/www/staticfiles:ro
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - schoolsansar_net
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  media_data:
+  static_data:
+
+networks:
+  schoolsansar_net:
+    driver: bridge
