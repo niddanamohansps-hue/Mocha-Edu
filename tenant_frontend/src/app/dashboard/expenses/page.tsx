@@ -36,6 +36,19 @@ import {
     Expense,
 } from "@/hooks/useExpenses";
 import { usePermissions } from "@/providers/PermissionProvider";
+import { formatIndianCurrency } from "@/lib/currency";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
+import { TableShell } from "@/components/common/table/TableShell";
 
 export default function ExpensesPage() {
     const { can } = usePermissions();
@@ -367,84 +380,74 @@ export default function ExpensesPage() {
                     </div>
 
                     {/* Day Book Ledger Table */}
-                    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
-                        <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-700/60 flex items-center justify-between">
-                            <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-                                Day Book Ledger
-                            </h2>
-                            <span className="text-xs px-2.5 py-1 bg-slate-100 dark:bg-slate-700 rounded-full font-medium text-slate-600 dark:text-slate-300">
-                                {dayBook?.entries?.length || 0} transactions
-                            </span>
-                        </div>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left text-sm">
-                                <thead className="bg-slate-50 dark:bg-slate-900/60 text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                                    <tr>
-                                        <th className="px-5 py-3 font-semibold">Time</th>
-                                        <th className="px-5 py-3 font-semibold">Type</th>
-                                        <th className="px-5 py-3 font-semibold">Voucher / Receipt #</th>
-                                        <th className="px-5 py-3 font-semibold">Particulars / Description</th>
-                                        <th className="px-5 py-3 font-semibold">Payment Mode</th>
-                                        <th className="px-5 py-3 font-semibold text-right text-emerald-600">Inflow (₹)</th>
-                                        <th className="px-5 py-3 font-semibold text-right text-rose-600">Outflow (₹)</th>
-                                        <th className="px-5 py-3 font-semibold text-right">Running Balance</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
-                                    {isLoadingDayBook ? (
-                                        <tr>
-                                            <td colSpan={8} className="px-5 py-8 text-center text-slate-400">
-                                                Loading Day Book ledger...
-                                            </td>
-                                        </tr>
-                                    ) : !dayBook?.entries || dayBook.entries.length === 0 ? (
-                                        <tr>
-                                            <td colSpan={8} className="px-5 py-8 text-center text-slate-400">
-                                                No financial movements recorded for this account on {selectedDate}.
-                                            </td>
-                                        </tr>
-                                    ) : (
-                                        dayBook.entries.map((item, idx) => (
-                                            <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-750 transition-colors">
-                                                <td className="px-5 py-3.5 text-slate-500 whitespace-nowrap text-xs">
-                                                    {item.time_str}
-                                                </td>
-                                                <td className="px-5 py-3.5 whitespace-nowrap">
-                                                    <span
-                                                        className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                                                            item.inflow > 0
-                                                                ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
-                                                                : "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400"
-                                                        }`}
-                                                    >
-                                                        {item.type_display}
-                                                    </span>
-                                                </td>
-                                                <td className="px-5 py-3.5 font-mono text-xs text-slate-700 dark:text-slate-300">
-                                                    {item.reference}
-                                                </td>
-                                                <td className="px-5 py-3.5 text-slate-900 dark:text-slate-100 font-medium max-w-md truncate">
-                                                    {item.description}
-                                                </td>
-                                                <td className="px-5 py-3.5 text-slate-500 text-xs uppercase">
-                                                    {item.payment_method}
-                                                </td>
-                                                <td className="px-5 py-3.5 text-right font-semibold text-emerald-600 dark:text-emerald-400">
-                                                    {item.inflow > 0 ? `+${item.inflow.toFixed(2)}` : "-"}
-                                                </td>
-                                                <td className="px-5 py-3.5 text-right font-semibold text-rose-600 dark:text-rose-400">
-                                                    {item.outflow > 0 ? `-${item.outflow.toFixed(2)}` : "-"}
-                                                </td>
-                                                <td className="px-5 py-3.5 text-right font-mono font-semibold text-slate-900 dark:text-slate-100">
-                                                    ₹{item.running_balance.toFixed(2)}
-                                                </td>
-                                            </tr>
-                                        ))
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+                    <TableShell>
+                        <Table>
+                            <TableHeader>
+                                <TableRow className="bg-slate-50/75 dark:bg-slate-900/60">
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Time</TableHead>
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Type</TableHead>
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Voucher / Receipt #</TableHead>
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Particulars / Description</TableHead>
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Payment Mode</TableHead>
+                                    <TableHead className="text-xs font-bold text-right text-emerald-600 dark:text-emerald-400">Inflow (₹)</TableHead>
+                                    <TableHead className="text-xs font-bold text-right text-rose-600 dark:text-rose-400">Outflow (₹)</TableHead>
+                                    <TableHead className="text-xs font-bold text-right text-slate-700 dark:text-slate-300">Running Balance</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {isLoadingDayBook ? (
+                                    <TableRow>
+                                        <TableCell colSpan={8} className="py-12 text-center text-xs text-slate-400">
+                                            Loading Day Book ledger...
+                                        </TableCell>
+                                    </TableRow>
+                                ) : !dayBook?.entries || dayBook.entries.length === 0 ? (
+                                    <TableRow>
+                                        <TableCell colSpan={8} className="py-12 text-center text-xs text-slate-400">
+                                            No financial movements recorded for this account on {selectedDate}.
+                                        </TableCell>
+                                    </TableRow>
+                                ) : (
+                                    dayBook.entries.map((item, idx) => (
+                                        <TableRow key={idx} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
+                                            <TableCell className="text-slate-500 whitespace-nowrap text-xs font-mono">
+                                                {item.time_str}
+                                            </TableCell>
+                                            <TableCell className="whitespace-nowrap">
+                                                <Badge
+                                                    className={
+                                                        item.inflow > 0
+                                                            ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300/80 text-[10px]"
+                                                            : "bg-rose-50 text-rose-700 dark:bg-rose-950 dark:text-rose-300 border border-rose-300/80 text-[10px]"
+                                                    }
+                                                >
+                                                    {item.type_display}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="font-mono text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                                {item.reference}
+                                            </TableCell>
+                                            <TableCell className="text-slate-900 dark:text-slate-100 font-medium text-xs max-w-md truncate">
+                                                {item.description}
+                                            </TableCell>
+                                            <TableCell className="text-slate-500 text-xs uppercase font-mono">
+                                                {item.payment_method}
+                                            </TableCell>
+                                            <TableCell className="text-right font-semibold text-xs text-emerald-600 dark:text-emerald-400">
+                                                {item.inflow > 0 ? `+₹${item.inflow.toFixed(2)}` : "—"}
+                                            </TableCell>
+                                            <TableCell className="text-right font-semibold text-xs text-rose-600 dark:text-rose-400">
+                                                {item.outflow > 0 ? `-₹${item.outflow.toFixed(2)}` : "—"}
+                                            </TableCell>
+                                            <TableCell className="text-right font-mono font-bold text-xs text-slate-900 dark:text-slate-100">
+                                                ₹{item.running_balance.toFixed(2)}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                )}
+                            </TableBody>
+                        </Table>
+                    </TableShell>
                 </div>
             )}
 
@@ -493,102 +496,104 @@ export default function ExpensesPage() {
                     </div>
 
                     {/* Vouchers Table */}
-                    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left text-sm">
-                                <thead className="bg-slate-50 dark:bg-slate-900/60 text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                                    <tr>
-                                        <th className="px-5 py-3 font-semibold">Voucher #</th>
-                                        <th className="px-5 py-3 font-semibold">Date</th>
-                                        <th className="px-5 py-3 font-semibold">Category</th>
-                                        <th className="px-5 py-3 font-semibold">Paid To (Beneficiary)</th>
-                                        <th className="px-5 py-3 font-semibold">Account / Mode</th>
-                                        <th className="px-5 py-3 font-semibold">Amount (₹)</th>
-                                        <th className="px-5 py-3 font-semibold">Status</th>
-                                        <th className="px-5 py-3 font-semibold text-right">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
-                                    {isLoadingVouchers ? (
-                                        <tr>
-                                            <td colSpan={8} className="px-5 py-8 text-center text-slate-400">
-                                                Loading expense vouchers...
-                                            </td>
-                                        </tr>
-                                    ) : vouchers.length === 0 ? (
-                                        <tr>
-                                            <td colSpan={8} className="px-5 py-8 text-center text-slate-400">
-                                                No expense vouchers found matching the filter criteria.
-                                            </td>
-                                        </tr>
-                                    ) : (
-                                        vouchers.map((v) => (
-                                            <tr key={v.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-750 transition-colors">
-                                                <td className="px-5 py-3.5 font-mono text-xs font-semibold text-indigo-600 dark:text-indigo-400">
-                                                    {v.voucher_number}
-                                                </td>
-                                                <td className="px-5 py-3.5 text-slate-600 dark:text-slate-300 whitespace-nowrap">
-                                                    {v.expense_date}
-                                                </td>
-                                                <td className="px-5 py-3.5">
-                                                    <span className="px-2 py-0.5 rounded text-xs bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-medium">
-                                                        {v.category_name}
-                                                    </span>
-                                                </td>
-                                                <td className="px-5 py-3.5 text-slate-900 dark:text-slate-100 font-medium">
-                                                    <div>{v.paid_to}</div>
-                                                    {v.description && (
-                                                        <div className="text-xs text-slate-400 truncate max-w-xs">{v.description}</div>
-                                                    )}
-                                                </td>
-                                                <td className="px-5 py-3.5 text-xs text-slate-600 dark:text-slate-400">
-                                                    <div>{v.payment_account_name || "Cash Counter"}</div>
-                                                    <span className="uppercase text-[10px] text-slate-400">{v.payment_method}</span>
-                                                </td>
-                                                <td className="px-5 py-3.5 font-bold text-slate-900 dark:text-slate-100">
-                                                    ₹{parseFloat(v.amount).toFixed(2)}
-                                                </td>
-                                                <td className="px-5 py-3.5">
-                                                    <span
-                                                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                                                            v.status === "approved"
-                                                                ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
-                                                                : v.status === "draft"
-                                                                ? "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400"
-                                                                : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 line-through"
-                                                        }`}
+                    <TableShell>
+                        <Table>
+                            <TableHeader>
+                                <TableRow className="bg-slate-50/75 dark:bg-slate-900/60">
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Voucher #</TableHead>
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Date</TableHead>
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Category</TableHead>
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Paid To (Beneficiary)</TableHead>
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Account / Mode</TableHead>
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Amount (₹)</TableHead>
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Status</TableHead>
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 text-right">Actions</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {isLoadingVouchers ? (
+                                    <TableRow>
+                                        <TableCell colSpan={8} className="py-12 text-center text-xs text-slate-400">
+                                            Loading expense vouchers...
+                                        </TableCell>
+                                    </TableRow>
+                                ) : vouchers.length === 0 ? (
+                                    <TableRow>
+                                        <TableCell colSpan={8} className="py-12 text-center text-xs text-slate-400">
+                                            No expense vouchers found matching the filter criteria.
+                                        </TableCell>
+                                    </TableRow>
+                                ) : (
+                                    vouchers.map((v) => (
+                                        <TableRow key={v.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
+                                            <TableCell className="font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                                                {v.voucher_number}
+                                            </TableCell>
+                                            <TableCell className="text-slate-600 dark:text-slate-300 whitespace-nowrap text-xs font-mono">
+                                                {v.expense_date}
+                                            </TableCell>
+                                            <TableCell>
+                                                <Badge variant="outline" className="text-[11px] font-semibold bg-slate-50 text-slate-700 border-slate-200">
+                                                    {v.category_name}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="text-slate-900 dark:text-slate-100 font-medium text-xs">
+                                                <div>{v.paid_to}</div>
+                                                {v.description && (
+                                                    <div className="text-[11px] text-slate-400 truncate max-w-xs mt-0.5">{v.description}</div>
+                                                )}
+                                            </TableCell>
+                                            <TableCell className="text-xs text-slate-600 dark:text-slate-400">
+                                                <div>{v.payment_account_name || "Cash Counter"}</div>
+                                                <span className="uppercase text-[10px] text-slate-400 font-mono">{v.payment_method}</span>
+                                            </TableCell>
+                                            <TableCell className="font-bold text-xs text-slate-900 dark:text-slate-100 font-mono">
+                                                ₹{parseFloat(v.amount).toFixed(2)}
+                                            </TableCell>
+                                            <TableCell>
+                                                <Badge
+                                                    className={
+                                                        v.status === "approved"
+                                                            ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300/80 text-[10px]"
+                                                            : v.status === "draft"
+                                                            ? "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border border-amber-300/80 text-[10px]"
+                                                            : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 text-[10px] line-through"
+                                                    }
+                                                >
+                                                    {v.status.toUpperCase()}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="text-right space-x-1.5">
+                                                {v.status === "draft" && can("approve_expenses") && (
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => approveExpense.mutate(v.id)}
+                                                        className="h-8 px-2.5 text-xs text-emerald-600 hover:text-emerald-700 border-emerald-200 hover:bg-emerald-50 cursor-pointer font-semibold"
                                                     >
-                                                        {v.status.toUpperCase()}
-                                                    </span>
-                                                </td>
-                                                <td className="px-5 py-3.5 text-right space-x-2">
-                                                    {v.status === "draft" && can("approve_expenses") && (
-                                                        <button
-                                                            onClick={() => approveExpense.mutate(v.id)}
-                                                            className="text-xs text-emerald-600 hover:text-emerald-700 font-medium cursor-pointer"
-                                                        >
-                                                            Approve
-                                                        </button>
-                                                    )}
-                                                    {v.status !== "cancelled" && can("approve_expenses") && (
-                                                        <button
-                                                            onClick={() => {
-                                                                setVoucherToCancel(v);
-                                                                setIsCancelModalOpen(true);
-                                                            }}
-                                                            className="text-xs text-rose-600 hover:text-rose-700 font-medium cursor-pointer"
-                                                        >
-                                                            Cancel
-                                                        </button>
-                                                    )}
-                                                </td>
-                                            </tr>
-                                        ))
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+                                                        Approve
+                                                    </Button>
+                                                )}
+                                                {v.status !== "cancelled" && can("approve_expenses") && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => {
+                                                            setVoucherToCancel(v);
+                                                            setIsCancelModalOpen(true);
+                                                        }}
+                                                        className="h-8 px-2.5 text-xs text-rose-600 hover:text-rose-700 cursor-pointer font-semibold"
+                                                    >
+                                                        Cancel
+                                                    </Button>
+                                                )}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                )}
+                            </TableBody>
+                        </Table>
+                    </TableShell>
                 </div>
             )}
 
