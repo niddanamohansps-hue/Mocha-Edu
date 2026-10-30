@@ -46,33 +46,37 @@ export function isNonNegativeDecimal(value: string, maxDecimals = 2) {
     return new RegExp(`^\\d+(\\.\\d{1,${maxDecimals}})?$`).test(value.trim());
 }
 
+import { Package, ArrowRightLeft, ShoppingBag, Laptop, Settings } from "lucide-react";
+
 const TABS = [
-    { href: "/dashboard/inventory", label: "Stock", permission: "view_inventory", exact: true },
-    { href: "/dashboard/inventory/movements", label: "Movements", permission: "view_inventory" },
-    { href: "/dashboard/inventory/purchases", label: "Purchases", permission: "view_inventory" },
-    { href: "/dashboard/inventory/assets", label: "Assets", permission: "view_assets" },
-    { href: "/dashboard/inventory/setup", label: "Setup", permission: "view_inventory" },
+    { href: "/dashboard/inventory", label: "Consumable Stock", icon: Package, permission: "view_inventory", exact: true },
+    { href: "/dashboard/inventory/movements", label: "Stock Movements", icon: ArrowRightLeft, permission: "view_inventory" },
+    { href: "/dashboard/inventory/purchases", label: "Supplier Purchases", icon: ShoppingBag, permission: "view_inventory" },
+    { href: "/dashboard/inventory/assets", label: "Fixed Assets & Equipment", icon: Laptop, permission: "view_assets" },
+    { href: "/dashboard/inventory/setup", label: "Warehouse Setup", icon: Settings, permission: "view_inventory" },
 ];
 
 export function InventoryNav() {
     const pathname = usePathname();
     const { can } = usePermissions();
     return (
-        <nav className="flex flex-wrap gap-1 border-b border-slate-200 dark:border-slate-800" aria-label="Inventory sections">
+        <nav className="flex items-center gap-1 border-b border-slate-200/80 dark:border-slate-800 pb-px overflow-x-auto scrollbar-none" aria-label="Inventory sections">
             {TABS.filter((tab) => can(tab.permission)).map((tab) => {
                 const active = tab.exact ? pathname === tab.href : pathname.startsWith(tab.href);
+                const Icon = tab.icon;
                 return (
                     <Link
                         key={tab.href}
                         href={tab.href}
                         aria-current={active ? "page" : undefined}
-                        className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors ${
+                        className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-semibold border-b-2 transition-all cursor-pointer whitespace-nowrap ${
                             active
-                                ? "border-sky-600 text-sky-700 dark:text-sky-400"
-                                : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                                ? "border-sky-600 text-sky-600 dark:text-sky-400 bg-sky-50/50 dark:bg-sky-950/20 rounded-t-lg"
+                                : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:border-slate-300"
                         }`}
                     >
-                        {tab.label}
+                        <Icon className={`w-3.5 h-3.5 ${active ? "text-sky-600 dark:text-sky-400" : "text-slate-400"}`} />
+                        <span>{tab.label}</span>
                     </Link>
                 );
             })}
