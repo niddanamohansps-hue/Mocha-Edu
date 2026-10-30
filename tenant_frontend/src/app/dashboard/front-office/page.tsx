@@ -33,6 +33,33 @@ import {
     StudentGatePass,
 } from "@/hooks/useFrontOffice";
 import { usePermissions } from "@/providers/PermissionProvider";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
+import { TableShell } from "@/components/common/table/TableShell";
+
+const AVATAR_PALETTES = [
+    { bg: "bg-sky-100 dark:bg-sky-950/70", text: "text-sky-700 dark:text-sky-300", border: "border-sky-300/60 dark:border-sky-800" },
+    { bg: "bg-emerald-100 dark:bg-emerald-950/70", text: "text-emerald-700 dark:text-emerald-300", border: "border-emerald-300/60 dark:border-emerald-800" },
+    { bg: "bg-indigo-100 dark:bg-indigo-950/70", text: "text-indigo-700 dark:text-indigo-300", border: "border-indigo-300/60 dark:border-indigo-800" },
+    { bg: "bg-purple-100 dark:bg-purple-950/70", text: "text-purple-700 dark:text-purple-300", border: "border-purple-300/60 dark:border-purple-800" },
+    { bg: "bg-amber-100 dark:bg-amber-950/70", text: "text-amber-700 dark:text-amber-300", border: "border-amber-300/60 dark:border-amber-800" },
+];
+
+function getAvatarStyle(name: string) {
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    const index = Math.abs(hash) % AVATAR_PALETTES.length;
+    return AVATAR_PALETTES[index];
+}
 
 export default function FrontOfficePage() {
     const { can } = usePermissions();
@@ -353,117 +380,136 @@ export default function FrontOfficePage() {
             {/* TAB 1: VISITOR LOG */}
             {activeTab === "visitors" && (
                 <div className="space-y-4">
-                    <div className="flex flex-wrap items-center justify-between gap-4 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-800">
+                    <div className="flex flex-wrap items-center justify-between gap-4 p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-2xs">
                         <div className="flex flex-wrap items-center gap-3">
                             <div className="relative">
-                                <Search className="h-4 w-4 absolute left-3 top-2.5 text-slate-400" />
-                                <input
+                                <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                <Input
                                     type="text"
                                     placeholder="Search visitor, phone, pass #..."
                                     value={visitorSearch}
                                     onChange={(e) => setVisitorSearch(e.target.value)}
-                                    className="pl-9 pr-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 w-64"
+                                    className="pl-9 h-9 text-xs w-64 rounded-lg border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
                                 />
                             </div>
                             <select
                                 value={visitorStatus}
                                 onChange={(e) => setVisitorStatus(e.target.value)}
-                                className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100"
+                                className="h-9 px-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300"
                             >
                                 <option value="">All Statuses</option>
                                 <option value="active">Active (Inside Campus)</option>
                                 <option value="checked_out">Checked Out</option>
                             </select>
                         </div>
-                        <div className="text-xs text-slate-500">
-                            {visitors.length} visitors listed
+                        <div className="text-xs text-slate-500 font-semibold">
+                            {visitors.length} visitors logged
                         </div>
                     </div>
 
-                    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left text-sm">
-                                <thead className="bg-slate-50 dark:bg-slate-900/60 text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                                    <tr>
-                                        <th className="px-5 py-3 font-semibold">Pass #</th>
-                                        <th className="px-5 py-3 font-semibold">Visitor Name</th>
-                                        <th className="px-5 py-3 font-semibold">Phone / ID</th>
-                                        <th className="px-5 py-3 font-semibold">Purpose</th>
-                                        <th className="px-5 py-3 font-semibold">Person to Meet</th>
-                                        <th className="px-5 py-3 font-semibold">Badge / Vehicle</th>
-                                        <th className="px-5 py-3 font-semibold">Check-In</th>
-                                        <th className="px-5 py-3 font-semibold">Status</th>
-                                        <th className="px-5 py-3 font-semibold text-right">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
-                                    {isLoadingVisitors ? (
-                                        <tr>
-                                            <td colSpan={9} className="px-5 py-8 text-center text-slate-400">
-                                                Loading visitor logs...
-                                            </td>
-                                        </tr>
-                                    ) : visitors.length === 0 ? (
-                                        <tr>
-                                            <td colSpan={9} className="px-5 py-8 text-center text-slate-400">
-                                                No visitor entries found matching the filter.
-                                            </td>
-                                        </tr>
-                                    ) : (
-                                        visitors.map((v) => (
-                                            <tr key={v.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-750 transition-colors">
-                                                <td className="px-5 py-3.5 font-mono text-xs font-semibold text-sky-600 dark:text-sky-400">
+                    <TableShell>
+                        <Table>
+                            <TableHeader>
+                                <TableRow className="bg-slate-50/75 dark:bg-slate-900/60">
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Pass #</TableHead>
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Visitor</TableHead>
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Phone & ID</TableHead>
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Purpose</TableHead>
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Person to Meet</TableHead>
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Badge & Vehicle</TableHead>
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Check-In</TableHead>
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Status</TableHead>
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 text-right">Actions</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {isLoadingVisitors ? (
+                                    <TableRow>
+                                        <TableCell colSpan={9} className="py-12 text-center text-xs text-slate-400">
+                                            Loading visitor logs...
+                                        </TableCell>
+                                    </TableRow>
+                                ) : visitors.length === 0 ? (
+                                    <TableRow>
+                                        <TableCell colSpan={9} className="py-12 text-center text-xs text-slate-400">
+                                            No visitor entries found matching the filter.
+                                        </TableCell>
+                                    </TableRow>
+                                ) : (
+                                    visitors.map((v) => {
+                                        const avatar = getAvatarStyle(v.visitor_name);
+                                        return (
+                                            <TableRow key={v.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
+                                                <TableCell className="font-mono text-xs font-bold text-sky-600 dark:text-sky-400">
                                                     {v.pass_number}
-                                                </td>
-                                                <td className="px-5 py-3.5 text-slate-900 dark:text-slate-100 font-medium">
-                                                    <div>{v.visitor_name}</div>
-                                                    {v.organization && (
-                                                        <div className="text-xs text-slate-400">{v.organization}</div>
-                                                    )}
-                                                </td>
-                                                <td className="px-5 py-3.5 text-xs text-slate-600 dark:text-slate-300">
-                                                    <div>{v.phone}</div>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className="flex items-center gap-2.5">
+                                                        <div className={`w-8 h-8 rounded-lg ${avatar.bg} ${avatar.text} ${avatar.border} border flex items-center justify-center font-bold text-xs shrink-0`}>
+                                                            {v.visitor_name.slice(0, 2).toUpperCase()}
+                                                        </div>
+                                                        <div>
+                                                            <div className="font-bold text-xs text-slate-900 dark:text-white">{v.visitor_name}</div>
+                                                            {v.organization && (
+                                                                <div className="text-[11px] text-slate-400">{v.organization}</div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="text-xs text-slate-600 dark:text-slate-300">
+                                                    <div className="font-mono">{v.phone}</div>
                                                     {v.id_proof_number && (
                                                         <div className="text-[10px] text-slate-400 uppercase">
                                                             {v.id_proof_type}: {v.id_proof_number}
                                                         </div>
                                                     )}
-                                                </td>
-                                                <td className="px-5 py-3.5 text-xs text-slate-700 dark:text-slate-300">
-                                                    <span className="font-medium">{v.purpose_display || v.purpose}</span>
+                                                </TableCell>
+                                                <TableCell className="text-xs text-slate-700 dark:text-slate-300">
+                                                    <Badge variant="outline" className="text-[11px] font-semibold bg-slate-50 text-slate-700 border-slate-200">
+                                                        {v.purpose_display || v.purpose}
+                                                    </Badge>
                                                     {v.purpose_details && (
-                                                        <div className="text-slate-400 truncate max-w-xs">{v.purpose_details}</div>
+                                                        <div className="text-[11px] text-slate-400 truncate max-w-xs mt-0.5">{v.purpose_details}</div>
                                                     )}
-                                                </td>
-                                                <td className="px-5 py-3.5 text-xs text-slate-700 dark:text-slate-300">
-                                                    {v.person_to_meet_staff_name || v.person_to_meet_name || "-"}
-                                                </td>
-                                                <td className="px-5 py-3.5 text-xs text-slate-600 dark:text-slate-300">
+                                                </TableCell>
+                                                <TableCell className="text-xs text-slate-700 dark:text-slate-300">
+                                                    {v.person_to_meet_staff_name || v.person_to_meet_name || "—"}
+                                                </TableCell>
+                                                <TableCell className="text-xs text-slate-600 dark:text-slate-300">
                                                     {v.badge_number && (
-                                                        <span className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 rounded font-mono">
+                                                        <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded font-mono text-[11px]">
                                                             {v.badge_number}
                                                         </span>
                                                     )}
                                                     {v.vehicle_number && (
                                                         <div className="text-[10px] text-slate-400 mt-0.5">{v.vehicle_number}</div>
                                                     )}
-                                                </td>
-                                                <td className="px-5 py-3.5 text-xs text-slate-500 whitespace-nowrap">
+                                                </TableCell>
+                                                <TableCell className="text-xs text-slate-500 whitespace-nowrap">
                                                     {new Date(v.check_in_time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                                                </td>
-                                                <td className="px-5 py-3.5">
-                                                    <span
-                                                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Badge
+                                                        className={
                                                             v.status === "active"
-                                                                ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
-                                                                : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
-                                                        }`}
+                                                                ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300/80 text-[10px]"
+                                                                : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 text-[10px]"
+                                                        }
                                                     >
-                                                        {v.status === "active" ? "Inside Campus" : "Checked Out"}
-                                                    </span>
-                                                </td>
-                                                <td className="px-5 py-3.5 text-right space-x-2">
-                                                    <button
+                                                        {v.status === "active" ? (
+                                                            <span className="flex items-center gap-1.5">
+                                                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                                                Inside Campus
+                                                            </span>
+                                                        ) : (
+                                                            "Checked Out"
+                                                        )}
+                                                    </Badge>
+                                                </TableCell>
+                                                <TableCell className="text-right space-x-1.5">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
                                                         onClick={() =>
                                                             printSlip("Visitor Pass Slip", v.pass_number, [
                                                                 ["Visitor Name", v.visitor_name],
@@ -475,51 +521,52 @@ export default function FrontOfficePage() {
                                                                 ["Check-In Time", new Date(v.check_in_time).toLocaleString()],
                                                             ])
                                                         }
-                                                        className="text-xs text-slate-600 hover:text-slate-800 dark:text-slate-400 cursor-pointer"
+                                                        className="h-8 px-2 text-xs text-slate-600 hover:text-slate-900 cursor-pointer"
                                                         title="Print Visitor Pass"
                                                     >
-                                                        <Printer className="h-3.5 w-3.5 inline mr-1" /> Slip
-                                                    </button>
+                                                        <Printer className="h-3.5 w-3.5 mr-1" />
+                                                        Slip
+                                                    </Button>
                                                     {v.status === "active" && can("manage_visitors") && (
-                                                        <button
-                                                            onClick={() => {
-                                                                setVisitorToCheckOut(v);
-                                                            }}
-                                                            className="text-xs text-rose-600 hover:text-rose-700 font-medium cursor-pointer"
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() => setVisitorToCheckOut(v)}
+                                                            className="h-8 px-2.5 text-xs text-rose-600 hover:text-rose-700 border-rose-200 hover:bg-rose-50 cursor-pointer font-semibold"
                                                         >
                                                             Check Out
-                                                        </button>
+                                                        </Button>
                                                     )}
-                                                </td>
-                                            </tr>
-                                        ))
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+                                                </TableCell>
+                                            </TableRow>
+                                        );
+                                    })
+                                )}
+                            </TableBody>
+                        </Table>
+                    </TableShell>
                 </div>
             )}
 
             {/* TAB 2: STUDENT GATE PASSES */}
             {activeTab === "gatepasses" && (
                 <div className="space-y-4">
-                    <div className="flex flex-wrap items-center justify-between gap-4 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-800">
+                    <div className="flex flex-wrap items-center justify-between gap-4 p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-2xs">
                         <div className="flex flex-wrap items-center gap-3">
                             <div className="relative">
-                                <Search className="h-4 w-4 absolute left-3 top-2.5 text-slate-400" />
-                                <input
+                                <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                <Input
                                     type="text"
                                     placeholder="Search student, pickup person, pass #..."
                                     value={gatePassSearch}
                                     onChange={(e) => setGatePassSearch(e.target.value)}
-                                    className="pl-9 pr-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-500 w-64"
+                                    className="pl-9 h-9 text-xs w-64 rounded-lg border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
                                 />
                             </div>
                             <select
                                 value={gatePassStatus}
                                 onChange={(e) => setGatePassStatus(e.target.value)}
-                                className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100"
+                                className="h-9 px-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300"
                             >
                                 <option value="">All Statuses</option>
                                 <option value="issued">Issued (Pending Departure)</option>
@@ -527,84 +574,103 @@ export default function FrontOfficePage() {
                                 <option value="cancelled">Cancelled</option>
                             </select>
                         </div>
-                        <div className="text-xs text-slate-500">
+                        <div className="text-xs text-slate-500 font-semibold">
                             {gatePasses.length} gate passes issued
                         </div>
                     </div>
 
-                    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left text-sm">
-                                <thead className="bg-slate-50 dark:bg-slate-900/60 text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                                    <tr>
-                                        <th className="px-5 py-3 font-semibold">Gate Pass #</th>
-                                        <th className="px-5 py-3 font-semibold">Student Name & Class</th>
-                                        <th className="px-5 py-3 font-semibold">Reason</th>
-                                        <th className="px-5 py-3 font-semibold">Picked Up By</th>
-                                        <th className="px-5 py-3 font-semibold">Authorized By</th>
-                                        <th className="px-5 py-3 font-semibold">Departure Time</th>
-                                        <th className="px-5 py-3 font-semibold">Status</th>
-                                        <th className="px-5 py-3 font-semibold text-right">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
-                                    {isLoadingGatePasses ? (
-                                        <tr>
-                                            <td colSpan={8} className="px-5 py-8 text-center text-slate-400">
-                                                Loading student gate passes...
-                                            </td>
-                                        </tr>
-                                    ) : gatePasses.length === 0 ? (
-                                        <tr>
-                                            <td colSpan={8} className="px-5 py-8 text-center text-slate-400">
-                                                No gate passes recorded matching the criteria.
-                                            </td>
-                                        </tr>
-                                    ) : (
-                                        gatePasses.map((gp) => (
-                                            <tr key={gp.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-750 transition-colors">
-                                                <td className="px-5 py-3.5 font-mono text-xs font-semibold text-amber-600 dark:text-amber-400">
+                    <TableShell>
+                        <Table>
+                            <TableHeader>
+                                <TableRow className="bg-slate-50/75 dark:bg-slate-900/60">
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Gate Pass #</TableHead>
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Student & Cohort</TableHead>
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Reason</TableHead>
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Picked Up By</TableHead>
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Authorized By</TableHead>
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Departure</TableHead>
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Status</TableHead>
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 text-right">Actions</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {isLoadingGatePasses ? (
+                                    <TableRow>
+                                        <TableCell colSpan={8} className="py-12 text-center text-xs text-slate-400">
+                                            Loading student gate passes...
+                                        </TableCell>
+                                    </TableRow>
+                                ) : gatePasses.length === 0 ? (
+                                    <TableRow>
+                                        <TableCell colSpan={8} className="py-12 text-center text-xs text-slate-400">
+                                            No gate passes recorded matching the criteria.
+                                        </TableCell>
+                                    </TableRow>
+                                ) : (
+                                    gatePasses.map((gp) => {
+                                        const avatar = getAvatarStyle(gp.student_name || "Student");
+                                        return (
+                                            <TableRow key={gp.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
+                                                <TableCell className="font-mono text-xs font-bold text-amber-600 dark:text-amber-400">
                                                     {gp.pass_number}
-                                                </td>
-                                                <td className="px-5 py-3.5 text-slate-900 dark:text-slate-100 font-medium">
-                                                    <div>{gp.student_name}</div>
-                                                    <div className="text-xs text-slate-400">
-                                                        {gp.student_enrollment_id} • {gp.student_class_section || "Class Section"}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className="flex items-center gap-2.5">
+                                                        <div className={`w-8 h-8 rounded-lg ${avatar.bg} ${avatar.text} ${avatar.border} border flex items-center justify-center font-bold text-xs shrink-0`}>
+                                                            {(gp.student_name || "ST").slice(0, 2).toUpperCase()}
+                                                        </div>
+                                                        <div>
+                                                            <div className="font-bold text-xs text-slate-900 dark:text-white">{gp.student_name}</div>
+                                                            <div className="text-[11px] text-slate-400">
+                                                                {gp.student_enrollment_id} • {gp.student_class_section || "Class Section"}
+                                                            </div>
+                                                        </div>
                                                     </div>
-                                                </td>
-                                                <td className="px-5 py-3.5 text-xs text-slate-700 dark:text-slate-300">
-                                                    <span className="font-medium text-rose-600 dark:text-rose-400">
+                                                </TableCell>
+                                                <TableCell className="text-xs text-slate-700 dark:text-slate-300">
+                                                    <Badge variant="outline" className="text-[11px] font-semibold bg-rose-50 text-rose-700 border-rose-200">
                                                         {gp.reason_category_display}
-                                                    </span>
+                                                    </Badge>
                                                     {gp.reason_details && (
-                                                        <div className="text-slate-400 truncate max-w-xs">{gp.reason_details}</div>
+                                                        <div className="text-[11px] text-slate-400 truncate max-w-xs mt-0.5">{gp.reason_details}</div>
                                                     )}
-                                                </td>
-                                                <td className="px-5 py-3.5 text-xs text-slate-700 dark:text-slate-300">
-                                                    <div>{gp.picked_up_by_name} ({gp.relationship_display})</div>
-                                                    <div className="text-slate-400">{gp.picked_up_by_phone}</div>
-                                                </td>
-                                                <td className="px-5 py-3.5 text-xs text-slate-600 dark:text-slate-400">
+                                                </TableCell>
+                                                <TableCell className="text-xs text-slate-700 dark:text-slate-300">
+                                                    <div className="font-semibold">{gp.picked_up_by_name} <span className="text-slate-400 font-normal">({gp.relationship_display})</span></div>
+                                                    <div className="text-slate-400 font-mono text-[11px]">{gp.picked_up_by_phone}</div>
+                                                </TableCell>
+                                                <TableCell className="text-xs text-slate-600 dark:text-slate-300">
                                                     {gp.authorized_by_staff_name || "School Principal"}
-                                                </td>
-                                                <td className="px-5 py-3.5 text-xs text-slate-500 whitespace-nowrap">
+                                                </TableCell>
+                                                <TableCell className="text-xs text-slate-500 whitespace-nowrap">
                                                     {new Date(gp.departure_time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                                                </td>
-                                                <td className="px-5 py-3.5">
-                                                    <span
-                                                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Badge
+                                                        className={
                                                             gp.status === "issued"
-                                                                ? "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 animate-pulse"
+                                                                ? "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border border-amber-300/80 text-[10px]"
                                                                 : gp.status === "departed"
-                                                                ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
-                                                                : "bg-slate-100 text-slate-500 line-through"
-                                                        }`}
+                                                                ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300/80 text-[10px]"
+                                                                : "bg-slate-100 text-slate-500 border border-slate-200 text-[10px] line-through"
+                                                        }
                                                     >
-                                                        {gp.status === "issued" ? "Pending Exit" : gp.status === "departed" ? "Departed" : "Cancelled"}
-                                                    </span>
-                                                </td>
-                                                <td className="px-5 py-3.5 text-right space-x-2">
-                                                    <button
+                                                        {gp.status === "issued" ? (
+                                                            <span className="flex items-center gap-1.5">
+                                                                <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                                                                Pending Exit
+                                                            </span>
+                                                        ) : gp.status === "departed" ? (
+                                                            "Departed"
+                                                        ) : (
+                                                            "Cancelled"
+                                                        )}
+                                                    </Badge>
+                                                </TableCell>
+                                                <TableCell className="text-right space-x-1.5">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
                                                         onClick={() =>
                                                             printSlip("Student Early Departure Gate Pass", gp.pass_number, [
                                                                 ["Student Name", gp.student_name || ""],
@@ -618,127 +684,128 @@ export default function FrontOfficePage() {
                                                                 ["Departure Date/Time", new Date(gp.departure_time).toLocaleString()],
                                                             ])
                                                         }
-                                                        className="text-xs text-slate-600 hover:text-slate-800 dark:text-slate-400 cursor-pointer"
+                                                        className="h-8 px-2 text-xs text-slate-600 hover:text-slate-900 cursor-pointer"
                                                         title="Print Gate Pass Slip"
                                                     >
-                                                        <Printer className="h-3.5 w-3.5 inline mr-1" /> Slip
-                                                    </button>
+                                                        <Printer className="h-3.5 w-3.5 mr-1" />
+                                                        Slip
+                                                    </Button>
                                                     {gp.status === "issued" && can("issue_gate_pass") && (
-                                                        <button
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
                                                             onClick={() => setGatePassToExit(gp)}
-                                                            className="text-xs text-emerald-600 hover:text-emerald-700 font-medium cursor-pointer"
+                                                            className="h-8 px-2.5 text-xs text-emerald-600 hover:text-emerald-700 border-emerald-200 hover:bg-emerald-50 cursor-pointer font-semibold"
                                                         >
                                                             Gate Exit
-                                                        </button>
+                                                        </Button>
                                                     )}
-                                                </td>
-                                            </tr>
-                                        ))
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+                                                </TableCell>
+                                            </TableRow>
+                                        );
+                                    })
+                                )}
+                            </TableBody>
+                        </Table>
+                    </TableShell>
                 </div>
             )}
 
             {/* TAB 3: POSTAL & COURIER LOG */}
             {activeTab === "postal" && (
                 <div className="space-y-4">
-                    <div className="flex flex-wrap items-center justify-between gap-4 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-800">
+                    <div className="flex flex-wrap items-center justify-between gap-4 p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-2xs">
                         <div className="flex flex-wrap items-center gap-3">
                             <div className="relative">
-                                <Search className="h-4 w-4 absolute left-3 top-2.5 text-slate-400" />
-                                <input
+                                <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                <Input
                                     type="text"
                                     placeholder="Search tracking #, sender, recipient..."
                                     value={postalSearch}
                                     onChange={(e) => setPostalSearch(e.target.value)}
-                                    className="pl-9 pr-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 w-64"
+                                    className="pl-9 h-9 text-xs w-64 rounded-lg border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
                                 />
                             </div>
                             <select
                                 value={postalType}
                                 onChange={(e) => setPostalType(e.target.value)}
-                                className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100"
+                                className="h-9 px-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300"
                             >
                                 <option value="">All Types (Inward & Outward)</option>
                                 <option value="inward">Inward (Received)</option>
                                 <option value="outward">Outward (Dispatched)</option>
                             </select>
                         </div>
-                        <div className="text-xs text-slate-500">
+                        <div className="text-xs text-slate-500 font-semibold">
                             {postalRecords.length} postal dispatches logged
                         </div>
                     </div>
 
-                    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left text-sm">
-                                <thead className="bg-slate-50 dark:bg-slate-900/60 text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                                    <tr>
-                                        <th className="px-5 py-3 font-semibold">Type</th>
-                                        <th className="px-5 py-3 font-semibold">Tracking #</th>
-                                        <th className="px-5 py-3 font-semibold">Subject / Title</th>
-                                        <th className="px-5 py-3 font-semibold">From (Sender)</th>
-                                        <th className="px-5 py-3 font-semibold">To (Recipient)</th>
-                                        <th className="px-5 py-3 font-semibold">Courier Company</th>
-                                        <th className="px-5 py-3 font-semibold">Date</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
-                                    {isLoadingPostal ? (
-                                        <tr>
-                                            <td colSpan={7} className="px-5 py-8 text-center text-slate-400">
-                                                Loading postal records...
-                                            </td>
-                                        </tr>
-                                    ) : postalRecords.length === 0 ? (
-                                        <tr>
-                                            <td colSpan={7} className="px-5 py-8 text-center text-slate-400">
-                                                No courier or postal records logged.
-                                            </td>
-                                        </tr>
-                                    ) : (
-                                        postalRecords.map((p) => (
-                                            <tr key={p.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-750 transition-colors">
-                                                <td className="px-5 py-3.5 whitespace-nowrap">
-                                                    <span
-                                                        className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold uppercase ${
-                                                            p.record_type === "inward"
-                                                                ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
-                                                                : "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400"
-                                                        }`}
-                                                    >
-                                                        {p.record_type}
-                                                    </span>
-                                                </td>
-                                                <td className="px-5 py-3.5 font-mono text-xs text-slate-700 dark:text-slate-300">
-                                                    {p.tracking_number || "-"}
-                                                </td>
-                                                <td className="px-5 py-3.5 text-slate-900 dark:text-slate-100 font-medium">
-                                                    <div>{p.title}</div>
-                                                    {p.notes && <div className="text-xs text-slate-400">{p.notes}</div>}
-                                                </td>
-                                                <td className="px-5 py-3.5 text-xs text-slate-600 dark:text-slate-300">
-                                                    {p.from_title}
-                                                </td>
-                                                <td className="px-5 py-3.5 text-xs text-slate-600 dark:text-slate-300">
-                                                    {p.to_title}
-                                                </td>
-                                                <td className="px-5 py-3.5 text-xs text-slate-500">
-                                                    {p.courier_company || "-"}
-                                                </td>
-                                                <td className="px-5 py-3.5 text-xs text-slate-500 whitespace-nowrap">
-                                                    {p.dispatch_date}
-                                                </td>
-                                            </tr>
-                                        ))
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+                    <TableShell>
+                        <Table>
+                            <TableHeader>
+                                <TableRow className="bg-slate-50/75 dark:bg-slate-900/60">
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Type</TableHead>
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Tracking #</TableHead>
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Subject / Title</TableHead>
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">From (Sender)</TableHead>
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">To (Recipient)</TableHead>
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Courier Company</TableHead>
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Date</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {isLoadingPostal ? (
+                                    <TableRow>
+                                        <TableCell colSpan={7} className="py-12 text-center text-xs text-slate-400">
+                                            Loading postal records...
+                                        </TableCell>
+                                    </TableRow>
+                                ) : postalRecords.length === 0 ? (
+                                    <TableRow>
+                                        <TableCell colSpan={7} className="py-12 text-center text-xs text-slate-400">
+                                            No courier or postal records logged.
+                                        </TableCell>
+                                    </TableRow>
+                                ) : (
+                                    postalRecords.map((p) => (
+                                        <TableRow key={p.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
+                                            <TableCell>
+                                                <Badge
+                                                    className={
+                                                        p.record_type === "inward"
+                                                            ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300/80 text-[10px] uppercase font-bold"
+                                                            : "bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-300 border border-sky-300/80 text-[10px] uppercase font-bold"
+                                                    }
+                                                >
+                                                    {p.record_type}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="font-mono text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                                {p.tracking_number || "—"}
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="font-bold text-xs text-slate-900 dark:text-white">{p.title}</div>
+                                                {p.notes && <div className="text-[11px] text-slate-400 mt-0.5">{p.notes}</div>}
+                                            </TableCell>
+                                            <TableCell className="text-xs text-slate-700 dark:text-slate-300 font-medium">
+                                                {p.from_title}
+                                            </TableCell>
+                                            <TableCell className="text-xs text-slate-700 dark:text-slate-300 font-medium">
+                                                {p.to_title}
+                                            </TableCell>
+                                            <TableCell className="text-xs text-slate-500">
+                                                {p.courier_company || "—"}
+                                            </TableCell>
+                                            <TableCell className="text-xs text-slate-500 whitespace-nowrap">
+                                                {p.dispatch_date}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                )}
+                            </TableBody>
+                        </Table>
+                    </TableShell>
                 </div>
             )}
 
