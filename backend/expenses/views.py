@@ -3,7 +3,10 @@ from datetime import date
 from decimal import Decimal
 import io
 
-from django.http import HttpResponse
+import os
+
+from django.conf import settings
+from django.http import FileResponse, Http404, HttpResponse
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, status, viewsets
@@ -54,6 +57,24 @@ class ExpenseViewSet(viewsets.ModelViewSet):
         elif self.action in ["destroy", "cancel", "approve"]:
             return [IsAuthenticated(), HasPermission("approve_expenses")()]
         return [IsAuthenticated(), HasPermission("view_expenses")()]
+
+    @action(detail=True, methods=["get"])
+    def receipt(self, request, pk=None):
+        """The scanned bill attached to this voucher, for anyone who may view expenses."""
+        expense = self.get_object()
+        if not expense.receipt_file:
+            raise Http404("This voucher has no receipt.")
+        filename = os.path.basename(expense.receipt_file.name)
+        if getattr(settings, "USE_X_ACCEL_REDIRECT", False):
+            response = HttpResponse()
+            prefix = getattr(settings, "X_ACCEL_PREFIX", "/protected_media/").rstrip("/")
+            response["X-Accel-Redirect"] = f"{prefix}/{expense.receipt_file.name}"
+            response["Content-Disposition"] = f'inline; filename="{filename}"'
+            return response
+        try:
+            return FileResponse(expense.receipt_file.open("rb"), filename=filename)
+        except OSError:
+            raise Http404("The receipt could not be read from storage.")
 
     def get_queryset(self):
         qs = Expense.objects.select_related("category", "payment_account").all()

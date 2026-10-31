@@ -48,6 +48,11 @@ class ExpenseSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source="category.name", read_only=True)
     category_code = serializers.CharField(source="category.code", read_only=True)
     payment_account_name = serializers.CharField(source="payment_account.name", read_only=True)
+    receipt_url = serializers.SerializerMethodField()
+
+    def get_receipt_url(self, obj):
+        # Receipts are private: they are opened through this permission-checked endpoint, never by a /media/ URL.
+        return f"/api/expenses/vouchers/{obj.id}/receipt/" if obj.receipt_file else None
 
     class Meta:
         model = Expense
@@ -66,6 +71,7 @@ class ExpenseSerializer(serializers.ModelSerializer):
             "reference_number",
             "description",
             "receipt_file",
+            "receipt_url",
             "status",
             "cancelled_at",
             "cancellation_reason",

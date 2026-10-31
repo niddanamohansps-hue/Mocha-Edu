@@ -61,7 +61,9 @@ def protected_media_serve(request, path, document_root=None, show_indexes=False)
         norm_path.startswith("submissions/")
         or norm_path.startswith("admission_documents/")
         or norm_path.startswith("leave_documents/")
-        or norm_path in ("submissions", "admission_documents", "leave_documents")
+        or norm_path.startswith("expense_receipts/")
+        or norm_path.startswith("homework/")
+        or norm_path in ("submissions", "admission_documents", "leave_documents", "expense_receipts", "homework")
     ):
         from django.http import HttpResponseForbidden
         return HttpResponseForbidden("Direct access to private files is forbidden. Use authorized API endpoints.")

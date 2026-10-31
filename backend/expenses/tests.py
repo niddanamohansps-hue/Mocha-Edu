@@ -1,10 +1,13 @@
 import datetime
+import shutil
+import tempfile
 from decimal import Decimal
 import uuid as uuid_module
 
 from django.contrib.auth import get_user_model
 from django.db import connection
-from django.test import TransactionTestCase
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import RequestFactory, TransactionTestCase, override_settings
 from django_tenants.utils import tenant_context
 from rest_framework.test import APIRequestFactory, force_authenticate
 
@@ -411,3 +414,31 @@ class ExpensesIntegrationTest(ExpensesFixtureMixin, TransactionTestCase):
             resp_owner = view(req_owner)
             self.assertEqual(resp_owner.status_code, 201)
 
+    def test_receipt_is_private_and_served_only_through_the_api(self):
+        from config.urls import protected_media_serve
+
+        media = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, media, ignore_errors=True)
+        with override_settings(MEDIA_ROOT=media), tenant_context(self.school):
+            cat = ExpenseCategory.objects.first()
+            acc = PaymentAccount.objects.filter(is_default=True).first()
+            exp = Expense.objects.create(
+                voucher_number="EXP-2026-9001", category=cat, payment_account=acc, amount=Decimal("120.00"),
+                paid_to="Stationer", receipt_file=SimpleUploadedFile("bill.pdf", b"%PDF-1.4 receipt"),
+            )
+            view = ExpenseViewSet.as_view({"get": "receipt"})
+
+            req = self.factory.get(f"/api/expenses/vouchers/{exp.id}/receipt/")
+            req.tenant = self.school
+            force_authenticate(req, user=self.owner_user)
+            resp = view(req, pk=str(exp.id))
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(b"".join(resp.streaming_content), b"%PDF-1.4 receipt")
+
+            req = self.factory.get(f"/api/expenses/vouchers/{exp.id}/receipt/")
+            req.tenant = self.school
+            force_authenticate(req, user=self.plain_user)
+            self.assertEqual(view(req, pk=str(exp.id)).status_code, 403)
+
+            direct = RequestFactory().get("/media/" + exp.receipt_file.name)
+            self.assertEqual(protected_media_serve(direct, exp.receipt_file.name, document_root=media).status_code, 403)
