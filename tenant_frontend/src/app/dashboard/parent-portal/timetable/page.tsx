@@ -40,7 +40,13 @@ const DAYS = [
 
 export default function ParentPortalTimetablePage() {
     const { can, isOwner } = usePermissions();
-    const canView = isOwner || can("view_child_timetable");
+    if (!(isOwner || can("view_child_timetable"))) {
+        return <Unauthorized />;
+    }
+    return <ParentPortalTimetablePageContent />;
+}
+
+function ParentPortalTimetablePageContent() {
 
     const { data: children } = useLinkedChildren();
     const [selectedChildId, setSelectedChildId] = useState<string | undefined>(undefined);
@@ -48,10 +54,6 @@ export default function ParentPortalTimetablePage() {
 
     const effectiveChildId = selectedChildId || children?.[0]?.student_id;
     const { data, isLoading, isError, refetch } = useChildTimetable(effectiveChildId);
-
-    if (!canView) {
-        return <Unauthorized />;
-    }
 
     const sortedEntries = useMemo(() => {
         if (!data?.results) return [];

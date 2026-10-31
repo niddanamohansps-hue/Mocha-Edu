@@ -123,15 +123,19 @@ function NewRunForm({ onClose }: { onClose: () => void }) {
 
 export default function PayrollRunsPage() {
     const { can } = usePermissions();
+    if (!can("view_payroll")) {
+        return <ErrorState message="You do not have permission to view payroll. You can still see your own payslips under My Payslips." />;
+    }
+    return <PayrollRunsPageContent />;
+}
+
+function PayrollRunsPageContent() {
+    const { can } = usePermissions();
     const [page, setPage] = useState(1);
     const [status, setStatus] = useState<RunStatus | "">("");
     const [creating, setCreating] = useState(false);
 
     const { data, isLoading, isError, refetch } = useRuns({ page, status });
-
-    if (!can("view_payroll")) {
-        return <ErrorState message="You do not have permission to view payroll. You can still see your own payslips under My Payslips." />;
-    }
 
     const runs = data?.results ?? [];
     const totalCount = data?.count ?? 0;

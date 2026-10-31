@@ -58,7 +58,10 @@ export default function SubstitutionsPage() {
     if (!isOwner && !can("manage_substitutions")) {
         return <Unauthorized />;
     }
+    return <SubstitutionsPageContent />;
+}
 
+function SubstitutionsPageContent() {
     const { data: sections } = useSections();
     const [sectionId, setSectionId] = useState("");
     const { data: entries } = useSectionTimetable(sectionId || undefined);

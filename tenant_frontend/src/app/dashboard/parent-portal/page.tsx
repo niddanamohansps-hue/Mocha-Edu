@@ -61,7 +61,14 @@ function getAvatarStyle(name?: string | null) {
 
 export default function ParentPortalDashboardPage() {
     const { can, isOwner } = usePermissions();
-    const canViewChildren = isOwner || can("view_own_children");
+    if (!(isOwner || can("view_own_children"))) {
+        return <Unauthorized />;
+    }
+    return <ParentPortalDashboardPageContent />;
+}
+
+function ParentPortalDashboardPageContent() {
+    const { can, isOwner } = usePermissions();
     const canViewAttendance = isOwner || can("view_child_attendance");
     const canViewResults = isOwner || can("view_child_results");
     const canViewFees = isOwner || can("view_child_fees");
@@ -87,10 +94,6 @@ export default function ParentPortalDashboardPage() {
     const { data: reportCard, isLoading: loadingReportCard } = useChildReportCard(resultsChildId);
     const { data: feeData, isLoading: loadingFees } = useChildFees(feesChildId);
     const { data: timetable, isLoading: loadingTimetable } = useChildTimetable(effectiveChildId);
-
-    if (!canViewChildren) {
-        return <Unauthorized />;
-    }
 
     const today = todayISODate();
     const todaysAttendance = attendance?.records?.find((r) => r.date === today);

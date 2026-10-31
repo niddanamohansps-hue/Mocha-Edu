@@ -33,7 +33,10 @@ export default function StaffAttendancePage() {
     if (!isOwner && !can("mark_staff_attendance")) {
         return <Unauthorized />;
     }
+    return <StaffAttendancePageContent />;
+}
 
+function StaffAttendancePageContent() {
     // This screen marks attendance for the whole staff roster at once, so
     // it needs the full list rather than one page of it - pageSize is set
     // to the backend's maximum (100).

@@ -92,6 +92,14 @@ function getInitials(name: string) {
 
 export default function ParentsPage() {
     const { can, isOwner } = usePermissions();
+    if (!(isOwner || can("view_family"))) {
+        return <Unauthorized />;
+    }
+    return <ParentsPageContent />;
+}
+
+function ParentsPageContent() {
+    const { can, isOwner } = usePermissions();
     const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
@@ -139,14 +147,9 @@ export default function ParentsPage() {
     const [parentToLink, setParentToLink] = useState<Parent | null>(null);
     const [parentToDelete, setParentToDelete] = useState<Parent | null>(null);
 
-    const canView = isOwner || can("view_family");
     const canAdd = isOwner || can("add_family");
     const canEdit = isOwner || can("change_family");
     const canDelete = isOwner || can("delete_family");
-
-    if (!canView) {
-        return <Unauthorized />;
-    }
 
     const handlePageChange = (nextPage: number) => {
         const params = new URLSearchParams(searchParams.toString());

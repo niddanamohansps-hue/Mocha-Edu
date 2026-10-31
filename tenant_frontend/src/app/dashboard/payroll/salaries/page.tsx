@@ -67,16 +67,20 @@ function getInitials(name: string) {
 
 export default function SalariesPage() {
     const { can } = usePermissions();
+    if (!can("view_payroll")) {
+        return <ErrorState message="You do not have permission to view staff salaries." />;
+    }
+    return <SalariesPageContent />;
+}
+
+function SalariesPageContent() {
+    const { can } = usePermissions();
     const [page, setPage] = useState(1);
     const [search, setSearch] = useState("");
     const [setting, setSetting] = useState(false);
     const [viewing, setViewing] = useState<{ id: string; name: string } | null>(null);
 
     const { data, isLoading, isError, refetch } = useSalaries({ page, search });
-
-    if (!can("view_payroll")) {
-        return <ErrorState message="You do not have permission to view staff salaries." />;
-    }
 
     const rows = data?.results ?? [];
     const totalCount = data?.count ?? 0;

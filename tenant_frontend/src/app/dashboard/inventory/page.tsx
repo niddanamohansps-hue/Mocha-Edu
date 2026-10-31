@@ -82,6 +82,14 @@ function ItemLocations({ itemId, unit }: { itemId: string; unit: string }) {
 
 export default function StockPage() {
     const { can } = usePermissions();
+    if (!can("view_inventory")) {
+        return <ErrorState message="You do not have permission to view stock inventory." />;
+    }
+    return <StockPageContent />;
+}
+
+function StockPageContent() {
+    const { can } = usePermissions();
     const canManage = can("manage_inventory_items");
 
     const [page, setPage] = useState(1);
@@ -104,10 +112,6 @@ export default function StockPage() {
         low_stock: statusFilter === "low_stock",
         is_active: statusFilter === "active" ? "true" : "",
     });
-
-    if (!can("view_inventory")) {
-        return <ErrorState message="You do not have permission to view stock inventory." />;
-    }
 
     const items = data?.results ?? [];
     const totalCount = data?.count ?? 0;

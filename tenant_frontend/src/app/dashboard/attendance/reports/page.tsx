@@ -14,13 +14,16 @@ import { ErrorState } from "@/components/feedback/ErrorState";
 
 export default function AttendanceReportsPage() {
     const { can, isOwner } = usePermissions();
-    const router = useRouter();
-    const pathname = usePathname();
-    const searchParams = useSearchParams();
-
     if (!isOwner && !can("view_attendance_reports")) {
         return <Unauthorized />;
     }
+    return <AttendanceReportsPageContent />;
+}
+
+function AttendanceReportsPageContent() {
+    const router = useRouter();
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
 
     const { data: sections } = useSections();
 
