@@ -10,6 +10,8 @@ export interface SidebarItemType {
     icon?: LucideIcon;
     href?: string;
     children?: SidebarItemType[];
+    /** Heading the item is listed under; set by getMenuItems, shown by the sidebar. */
+    group?: string;
 }
 
 interface SidebarItemProps {

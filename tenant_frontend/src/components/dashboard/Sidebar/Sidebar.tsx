@@ -6,7 +6,7 @@ import {
     X,
     GraduationCap,
 } from "lucide-react";
-import { SidebarItem } from "@/components/dashboard/Sidebar/SidebarItem";
+import { SidebarItem, SidebarItemType } from "@/components/dashboard/Sidebar/SidebarItem";
 import { cn } from "@/lib/utils";
 import Logo from "@/components/Logo";
 import { getMenuItems } from "@/components/dashboard/Sidebar/MenuItems";
@@ -49,9 +49,7 @@ export function Sidebar({ user, isCollapsed, setIsCollapsed, isMobileMenuOpen, o
                 </button>
 
                 <nav className="flex-1 px-3 py-6 space-y-1 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
-                    {menuItems.map((item, index) => (
-                        <SidebarItem key={index} item={item} isCollapsed={isCollapsed} />
-                    ))}
+                    <SidebarNav items={menuItems} isCollapsed={isCollapsed} />
                 </nav>
             </aside>
 
@@ -77,12 +75,34 @@ export function Sidebar({ user, isCollapsed, setIsCollapsed, isMobileMenuOpen, o
                     </div>
 
                     <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
-                        {menuItems.map((item, index) => (
-                            <SidebarItem key={index} item={item} isCollapsed={false} />
-                        ))}
+                        <SidebarNav items={menuItems} isCollapsed={false} />
                     </nav>
                 </div>
             )}
+        </>
+    );
+}
+
+/** The menu with a small heading wherever the group changes (a thin divider when the sidebar is collapsed). */
+function SidebarNav({ items, isCollapsed }: { items: SidebarItemType[]; isCollapsed: boolean }) {
+    return (
+        <>
+            {items.map((item, index) => {
+                const startsGroup = index > 0 && item.group && item.group !== items[index - 1].group;
+                return (
+                    <div key={index}>
+                        {startsGroup &&
+                            (isCollapsed ? (
+                                <div className="my-3 mx-3 border-t border-slate-100 dark:border-slate-800" />
+                            ) : (
+                                <p className="px-3 pt-4 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                    {item.group}
+                                </p>
+                            ))}
+                        <SidebarItem item={item} isCollapsed={isCollapsed} />
+                    </div>
+                );
+            })}
         </>
     );
 }

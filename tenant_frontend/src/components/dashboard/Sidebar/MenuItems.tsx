@@ -258,7 +258,7 @@ export const getMenuItems = (
         if (can("view_child_fees") || can("pay_child_fees")) {
             parentPortalChildren.push({ label: "Fees", href: "/dashboard/parent-portal/fees" });
         }
-        if (can("view_child_ptm") || can("view_own_children")) {
+        if (can("view_child_ptm")) {
             parentPortalChildren.push({ label: "PTM Meetings", href: "/dashboard/parent-portal/ptm" });
         }
 
@@ -459,5 +459,56 @@ export const getMenuItems = (
         children: announcementChildren
     });
 
-    return menuItems;
+    return organiseMenu(menuItems);
 };
+
+/**
+ * Top-level items in the order a school office works, with the heading each is listed under. Items a user
+ * cannot see are simply absent (every item above is already permission-gated), so a heading only appears
+ * when something under it does.
+ */
+const MENU_ORDER: { group: string; labels: string[] }[] = [
+    { group: "Overview", labels: ["Dashboard"] },
+    { group: "People", labels: ["Student Management", "Staff", "Portal Access", "Parent Portal"] },
+    { group: "Academics", labels: ["Academics", "Course Content", "Timetable", "Attendance", "Examinations", "Certificates", "Homework"] },
+    { group: "Communication", labels: ["Announcements", "PTM Meetings"] },
+    { group: "Finance", labels: ["Fees", "Expenses & Cashbook", "Payroll"] },
+    { group: "Operations", labels: ["Front Office", "Inventory", "Transport", "Library"] },
+    { group: "Admin", labels: ["Administration"] },
+];
+
+function organiseMenu(items: SidebarItemType[]): SidebarItemType[] {
+    let menu = [...items];
+
+    // Faculty has a single link, so it lives under Staff instead of being a group of its own.
+    const faculty = menu.find((i) => i.label === "Faculty");
+    if (faculty) {
+        const staff = menu.find((i) => i.label === "Staff");
+        if (staff) {
+            staff.children = [...(staff.children ?? []), ...(faculty.children ?? [])];
+            menu = menu.filter((i) => i !== faculty);
+        } else {
+            faculty.label = "Staff";
+            faculty.icon = Briefcase;
+        }
+    }
+
+    // Homework is part of the academic day: a link under Academics when that group exists.
+    const homework = menu.find((i) => i.label === "Homework" && i.href);
+    const academics = menu.find((i) => i.label === "Academics");
+    if (homework && academics) {
+        academics.children = [...(academics.children ?? []), { label: "Homework", href: homework.href }];
+        menu = menu.filter((i) => i !== homework);
+    }
+
+    const rank = new Map<string, { group: string; position: number }>();
+    let position = 0;
+    for (const { group, labels } of MENU_ORDER) {
+        for (const label of labels) rank.set(label, { group, position: position++ });
+    }
+    const last = { group: "Operations", position: position };
+    return menu
+        .map((item, index) => ({ item, index, ...(rank.get(item.label) ?? last) }))
+        .sort((a, b) => a.position - b.position || a.index - b.index)
+        .map(({ item, group }) => ({ ...item, group }));
+}
