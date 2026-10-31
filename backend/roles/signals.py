@@ -75,6 +75,7 @@ SYSTEM_ROLES = [
             "view_child_timetable",
             "view_calendar_events",
             "view_child_homework",
+            "view_child_ptm",
         ],
     },
 ]

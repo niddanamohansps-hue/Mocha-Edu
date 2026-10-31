@@ -41,6 +41,9 @@ from .views import (
 
 User = get_user_model()
 
+# Booking is closed once a session date has passed, so test sessions are always in the future.
+FUTURE = datetime.date.today() + datetime.timedelta(days=30)
+
 
 class PTMFixtureMixin:
     def _build_school(self, schema_name=None, domain=None, name="PTM Test School"):
@@ -180,7 +183,6 @@ class PTMIntegrationTest(PTMFixtureMixin, TransactionTestCase):
                 password="ParentPassword123!",
             )
             parent_role = Role.objects.get(slug="parent")
-            UserRole.objects.create(user=self.p1_user, role=parent_role)
             p1_profile = Profile.objects.create(
                 user_id=self.p1_user.id,
                 first_name="Suresh",
@@ -188,6 +190,8 @@ class PTMIntegrationTest(PTMFixtureMixin, TransactionTestCase):
                 phone="9876543210",
             )
             self.parent_1 = Parent.objects.create(profile=p1_profile)
+            # The profile comes first: assigning the role would otherwise create a second, blank one.
+            UserRole.objects.create(user=self.p1_user, role=parent_role)
             StudentParentRelation.objects.create(
                 student=self.student_1,
                 parent=self.parent_1,
@@ -201,7 +205,6 @@ class PTMIntegrationTest(PTMFixtureMixin, TransactionTestCase):
                 email="p2@school.com",
                 password="ParentPassword123!",
             )
-            UserRole.objects.create(user=self.p2_user, role=parent_role)
             p2_profile = Profile.objects.create(
                 user_id=self.p2_user.id,
                 first_name="Sunita",
@@ -209,6 +212,8 @@ class PTMIntegrationTest(PTMFixtureMixin, TransactionTestCase):
                 phone="9876543211",
             )
             self.parent_2 = Parent.objects.create(profile=p2_profile)
+            # The profile comes first: assigning the role would otherwise create a second, blank one.
+            UserRole.objects.create(user=self.p2_user, role=parent_role)
             StudentParentRelation.objects.create(
                 student=self.student_2,
                 parent=self.parent_2,
@@ -222,7 +227,7 @@ class PTMIntegrationTest(PTMFixtureMixin, TransactionTestCase):
             session = PTMSession.objects.create(
                 title="Term 1 Mid-Term PTM",
                 academic_year=self.ay,
-                meeting_date=datetime.date(2026, 11, 15),
+                meeting_date=FUTURE,
                 start_time=datetime.time(9, 0),
                 end_time=datetime.time(10, 0),  # 60 mins total
                 slot_duration_minutes=15,       # 4 slots per teacher
@@ -251,7 +256,7 @@ class PTMIntegrationTest(PTMFixtureMixin, TransactionTestCase):
             session = PTMSession.objects.create(
                 title="Term 1 Mid-Term PTM",
                 academic_year=self.ay,
-                meeting_date=datetime.date(2026, 11, 15),
+                meeting_date=FUTURE,
                 start_time=datetime.time(9, 0),
                 end_time=datetime.time(10, 0),
                 slot_duration_minutes=15,
@@ -311,7 +316,7 @@ class PTMIntegrationTest(PTMFixtureMixin, TransactionTestCase):
             session = PTMSession.objects.create(
                 title="Annual PTM",
                 academic_year=self.ay,
-                meeting_date=datetime.date(2026, 11, 20),
+                meeting_date=FUTURE,
                 start_time=datetime.time(9, 0),
                 end_time=datetime.time(10, 0),
                 slot_duration_minutes=15,
@@ -339,7 +344,7 @@ class PTMIntegrationTest(PTMFixtureMixin, TransactionTestCase):
             session = PTMSession.objects.create(
                 title="Term 2 PTM",
                 academic_year=self.ay,
-                meeting_date=datetime.date(2026, 11, 25),
+                meeting_date=FUTURE,
                 start_time=datetime.time(9, 0),
                 end_time=datetime.time(10, 0),
                 slot_duration_minutes=15,
@@ -375,7 +380,7 @@ class PTMIntegrationTest(PTMFixtureMixin, TransactionTestCase):
             session = PTMSession.objects.create(
                 title="Term 1 Mid-Term PTM",
                 academic_year=self.ay,
-                meeting_date=datetime.date(2026, 11, 15),
+                meeting_date=FUTURE,
                 start_time=datetime.time(9, 0),
                 end_time=datetime.time(10, 0),
                 slot_duration_minutes=15,
@@ -392,7 +397,7 @@ class PTMIntegrationTest(PTMFixtureMixin, TransactionTestCase):
             request.tenant = self.school
             force_authenticate(request, user=self.p1_user)
             response = ParentPTMSessionsView.as_view()(request)
-            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.status_code, 200, response.data)
             self.assertEqual(len(response.data), 1)
             self.assertEqual(response.data[0]["title"], "Term 1 Mid-Term PTM")
 
@@ -430,3 +435,81 @@ class PTMIntegrationTest(PTMFixtureMixin, TransactionTestCase):
             self.assertEqual(response.status_code, 200)
             self.assertEqual(len(response.data), 1)
             self.assertEqual(response.data[0]["student_detail"]["enrollment_id"], "STU-001")
+
+    def test_slot_endpoints_are_limited_to_ptm_staff(self):
+        """A login is not enough: parents and students see no slots and change none, a teacher manages only
+        their own, and a school owner (who holds manage_ptm through the owner role) manages anyone's."""
+        with tenant_context(self.school):
+            session = PTMSession.objects.create(
+                title="Access PTM", academic_year=self.ay, meeting_date=FUTURE,
+                start_time=datetime.time(9, 0), end_time=datetime.time(10, 0), slot_duration_minutes=15,
+                status=PTMSession.Status.PUBLISHED,
+            )
+            session.teachers.add(self.teacher_1, self.teacher_2)
+            generate_slots_for_session(session)
+            slot_of_1 = session.slots.filter(teacher=self.teacher_1).first()
+            slot_of_2 = session.slots.filter(teacher=self.teacher_2).first()
+            teacher_1_user = User.objects.get(id=self.teacher_1.profile.user_id)
+
+            def call(user, action, slot):
+                method = "get" if action == "list" else "post"
+                request = getattr(self.factory, method)(f"/api/ptm/slots/{slot.id}/{action}/")
+                request.tenant = self.school
+                force_authenticate(request, user=user)
+                if action == "list":
+                    return PTMSlotViewSet.as_view({"get": "list"})(request)
+                return PTMSlotViewSet.as_view({"post": action})(request, pk=str(slot.id))
+
+            # No staff or admin role: no listing, no blocking.
+            self.assertEqual(call(self.p1_user, "list", slot_of_1).status_code, 403)
+            self.assertEqual(call(self.p1_user, "block", slot_of_1).status_code, 403)
+            slot_of_1.refresh_from_db()
+            self.assertEqual(slot_of_1.status, PTMSlot.Status.AVAILABLE)
+
+            # A teacher blocks their own slot but not a colleague's.
+            self.assertEqual(call(teacher_1_user, "block", slot_of_1).status_code, 200)
+            self.assertEqual(call(teacher_1_user, "block", slot_of_2).status_code, 400)
+            slot_of_2.refresh_from_db()
+            self.assertEqual(slot_of_2.status, PTMSlot.Status.AVAILABLE)
+
+            # The owner is not a teacher, yet may unblock and block any slot.
+            self.assertEqual(call(self.owner_user, "unblock", slot_of_1).status_code, 200)
+            self.assertEqual(call(self.owner_user, "block", slot_of_2).status_code, 200)
+
+    def test_booking_rules_for_parents(self):
+        """Past sessions, other classes' sessions and a switched-off parent permission are all refused."""
+        from django.core.exceptions import ValidationError as DjangoValidationError
+
+        from roles.models import Permission
+
+        with tenant_context(self.school):
+            def make(**extra):
+                session = PTMSession.objects.create(
+                    title="Rules PTM", academic_year=self.ay, start_time=datetime.time(9, 0),
+                    end_time=datetime.time(9, 30), slot_duration_minutes=15,
+                    status=PTMSession.Status.PUBLISHED, **extra,
+                )
+                session.teachers.add(self.teacher_1)
+                generate_slots_for_session(session)
+                return session
+
+            past = make(meeting_date=datetime.date.today() - datetime.timedelta(days=3))
+            with self.assertRaises(DjangoValidationError):
+                book_slot(past.slots.first().id, self.student_1, self.parent_1)
+
+            other_level = AcademicLevel.objects.create(program=self.program, name="Grade 9", order=9)
+            elsewhere = make(meeting_date=FUTURE, level=other_level)
+            with self.assertRaises(DjangoValidationError):
+                book_slot(elsewhere.slots.first().id, self.student_1, self.parent_1)
+
+            own_class = make(meeting_date=FUTURE, level=self.level)
+            booked = book_slot(own_class.slots.first().id, self.student_1, self.parent_1)
+            self.assertEqual(booked.status, PTMSlot.Status.BOOKED)
+
+            # Without the permission the parent endpoints are closed, even for a real parent.
+            parent_role = Role.objects.get(slug="parent")
+            parent_role.permissions.remove(Permission.objects.get(codename="view_child_ptm"))
+            request = self.factory.get("/api/ptm/parent/sessions/")
+            request.tenant = self.school
+            force_authenticate(request, user=self.p1_user)
+            self.assertEqual(ParentPTMSessionsView.as_view()(request).status_code, 403)

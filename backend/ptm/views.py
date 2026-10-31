@@ -7,6 +7,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from accounts.tenant_access import HasAnyPermission
 from parent_portal.services import get_child_for_parent, get_linked_children, get_parent_for_user
 from profiles.models import Profile
 from roles.permissions import HasPermission
@@ -37,6 +38,12 @@ def get_staff_for_user(user):
         return None
     profile = Profile.objects.filter(user_id=user.id).first()
     return getattr(profile, "staff_record", None) if profile else None
+
+
+def _is_ptm_admin(request, view):
+    """Whether this user may manage every teacher's slots. Django's own has_perm knows nothing about this
+    project's roles, so ask the same checker that guards the endpoints."""
+    return HasPermission("manage_ptm")().has_permission(request, view)
 
 
 class PTMSessionViewSet(viewsets.ModelViewSet):
@@ -152,7 +159,12 @@ class PTMSlotViewSet(viewsets.ReadOnlyModelViewSet):
         )
     )
     serializer_class = PTMSlotSerializer
-    permission_classes = [IsAuthenticated]
+
+    def get_permissions(self):
+        # Slots carry other families' bookings and the teacher's private notes, so a login alone is not enough.
+        if self.action in ["block", "unblock", "feedback"]:
+            return [IsAuthenticated(), HasAnyPermission("manage_ptm", "record_ptm_feedback")]
+        return [IsAuthenticated(), HasPermission("view_ptm")]
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -174,7 +186,7 @@ class PTMSlotViewSet(viewsets.ReadOnlyModelViewSet):
         """Teacher blocks an available slot."""
         slot = self.get_object()
         staff_member = get_staff_for_user(request.user)
-        is_admin = request.user.has_perm("roles.manage_ptm") if hasattr(request.user, "has_perm") else False
+        is_admin = _is_ptm_admin(request, self)
         try:
             updated = block_slot(slot.id, teacher_member=staff_member, is_admin=is_admin)
             return Response(PTMSlotSerializer(updated).data)
@@ -186,7 +198,7 @@ class PTMSlotViewSet(viewsets.ReadOnlyModelViewSet):
         """Teacher unblocks a slot."""
         slot = self.get_object()
         staff_member = get_staff_for_user(request.user)
-        is_admin = request.user.has_perm("roles.manage_ptm") if hasattr(request.user, "has_perm") else False
+        is_admin = _is_ptm_admin(request, self)
         try:
             updated = unblock_slot(slot.id, teacher_member=staff_member, is_admin=is_admin)
             return Response(PTMSlotSerializer(updated).data)
@@ -201,7 +213,7 @@ class PTMSlotViewSet(viewsets.ReadOnlyModelViewSet):
         serializer.is_valid(raise_exception=True)
 
         staff_member = get_staff_for_user(request.user)
-        is_admin = request.user.has_perm("roles.manage_ptm") if hasattr(request.user, "has_perm") else False
+        is_admin = _is_ptm_admin(request, self)
 
         try:
             updated = record_slot_feedback(
@@ -263,7 +275,7 @@ class ParentPTMSessionsView(APIView):
     Returns published PTM sessions applicable to the caller's linked children.
     """
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasPermission("view_child_ptm")]
 
     def get(self, request):
         parent = get_parent_for_user(request.user)
@@ -298,7 +310,7 @@ class ParentAvailableSlotsView(APIView):
     allowing the parent to select a teacher and convenient time slot.
     """
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasPermission("view_child_ptm")]
 
     def get(self, request):
         parent = get_parent_for_user(request.user)
@@ -376,7 +388,7 @@ class ParentBookSlotView(APIView):
     Endpoint for a parent to book an available PTM slot for their child.
     """
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasPermission("view_child_ptm")]
 
     def post(self, request):
         parent = get_parent_for_user(request.user)
@@ -423,7 +435,7 @@ class ParentCancelBookingView(APIView):
     Endpoint for a parent to cancel their child's PTM slot booking.
     """
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasPermission("view_child_ptm")]
 
     def post(self, request):
         parent = get_parent_for_user(request.user)
@@ -455,7 +467,7 @@ class ParentMyBookingsView(APIView):
     List all active and past PTM bookings for this parent's linked children.
     """
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasPermission("view_child_ptm")]
 
     def get(self, request):
         parent = get_parent_for_user(request.user)

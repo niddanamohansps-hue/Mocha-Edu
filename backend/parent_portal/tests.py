@@ -235,7 +235,7 @@ class ParentPortalActivationTests(ParentPortalFixtureMixin, TransactionTestCase)
                 set(role.permissions.values_list("codename", flat=True)),
                 {
                     "view_own_children", "view_child_attendance", "view_child_timetable",
-                    "view_calendar_events", "view_child_homework",
+                    "view_calendar_events", "view_child_homework", "view_child_ptm",
                 },
             )
 

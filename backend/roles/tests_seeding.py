@@ -29,16 +29,17 @@ STAFF_DEFAULTS = {
     "manage_admission_enquiries", "manage_admission_applications", "review_admission_documents",
     "review_admission_applications", "make_admission_decisions", "enroll_admitted_students",
     "view_own_leaves", "apply_staff_leave", "cancel_own_leave", "view_all_leaves",
-    "manage_staff_leaves", "manage_leave_types",
+    "manage_staff_leaves", "manage_leave_types", "view_ptm", "manage_ptm", "record_ptm_feedback",
 }
 INSTRUCTOR_DEFAULTS = {
     "view_calendar_events", "view_admissions", "review_admission_applications",
     "view_own_leaves", "apply_staff_leave", "cancel_own_leave", "view_homework", "manage_homework",
+    "view_ptm", "record_ptm_feedback",
 }
 STUDENT_DEFAULTS = {"view_own_fees", "pay_own_fees", "view_calendar_events", "view_own_homework"}
 PARENT_DEFAULTS = {
     "view_own_children", "view_child_attendance", "view_child_timetable", "view_calendar_events",
-    "view_child_homework",
+    "view_child_homework", "view_child_ptm",
 }
 PARENT_NOT_DEFAULT = {"view_child_results", "view_child_fees", "pay_child_fees"}
 ALL_CODENAMES = {p["codename"] for p in SYSTEM_PERMISSIONS}
