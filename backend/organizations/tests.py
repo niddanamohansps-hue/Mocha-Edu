@@ -1,5 +1,5 @@
 from django.db import IntegrityError, connection, transaction
-from django.test import TransactionTestCase
+from django.test import TransactionTestCase, override_settings
 from rest_framework.test import APIClient
 
 from accounts.models import User
@@ -129,6 +129,9 @@ class OrganizationDomainTests(TransactionTestCase):
         finally:
             super_user.delete()
 
+    # The payment callback only gets as far as "missing data" when its signing secret is configured, so the
+    # test supplies one instead of depending on the machine's environment.
+    @override_settings(ESEWA_CLIENT_SECRET="test-only-signing-secret")
     def test_public_schema_allows_public_endpoints(self):
         client = APIClient()
         # Check domain is accessible on public host
