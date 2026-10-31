@@ -83,6 +83,8 @@ jobs:
       # The guard that protects school creation and deletion refuses to run unless the database is declared.
       # The test runner uses test_<this name>, which the guard accepts only while tests run.
       EDUSEKAI_EXPECTED_DATABASE: edusekai_ci@127.0.0.1:5432
+      # Copy each test school from one migrated base schema instead of replaying every migration for it.
+      EDUSEKAI_TEST_CLONE_TENANTS: '1'
       REDIS_CACHE_URL: redis://localhost:6379/1
       CELERY_BROKER_URL: redis://localhost:6379/2
 
