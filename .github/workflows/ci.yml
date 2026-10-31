@@ -48,11 +48,40 @@ jobs:
   # 2. Backend Quality Gate (Django Checks & Tests)
   # ============================================================
   backend-checks:
-    name: Backend System Checks & Tests
+    name: Backend Tests (${{ matrix.name }})
     runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: core
+            labels: core accounts roles organizations profiles
+          - name: students
+            labels: students families certificates
+          - name: money
+            labels: expenses fees payments billing payroll
+          - name: exams
+            labels: examinations.tests_stage_b examinations.tests_stage_c examinations.tests_scope_fixes
+          - name: school-life
+            labels: front_office ptm homework attendance announcements notifications
     defaults:
       run:
         working-directory: ./backend
+    env:
+      DEBUG: 'False'
+      SECRET_KEY: 'ci-temporary-django-secret-key-for-automated-checks'
+      # Throwaway values for CI only. Real keys live in the production environment.
+      FIELD_ENCRYPTION_KEY: 'jVju-iUgNvh_gHPnEFodUpsf5mDHDo1hwLbCyLVAcDs='
+      CERTIFICATE_INTEGRITY_KEYS: '1:ci-only-certificate-integrity-secret'
+      CERTIFICATE_INTEGRITY_ACTIVE_KEY: '1'
+      DB_NAME: test_schoolsansar_db
+      DB_USER: test_user
+      DB_PASSWORD: test_password
+      DB_HOST: localhost
+      DB_PORT: 5432
+      REDIS_CACHE_URL: redis://localhost:6379/1
+      CELERY_BROKER_URL: redis://localhost:6379/2
 
     services:
       postgres:
@@ -102,26 +131,9 @@ jobs:
 
       - name: Django System Check
         run: python manage.py check
-        env:
-          DEBUG: 'False'
-          SECRET_KEY: 'ci-temporary-django-secret-key-for-automated-checks'
-          DB_NAME: test_schoolsansar_db
-          DB_USER: test_user
-          DB_PASSWORD: test_password
-          DB_HOST: localhost
-          DB_PORT: 5432
-          REDIS_CACHE_URL: redis://localhost:6379/1
-          CELERY_BROKER_URL: redis://localhost:6379/2
+
+      - name: Migrations Match Models
+        run: python manage.py makemigrations --check --dry-run
 
       - name: Run Backend Tests
-        run: python manage.py test core --keepdb
-        env:
-          DEBUG: 'False'
-          SECRET_KEY: 'ci-temporary-django-secret-key-for-automated-checks'
-          DB_NAME: test_schoolsansar_db
-          DB_USER: test_user
-          DB_PASSWORD: test_password
-          DB_HOST: localhost
-          DB_PORT: 5432
-          REDIS_CACHE_URL: redis://localhost:6379/1
-          CELERY_BROKER_URL: redis://localhost:6379/2
+        run: python manage.py test ${{ matrix.labels }} --noinput
