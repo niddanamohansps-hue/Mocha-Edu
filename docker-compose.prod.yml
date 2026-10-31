@@ -18,6 +18,8 @@ x-backend-base: &backend-base
     - DEBUG=False
     - DB_HOST=db
     - DB_PORT=5432
+    # The migration gate refuses to run unless the database identity is declared.
+    - EDUSEKAI_EXPECTED_DATABASE=${DB_NAME:-schoolsansar_db}@db:5432
     - REDIS_CACHE_URL=redis://redis:6379/1
     - CELERY_BROKER_URL=redis://redis:6379/2
     - CELERY_RESULT_BACKEND=redis://redis:6379/3
@@ -43,7 +45,7 @@ services:
     environment:
       POSTGRES_DB: ${DB_NAME:-schoolsansar_db}
       POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env.production}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -110,11 +112,12 @@ services:
     build:
       context: ./tenant_frontend
       dockerfile: Dockerfile.prod
+      args:
+        NEXT_PUBLIC_API_SAME_ORIGIN: ${NEXT_PUBLIC_API_SAME_ORIGIN:-true}
     container_name: schoolsansar_frontend
     environment:
       - NODE_ENV=production
       - PORT=3555
-      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000/api}
     depends_on:
       - backend
     expose:

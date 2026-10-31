@@ -85,11 +85,14 @@ You should see all containers running and healthy:
 Run the initial schema migrations:
 
 ```bash
+# The migration gate needs --apply and --confirm-database <DB_NAME> (the compose file already sets
+# EDUSEKAI_EXPECTED_DATABASE from DB_NAME). Replace schoolsansar_production with your DB_NAME.
+
 # 1. Sync Shared (Public) Schema
-docker compose -f docker-compose.prod.yml exec backend python manage.py migrate_schemas --shared --noinput
+docker compose -f docker-compose.prod.yml exec backend python manage.py migrate_schemas --shared --apply --confirm-database schoolsansar_production
 
 # 2. Sync Tenant Schemas
-docker compose -f docker-compose.prod.yml exec backend python manage.py migrate_schemas --tenant --noinput
+docker compose -f docker-compose.prod.yml exec backend python manage.py migrate_schemas --tenant --apply --confirm-database schoolsansar_production
 
 # 3. Collect Django Static Assets (Admin & API styles)
 docker compose -f docker-compose.prod.yml exec backend python manage.py collectstatic --noinput
@@ -111,6 +114,11 @@ sudo certbot certonly --manual --preferred-challenges=dns -d "schoolsansar.com" 
 ```
 Mount the generated certificates into `/deploy/nginx/ssl` and update `deploy/nginx/conf.d/schoolsansar.conf` to enable the SSL listener on port 443.
 
+Django redirects HTTP to HTTPS by default in production (`SECURE_SSL_REDIRECT`). Until TLS works end to end
+(your own certificates, or a CDN/load balancer in front that sends `X-Forwarded-Proto: https`), a plain-HTTP trial
+will loop or fail. For a trial over HTTP only, set `SECURE_SSL_REDIRECT=False` and
+`USE_SECURE_PROXY_SSL_HEADER=False` in `.env.production`, and turn them back on before real use.
+
 ---
 
 ## 7. Ongoing Maintenance & Operations
@@ -131,8 +139,8 @@ docker compose -f docker-compose.prod.yml logs -f celery_worker
 git pull origin main
 docker compose -f docker-compose.prod.yml build
 docker compose -f docker-compose.prod.yml up -d
-docker compose -f docker-compose.prod.yml exec backend python manage.py migrate_schemas --shared --noinput
-docker compose -f docker-compose.prod.yml exec backend python manage.py migrate_schemas --tenant --noinput
+docker compose -f docker-compose.prod.yml exec backend python manage.py migrate_schemas --shared --apply --confirm-database schoolsansar_production
+docker compose -f docker-compose.prod.yml exec backend python manage.py migrate_schemas --tenant --apply --confirm-database schoolsansar_production
 ```
 
 ### PostgreSQL Database Backups:

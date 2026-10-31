@@ -238,6 +238,7 @@ USE_TZ = True
 
 # Static files
 STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"  # collectstatic target; nginx serves it from the static volume
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -502,6 +503,8 @@ CORS_ALLOW_CREDENTIALS = True
 
 # HTTPS enforcement: redirects all HTTP traffic to HTTPS in staging/production.
 # Disabled in local development (DEBUG=True) and during test runs.
+# The container health check calls the app directly over plain HTTP, so it must not be redirected.
+SECURE_REDIRECT_EXEMPT = [r"^api/health/$"]
 SECURE_SSL_REDIRECT = config(
     "SECURE_SSL_REDIRECT", default=False if (DEBUG or _RUNNING_TESTS) else True, cast=bool
 )
