@@ -1,4 +1,5 @@
 from decimal import Decimal
+from django.db import transaction
 from rest_framework import serializers
 
 from .models import Expense, ExpenseCategory, PaymentAccount, CashbookEntry
@@ -89,6 +90,10 @@ class ExpenseSerializer(serializers.ModelSerializer):
         return value
 
     def create(self, validated_data):
+        with transaction.atomic():
+            return self._create_numbered(validated_data)
+
+    def _create_numbered(self, validated_data):
         if "voucher_number" not in validated_data or not validated_data["voucher_number"]:
             target_date = validated_data.get("expense_date")
             validated_data["voucher_number"] = generate_voucher_number(target_date)
@@ -166,6 +171,10 @@ class CashbookEntrySerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
+        with transaction.atomic():
+            return self._create_numbered(validated_data)
+
+    def _create_numbered(self, validated_data):
         entry_type = validated_data.get("entry_type")
         target_date = validated_data.get("entry_date")
         validated_data["entry_number"] = generate_entry_number(entry_type, target_date)
