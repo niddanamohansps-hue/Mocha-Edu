@@ -50,7 +50,7 @@ jobs:
   backend-checks:
     name: Backend Tests (${{ matrix.name }})
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -59,8 +59,10 @@ jobs:
             labels: core accounts roles organizations profiles
           - name: students
             labels: students families certificates
+          - name: fees
+            labels: fees
           - name: money
-            labels: expenses fees payments billing payroll
+            labels: expenses payments billing payroll
           - name: exams
             labels: examinations.tests_stage_b examinations.tests_stage_c examinations.tests_scope_fixes
           - name: school-life
