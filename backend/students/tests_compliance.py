@@ -235,3 +235,37 @@ class CompliancePackIntegrationTest(ComplianceFixtureMixin, TransactionTestCase)
             self.assertTrue(saved.is_rte)
             self.assertEqual(saved.aadhaar_last_4, "4321")
             self.assertEqual(saved.father_name, "Ramesh Verma")
+
+
+class ComplianceFieldRulesTest(SimpleTestCase):
+    """The admission form and API apply the same identifier rules as the bulk import."""
+
+    def setUp(self):
+        from students.serializers import StudentEnrollmentSerializer
+
+        self.serializer = StudentEnrollmentSerializer()
+
+    def test_identifier_formats_are_checked(self):
+        from rest_framework import serializers
+
+        self.assertEqual(self.serializer.validate_apaar_id(" 123456789012 "), "123456789012")
+        self.assertEqual(self.serializer.validate_apaar_id(""), "")
+        for bad in ("12345", "12345678901a", "1234567890123"):
+            with self.assertRaises(serializers.ValidationError):
+                self.serializer.validate_apaar_id(bad)
+        self.assertEqual(self.serializer.validate_pen("2034981234A"), "2034981234A")
+        with self.assertRaises(serializers.ValidationError):
+            self.serializer.validate_pen("123")
+        self.assertEqual(self.serializer.validate_aadhaar_last_4("9012"), "9012")
+        for bad in ("901", "90a2", "90123"):
+            with self.assertRaises(serializers.ValidationError):
+                self.serializer.validate_aadhaar_last_4(bad)
+
+    def test_nothing_is_guessed_when_not_recorded(self):
+        fields = self.serializer.fields
+        self.assertEqual(fields["caste_category"].default, "")
+        self.assertEqual(fields["mother_tongue"].default, "")
+        self.assertIn("cwsn_status", fields)
+        self.assertIn("bpl_status", fields)
+        self.assertEqual(Student._meta.get_field("caste_category").default, "")
+        self.assertEqual(Student._meta.get_field("mother_tongue").default, "")

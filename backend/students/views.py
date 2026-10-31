@@ -632,19 +632,22 @@ class PromotionReverseView(APIView):
 
 
 class UdiseExportView(APIView):
-    permission_classes = [IsAuthenticated, HasPermission("view_student")]
+    # Carries caste, religion, BPL/CWSN and Aadhaar last 4 for every active student, so it needs more than view_student.
+    permission_classes = [IsAuthenticated, HasPermission("change_student")]
 
     def get(self, request):
         from .exports import export_udise_plus_csv
+        log_action(request, action="udise_export", model_name="Student")
         students = Student.objects.filter(status="active").select_related("profile").prefetch_related("enrollments__level", "enrollments__section", "parent_links__parent__profile")
         return export_udise_plus_csv(students)
 
 
 class CbseLocExportView(APIView):
-    permission_classes = [IsAuthenticated, HasPermission("view_student")]
+    permission_classes = [IsAuthenticated, HasPermission("change_student")]
 
     def get(self, request):
         from .exports import export_cbse_loc_csv
+        log_action(request, action="cbse_loc_export", model_name="Student", changes={"level": request.query_params.get("level") or ""})
         level_id = request.query_params.get("level")
         students = Student.objects.filter(status="active").select_related("profile").prefetch_related("enrollments__level__subjects", "enrollments__section", "parent_links__parent__profile")
         if level_id:

@@ -44,11 +44,14 @@ class StudentEnrollmentSerializer(serializers.Serializer):
     caste_category = serializers.ChoiceField(
         choices=[("GEN", "General"), ("OBC", "OBC"), ("SC", "SC"), ("ST", "ST"), ("EWS", "EWS")],
         required=False,
-        default="GEN",
+        allow_blank=True,
+        default="",
     )
     is_rte = serializers.BooleanField(required=False, default=False)
     aadhaar_last_4 = serializers.CharField(max_length=4, required=False, allow_blank=True, default="")
-    mother_tongue = serializers.CharField(max_length=50, required=False, allow_blank=True, default="Hindi")
+    mother_tongue = serializers.CharField(max_length=50, required=False, allow_blank=True, default="")
+    cwsn_status = serializers.CharField(max_length=50, required=False, allow_blank=True, default="")
+    bpl_status = serializers.BooleanField(required=False, default=False)
     social_category = serializers.CharField(max_length=50, required=False, allow_blank=True, default="")
     religion = serializers.CharField(max_length=50, required=False, allow_blank=True, default="")
     mother_name = serializers.CharField(max_length=100, required=False, allow_blank=True, default="")
@@ -59,6 +62,25 @@ class StudentEnrollmentSerializer(serializers.Serializer):
     parents = serializers.ListField(
         child=serializers.DictField(), required=False, default=[]
     )
+
+    @staticmethod
+    def _digits(value, length, label):
+        value = (value or "").strip()
+        if value and not (value.isascii() and value.isdigit() and len(value) == length):
+            raise serializers.ValidationError(f"{label} must be exactly {length} digits.")
+        return value
+
+    def validate_apaar_id(self, value):
+        return self._digits(value, 12, "APAAR ID")
+
+    def validate_pen(self, value):
+        value = (value or "").strip()
+        if value and not (value.isascii() and value.isalnum() and len(value) == 11):
+            raise serializers.ValidationError("PEN must be exactly 11 letters or digits.")
+        return value
+
+    def validate_aadhaar_last_4(self, value):
+        return self._digits(value, 4, "Aadhaar last 4")
 
     def validate_email(self, value):
         if value:
@@ -106,10 +128,12 @@ class StudentEnrollmentSerializer(serializers.Serializer):
             admission_date=validated_data.get("admission_date"),
             apaar_id=validated_data.get("apaar_id", "").strip(),
             pen=validated_data.get("pen", "").strip(),
-            caste_category=validated_data.get("caste_category", "GEN"),
+            caste_category=validated_data.get("caste_category", ""),
             is_rte=validated_data.get("is_rte", False),
             aadhaar_last_4=validated_data.get("aadhaar_last_4", "").strip(),
-            mother_tongue=validated_data.get("mother_tongue", "Hindi"),
+            mother_tongue=validated_data.get("mother_tongue", ""),
+            cwsn_status=validated_data.get("cwsn_status", ""),
+            bpl_status=validated_data.get("bpl_status", False),
             social_category=validated_data.get("social_category", ""),
             religion=validated_data.get("religion", ""),
             mother_name=validated_data.get("mother_name", "").strip(),
@@ -185,7 +209,7 @@ class StudentEnrollmentSerializer(serializers.Serializer):
         for field in [
             "apaar_id", "pen", "caste_category", "is_rte", "aadhaar_last_4",
             "mother_tongue", "social_category", "religion", "mother_name",
-            "father_name", "guardian_name"
+            "father_name", "guardian_name", "cwsn_status", "bpl_status",
         ]:
             if field in validated_data:
                 setattr(instance, field, validated_data[field])

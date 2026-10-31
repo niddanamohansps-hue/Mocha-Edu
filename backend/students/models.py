@@ -50,7 +50,9 @@ class Student(models.Model):
             ("ST", "ST"),
             ("EWS", "EWS"),
         ],
-        default="GEN",
+        blank=True,
+        default="",
+        help_text="Left blank until recorded, so exports never report a guessed category",
     )
     is_rte = models.BooleanField(
         default=False,
@@ -63,7 +65,7 @@ class Student(models.Model):
         help_text="Last 4 digits of Aadhaar (masked for UIDAI compliance)",
     )
     aadhaar_verified = models.BooleanField(default=False)
-    mother_tongue = models.CharField(max_length=50, blank=True, default="Hindi")
+    mother_tongue = models.CharField(max_length=50, blank=True, default="")
     social_category = models.CharField(max_length=50, blank=True, default="")
     religion = models.CharField(max_length=50, blank=True, default="")
     cwsn_status = models.CharField(max_length=50, blank=True, default="", help_text="Children with Special Needs status")

@@ -33,7 +33,7 @@ COLUMNS = [
     Column("guardian_relation", False, "", "e.g. Uncle, Grandmother."),
     Column("pen", False, "20241234567", "11-digit Permanent Education Number from UDISE+."),
     Column("apaar_id", False, "987654321012", "12-digit Automated Permanent Academic Account Registry ID."),
-    Column("caste_category", False, "General", "General, OBC, SC, ST, or EWS."),
+    Column("caste_category", False, "General", "General, OBC, SC, ST, or EWS. Leave blank if not recorded."),
     Column("is_rte", False, "No", "Yes or No. Right to Education Act Section 12(1)(c) 25% quota student."),
     Column("aadhaar_last_4", False, "1234", "Last 4 digits of Aadhaar (for identity verification)."),
 ]
@@ -159,7 +159,9 @@ def check(rows):
 
         caste_raw = text(raw.get("caste_category"), 20).strip().upper()
         caste_map = {"GENERAL": "GEN", "GEN": "GEN", "OBC": "OBC", "SC": "SC", "ST": "ST", "EWS": "EWS"}
-        caste_val = caste_map.get(caste_raw, "GEN") if caste_raw else "GEN"
+        caste_val = caste_map.get(caste_raw, "") if caste_raw else ""
+        if caste_raw and not caste_val:
+            result.error(n, "caste_category", "Category must be General, OBC, SC, ST, or EWS (or left blank).")
 
         rte_raw = text(raw.get("is_rte"), 10).strip().lower()
         is_rte_val = rte_raw in ("yes", "y", "true", "1")
@@ -211,7 +213,7 @@ def save(rows):
             admission_date=row.get("admission_date"),
             pen=row.get("pen", ""),
             apaar_id=row.get("apaar_id", ""),
-            caste_category=row.get("caste_category", "GEN"),
+            caste_category=row.get("caste_category", ""),
             is_rte=row.get("is_rte", False),
             aadhaar_last_4=row.get("aadhaar_last_4", ""),
             father_name=next((p["name"] for p in row.get("parents", []) if p["relation"] == "father"), ""),
