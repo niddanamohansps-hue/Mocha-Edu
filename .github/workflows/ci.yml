@@ -75,11 +75,14 @@ jobs:
       FIELD_ENCRYPTION_KEY: 'jVju-iUgNvh_gHPnEFodUpsf5mDHDo1hwLbCyLVAcDs='
       CERTIFICATE_INTEGRITY_KEYS: '1:ci-only-certificate-integrity-secret'
       CERTIFICATE_INTEGRITY_ACTIVE_KEY: '1'
-      DB_NAME: test_schoolsansar_db
+      DB_NAME: edusekai_ci
       DB_USER: test_user
       DB_PASSWORD: test_password
-      DB_HOST: localhost
+      DB_HOST: 127.0.0.1
       DB_PORT: 5432
+      # The guard that protects school creation and deletion refuses to run unless the database is declared.
+      # The test runner uses test_<this name>, which the guard accepts only while tests run.
+      EDUSEKAI_EXPECTED_DATABASE: edusekai_ci@127.0.0.1:5432
       REDIS_CACHE_URL: redis://localhost:6379/1
       CELERY_BROKER_URL: redis://localhost:6379/2
 
@@ -87,7 +90,7 @@ jobs:
       postgres:
         image: postgres:15-alpine
         env:
-          POSTGRES_DB: test_schoolsansar_db
+          POSTGRES_DB: edusekai_ci
           POSTGRES_USER: test_user
           POSTGRES_PASSWORD: test_password
         ports:
