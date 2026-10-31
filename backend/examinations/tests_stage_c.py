@@ -190,7 +190,7 @@ class ComponentMarksEntryTests(StageCBase):
 
         with tenant_context(self.school):
             m2 = self.mark_of(self.student2)
-            subject_res = calculate_subject_result(self.schedule, m2)
+            subject_res = calculate_subject_result(m2, self.schedule)
             self.assertEqual(subject_res["marks_obtained"], Decimal("35.00"))
             self.assertFalse(subject_res["is_pass"], "Student must fail subject due to failing separate theory pass mark.")
             self.assertEqual(len(subject_res["components"]), 2)
@@ -229,14 +229,15 @@ class ComponentMarksEntryTests(StageCBase):
             m2.save()
 
             # Single subject calculation
-            res = calculate_subject_result(self.schedule, m2)
+            res = calculate_subject_result(m2, self.schedule)
             self.assertEqual(res["marks_obtained"], 35.0)
             self.assertFalse(res["is_pass"], "Grace marks must not override separate theory pass requirement.")
 
             # Bulk examination calculation
-            bulk_res = calculate_examination_results_bulk(self.examination)
-            s2_res = next(r for r in bulk_res if str(r.student_id) == str(self.student2.id))
-            self.assertFalse(s2_res.is_pass, "Overall exam must remain failed due to component failure.")
+            bulk_res = calculate_examination_results_bulk(self.examination, [self.student2])
+            self.assertFalse(
+                bulk_res[self.student2.id]["is_pass"], "Overall exam must remain failed due to component failure."
+            )
 
     def test_unassigned_teacher_cannot_enter_component_marks(self):
         url = f"/api/examinations/schedules/{self.schedule.id}/component-marks/"
@@ -493,8 +494,10 @@ class ComponentMarksEntryTests(StageCBase):
         # Verify term weightage block
         self.assertIn("term_weightage", data)
         self.assertIsNotNone(data["term_weightage"])
-        self.assertEqual(data["term_weightage"]["total_weightage"], 100.0)
-        self.assertEqual(data["term_weightage"]["composite_score"], 88.0)
+        self.assertTrue(data["term_weightage"]["is_configured"])
+        self.assertEqual(data["term_weightage"]["total_weightage_configured"], 100.0)
+        # Theory 70 + Internal 18 = 88 out of 100, and the only term carries all the weightage.
+        self.assertEqual(data["term_weightage"]["overall"]["percentage"], 88.0)
 
 
 class TermWeightageTests(StageCBase):
@@ -517,7 +520,14 @@ class TermWeightageTests(StageCBase):
                 percentage=Decimal("85.00"),
                 overall_grade="A",
                 is_pass=True,
-                subject_breakdown=[],
+                subject_breakdown=[
+                    {
+                        "subject": str(self.schedule.subject_id),
+                        "subject_name": "Math",
+                        "percentage": 85.0,
+                        "is_pass": True,
+                    }
+                ],
             )
 
             summary = get_student_term_weightage_summary(
@@ -525,10 +535,11 @@ class TermWeightageTests(StageCBase):
                 academic_year=self.examination.academic_year,
                 level_id=self.level.id,
             )
-            self.assertIsNotNone(summary)
-            self.assertEqual(summary["total_weightage"], 100.0)
-            self.assertEqual(summary["composite_score"], 85.0)
-            self.assertEqual(len(summary["terms"]), 1)
+            self.assertTrue(summary["is_configured"])
+            self.assertEqual(summary["total_weightage_configured"], 100.0)
+            self.assertEqual(summary["overall"]["percentage"], 85.0)
+            self.assertEqual(len(summary["examinations"]), 1)
+            self.assertEqual(summary["subjects"][0]["consolidated_percentage"], 85.0)
 
 
 class CoScholasticTests(StageCBase):

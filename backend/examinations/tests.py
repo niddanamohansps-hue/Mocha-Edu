@@ -63,6 +63,7 @@ class ExamFixtureMixin:
         with tenant_context(self.school):
             program = Program.objects.create(name="High School", code="HSEX")
             level = AcademicLevel.objects.create(program=program, name="Grade 10", order=1)
+            self.level = level
             self.section_a = Section.objects.create(level=level, name="A", capacity=40)
             self.section_b = Section.objects.create(level=level, name="B", capacity=40)
             self.subject = Subject.objects.create(level=level, name="Math", code="MTHEX")

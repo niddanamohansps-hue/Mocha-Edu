@@ -383,7 +383,7 @@ class CertificateLifecycleAndVerificationTest(CertificateFixtureMixin, Transacti
         self.assertEqual(len(re.findall(rb"/Type\s*/Page(?![a-z])", data)), 1)
 
         text = " ".join(drawn)
-        for expected in (tc["certificate_number"], "Bikash Sharma", "CERT-002", "17 May 2012", "Relocation",
+        for expected in (tc["certificate_number"], "Bikash Sharma", "CERT-002", "17-05-2012", "Relocation",
                          "TRANSFER CERTIFICATE", f"School {self.SCHEMA}"):
             self.assertIn(expected, text)
         for secret in ("PRIVATE-NOTE", "Secret Street", "9800000000", str(self.leaver.id)):
