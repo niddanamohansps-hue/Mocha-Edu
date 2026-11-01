@@ -285,6 +285,7 @@ class AlertLog(models.Model):
         FEE_OVERDUE = "fee_overdue", "Fee overdue"
         ABSENCE = "absence", "Absence"
         PAYMENT_RECEIPT = "payment_receipt", "Payment receipt"
+        EXAM_DATE_SHEET = "exam_date_sheet", "Exam date sheet"
 
     IN_APP_ONLY = "in_app_only"
 

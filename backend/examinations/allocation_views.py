@@ -135,3 +135,17 @@ class MyDutiesView(APIView):
         if staff is None:
             return Response([])
         return Response(allocation.duty_rows(ExamInvigilation.objects.filter(staff=staff)))
+
+
+class AdmitCardsView(APIView):
+    """Admit cards for one section of an examination: each student's papers with room and seat."""
+
+    def get_permissions(self):
+        return [IsAuthenticated(), HasPermission("view_examinations")]
+
+    def get(self, request):
+        from academics.models import Section
+
+        examination = get_object_or_404(Examination, pk=request.query_params.get("examination"))
+        section = get_object_or_404(Section.objects.select_related("level"), pk=request.query_params.get("section"))
+        return Response(allocation.build_admit_cards(examination, section))

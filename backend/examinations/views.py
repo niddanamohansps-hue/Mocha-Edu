@@ -117,6 +117,22 @@ class ExaminationViewSet(viewsets.ModelViewSet):
         _tell_publishers(examination, exclude=request.user.id)
         return Response(ExaminationSerializer(examination).data)
 
+    @action(detail=True, methods=["post"], url_path="publish-date-sheet")
+    def publish_date_sheet(self, request, pk=None):
+        """Tell the students and parents of every class sitting this examination that the date sheet is out."""
+        from rest_framework.exceptions import ValidationError
+
+        from .allocation import AllocationError
+        from .date_sheet import publish_date_sheet
+
+        examination = self.get_object()
+        try:
+            publish_date_sheet(examination, request)
+        except AllocationError as exc:
+            raise ValidationError(str(exc))
+        examination.refresh_from_db()
+        return Response(ExaminationSerializer(examination).data)
+
     @action(detail=True, methods=["post"])
     def publish(self, request, pk=None):
         examination = self.get_object()

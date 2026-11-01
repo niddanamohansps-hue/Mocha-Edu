@@ -10,7 +10,7 @@ from django_tenants.utils import tenant_context
 from rest_framework.test import APIRequestFactory, force_authenticate
 
 from academics.models import AcademicLevel, Program, Section, Subject
-from notifications.models import Notification
+from notifications.models import AlertLog, Notification
 from organizations.models import Domain, Organization
 from profiles.models import Profile
 from roles.models import Role, UserRole
@@ -22,6 +22,7 @@ from timetable.models import Period, Room, TimetableEntry
 from . import allocation
 from .allocation import AllocationError
 from .allocation_views import DutyRosterView, ExamInvigilationViewSet, ExamSittingViewSet, MyDutiesView
+from .views import ExaminationViewSet  # noqa: F401  (used by the date sheet tests)
 from .models import ExamInvigilation, ExamSchedule, ExamSeat, ExamSitting, Examination, ExamType
 
 User = get_user_model()
@@ -383,3 +384,126 @@ class AllocationApiTests(AllocationBase):
             rows = DutyRosterView.as_view()(request).data
             self.assertEqual(len(rows), 4)
             self.assertEqual({r["examination"] for r in rows}, {"Term 1"})
+
+
+class AdmitCardTests(AllocationBase):
+    def _cards(self, user, section=None):
+        from .allocation_views import AdmitCardsView
+
+        request = self.factory.get("/x/", {"examination": str(self.exam.pk), "section": str((section or self.section_a).pk)})
+        request.tenant = self.school
+        force_authenticate(request, user=user)
+        return AdmitCardsView.as_view()(request)
+
+    def test_each_student_gets_their_papers_with_the_room_and_seat_from_the_plan(self):
+        with tenant_context(self.school):
+            allocation.allocate_rooms(self.sitting1)  # class A and B together in the Hall
+            response = self._cards(self.owner)
+            self.assertEqual(response.status_code, 200)
+            data = response.data
+            self.assertEqual(data["class"], "Grade 10 A")
+            self.assertEqual([c["enrollment_id"] for c in data["cards"]], ["ENR-A1", "ENR-A2", "ENR-A3", "ENR-A4"])
+            card = data["cards"][0]
+            self.assertEqual([p["subject"] for p in card["papers"]], ["Math"])  # class A has one paper
+            paper = card["papers"][0]
+            seat = ExamSeat.objects.get(sitting=self.sitting1, student=self.students_a[0])
+            self.assertEqual((paper["room"], paper["seat"]), ("Hall", seat.seat_number))
+            seats = {c["name"]: c["papers"][0]["seat"] for c in data["cards"]}
+            self.assertEqual(len(set(seats.values())), 4)  # nobody shares a seat
+
+    def test_class_with_two_sittings_lists_both_papers_in_date_order(self):
+        with tenant_context(self.school):
+            allocation.allocate_rooms(self.sitting1)
+            allocation.allocate_rooms(self.sitting2)
+            papers = self._cards(self.owner, self.section_b).data["cards"][0]["papers"]
+            self.assertEqual([p["subject"] for p in papers], ["English", "Math"])
+            self.assertEqual([str(p["date"]) for p in papers], [str(DAY1), str(DAY2)])
+            self.assertTrue(all(p["room"] == "Hall" and p["seat"] for p in papers))
+
+    def test_without_a_seating_plan_the_paper_room_or_blank_is_shown(self):
+        with tenant_context(self.school):
+            self.paper_a.room = self.room_small
+            self.paper_a.save()
+            first = self._cards(self.owner).data["cards"][0]["papers"][0]
+            self.assertEqual((first["room"], first["seat"]), ("R1", None))
+            self.paper_b.room = None
+            self.paper_b.save()
+            second = self._cards(self.owner, self.section_b).data["cards"][0]["papers"][0]
+            self.assertEqual((second["room"], second["seat"]), ("", None))
+
+    def test_only_users_who_can_view_examinations_get_admit_cards(self):
+        with tenant_context(self.school):
+            self.assertEqual(self._cards(self.clerk).status_code, 403)
+
+
+class DateSheetTests(AllocationBase):
+    def setUp(self):
+        super().setUp()
+        from django.test import override_settings
+
+        from families.models import Parent, StudentParentRelation
+
+        with tenant_context(self.school):
+            self.student = self.students_a[0]
+            self.student_user = User.objects.create_user(username=f"kid_{uuid.uuid4().hex[:5]}@s.com", password="Password123!")
+            self.student.profile.user_id = self.student_user.id
+            self.student.profile.save()
+            # One parent with a login, and one with only a phone number who agreed to WhatsApp.
+            self.parent_user = User.objects.create_user(username=f"mum_{uuid.uuid4().hex[:5]}@s.com", password="Password123!")
+            self.mum = Parent.objects.create(profile=Profile.objects.create(user_id=self.parent_user.id, first_name="Mum", last_name="P"))
+            self.dad = Parent.objects.create(
+                profile=Profile.objects.create(first_name="Dad", last_name="P", phone="9876543210"), whatsapp_opt_in=True
+            )
+            for parent in (self.mum, self.dad):
+                StudentParentRelation.objects.create(student=self.student, parent=parent, relation_type="guardian")
+
+    def _publish(self, user=None):
+        from .views import ExaminationViewSet
+
+        return self._call(ExaminationViewSet, {"post": "publish_date_sheet"}, "post", user or self.owner, {}, pk=str(self.exam.pk))
+
+    def test_publishing_notifies_students_and_parents_once_per_announcement(self):
+        from django.test import override_settings
+
+        with override_settings(WHATSAPP_PROVIDER="console"), tenant_context(self.school):
+            response = self._publish()
+            self.assertEqual(response.status_code, 200, response.data)
+            self.assertEqual(response.data["date_sheet_version"], 1)
+            mine = Notification.objects.filter(recipient_user_id__in=[self.student_user.id, self.parent_user.id])
+            self.assertEqual(mine.count(), 2)
+            self.assertTrue(all("Date sheet" in n.title and "Term 1" in n.title for n in mine))
+            self.assertTrue(all(self.student.profile.first_name in n.title for n in mine))
+            self.assertEqual(AlertLog.objects.filter(kind="exam_date_sheet").count(), 3)  # student, mum, dad (WhatsApp)
+
+            from notifications.models import WhatsAppOutboxEvent
+
+            event = WhatsAppOutboxEvent.objects.get()
+            self.assertEqual((event.template, event.to_phone), ("exam_date_sheet", "919876543210"))
+            self.assertEqual(event.params[:2], [f"{self.student.profile.first_name} {self.student.profile.last_name}", "Term 1"])
+
+            # Running the same announcement again sends nothing more.
+            from .date_sheet import send_date_sheet_alerts
+
+            send_date_sheet_alerts(self.exam.pk, 1)
+            self.assertEqual(AlertLog.objects.filter(kind="exam_date_sheet").count(), 3)
+
+            # Announcing again after a change is a new announcement and notifies everyone again.
+            self.assertEqual(self._publish().data["date_sheet_version"], 2)
+            self.assertEqual(Notification.objects.filter(recipient_user_id=self.student_user.id).count(), 2)
+
+    def test_it_needs_papers_and_the_right_permission(self):
+        with tenant_context(self.school):
+            self.assertEqual(self._publish(self.clerk).status_code, 403)
+            ExamSchedule.objects.all().delete()
+            empty = self._publish()
+            self.assertEqual(empty.status_code, 400)
+            self.exam.refresh_from_db()
+            self.assertEqual(self.exam.date_sheet_version, 0)
+
+    def test_nothing_goes_to_whatsapp_without_opt_in_or_provider(self):
+        from notifications.models import WhatsAppOutboxEvent
+
+        with tenant_context(self.school):
+            self._publish()  # provider is "disabled" by default
+            self.assertEqual(WhatsAppOutboxEvent.objects.count(), 0)
+            self.assertEqual(Notification.objects.filter(recipient_user_id=self.parent_user.id).count(), 1)

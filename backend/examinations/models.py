@@ -59,6 +59,11 @@ class Examination(models.Model):
     publication_requested_at = models.DateTimeField(null=True, blank=True)
     published_by_user_id = models.UUIDField(null=True, blank=True)
 
+    # The date sheet is announced to students and parents on request. Each announcement has a number, so sending
+    # it again after a change notifies everyone again, while a repeated run of the same one never does.
+    date_sheet_published_at = models.DateTimeField(null=True, blank=True)
+    date_sheet_version = models.PositiveIntegerField(default=0)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

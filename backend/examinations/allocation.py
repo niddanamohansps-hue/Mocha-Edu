@@ -448,3 +448,54 @@ def duty_rows(queryset):
             }
         )
     return rows
+
+
+def build_admit_cards(examination, section):
+    """One admit card per student of the section: their papers in date order, each with the room and seat from the
+    seating plan. A paper with no seat yet falls back to the room set on the paper itself, then to blank."""
+    schedules = list(
+        ExamSchedule.objects.filter(examination=examination, section=section)
+        .select_related("subject", "room")
+        .order_by("date", "start_time")
+    )
+    students = _roster(section.id)
+    seats = {}
+    for seat in ExamSeat.objects.filter(
+        sitting__examination=examination, student__in=students
+    ).select_related("room", "sitting"):
+        seats[(seat.student_id, seat.sitting.date, seat.sitting.start_time)] = seat
+
+    cards = []
+    for student in students:
+        papers = []
+        for schedule in schedules:
+            seat = seats.get((student.id, schedule.date, schedule.start_time))
+            papers.append(
+                {
+                    "subject": schedule.subject.name,
+                    "date": schedule.date,
+                    "start_time": schedule.start_time,
+                    "end_time": schedule.end_time,
+                    "room": seat.room.name if seat else (schedule.room.name if schedule.room else ""),
+                    "seat": seat.seat_number if seat else None,
+                }
+            )
+        cards.append(
+            {
+                "student_id": student.id,
+                "name": _student_name(student),
+                "enrollment_id": student.enrollment_id,
+                "class": f"{section.level.name} {section.name}",
+                "papers": papers,
+            }
+        )
+    return {
+        "examination": {
+            "id": examination.id,
+            "name": examination.name,
+            "start_date": examination.start_date,
+            "end_date": examination.end_date,
+        },
+        "class": f"{section.level.name} {section.name}",
+        "cards": cards,
+    }
