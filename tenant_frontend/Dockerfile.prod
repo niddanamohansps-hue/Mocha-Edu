@@ -22,6 +22,9 @@ COPY . .
 # true = the browser calls /api on the same host it loaded the page from (nginx routes /api to Django).
 ARG NEXT_PUBLIC_API_SAME_ORIGIN=true
 ENV NEXT_PUBLIC_API_SAME_ORIGIN=$NEXT_PUBLIC_API_SAME_ORIGIN
+# Public Cloudflare Turnstile key for the careers form; empty = no CAPTCHA widget.
+ARG NEXT_PUBLIC_TURNSTILE_SITE_KEY=
+ENV NEXT_PUBLIC_TURNSTILE_SITE_KEY=$NEXT_PUBLIC_TURNSTILE_SITE_KEY
 
 # Set production environment flags during build
 ENV NEXT_TELEMETRY_DISABLED 1

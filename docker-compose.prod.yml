@@ -114,6 +114,7 @@ services:
       dockerfile: Dockerfile.prod
       args:
         NEXT_PUBLIC_API_SAME_ORIGIN: ${NEXT_PUBLIC_API_SAME_ORIGIN:-true}
+        NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${NEXT_PUBLIC_TURNSTILE_SITE_KEY:-}
     container_name: schoolsansar_frontend
     environment:
       - NODE_ENV=production
