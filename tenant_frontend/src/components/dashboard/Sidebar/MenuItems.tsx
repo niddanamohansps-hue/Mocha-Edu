@@ -217,6 +217,9 @@ export const getMenuItems = (
         examinationChildren.push({ label: "Exam Duties", href: "/dashboard/examinations/duties" });
     }
     // Marks and results
+    if (can("manage_examinations") || can("view_examinations")) {
+        examinationChildren.push({ label: "Marks Progress", href: "/dashboard/examinations/marks-progress" });
+    }
     if (can("enter_marks")) {
         examinationChildren.push({ label: "Marks Entry", href: "/dashboard/examinations/marks" });
     }
@@ -515,7 +518,7 @@ const CHILD_ORDER: Record<string, string[]> = {
         "Examinations", "Grading", "Term Weightage", "Co-scholastic",
         "Question Bank", "Questions to Review", "Question Papers",
         "Rooms & Invigilators", "Admit Cards", "Exam Duties",
-        "Marks Entry", "Results", "Rechecks",
+        "Marks Progress", "Marks Entry", "Results", "Rechecks",
     ],
     Fees: ["Student Fees / Collect Payment", "Outstanding Report", "My Fees", "Fee Structures", "Payment Gateways"],
     Payroll: ["Payroll runs", "Salaries", "My payslips", "Setup"],

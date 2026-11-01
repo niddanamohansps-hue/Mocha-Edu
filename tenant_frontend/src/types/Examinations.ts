@@ -18,6 +18,7 @@ export interface Examination {
     publication_requested_at: string | null;
     date_sheet_published_at: string | null;
     date_sheet_version: number;
+    marks_due_date: string | null;
     published_by_user_id: string | null;
 }
 

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axiosInstance from "@/lib/axios";
 import { toast } from "sonner";
-import type { AdmitCardData, DutyRow, SittingPlan, SittingSummary } from "@/types/ExamAllocation";
+import type { AdmitCardData, DutyRow, MarksProgress, SittingPlan, SittingSummary } from "@/types/ExamAllocation";
 
 const KEY = "exam-allocation";
 const BASE = "/examinations";
@@ -109,3 +109,43 @@ export const useAdmitCards = (examination: string | undefined, section: string |
         queryFn: async () =>
             (await axiosInstance.get<AdmitCardData>(`${BASE}/admit-cards/`, { params: { examination, section } })).data,
     });
+
+export const useMarksProgress = (examination: string | undefined) =>
+    useQuery({
+        queryKey: [KEY, "marks-progress", examination],
+        enabled: !!examination,
+        queryFn: async () =>
+            (await axiosInstance.get<MarksProgress>(`${BASE}/marks-progress/`, { params: { examination } })).data,
+    });
+
+export const useRemindTeachers = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (examination: string) =>
+            (await axiosInstance.post<{ teachers: number; papers: number; unassigned: number; already_reminded: number }>(
+                `${BASE}/examinations/${examination}/remind-marks/`,
+            )).data,
+        onSuccess: (result) => {
+            queryClient.invalidateQueries({ queryKey: [KEY] });
+            const parts = [`${result.teachers} teacher(s) reminded`];
+            if (result.already_reminded) parts.push(`${result.already_reminded} already reminded today`);
+            if (result.unassigned) parts.push(`${result.unassigned} paper(s) have no teacher assigned`);
+            toast.success(parts.join(", "));
+        },
+        onError: (error: unknown) => toast.error(allocationError(error, "Could not send the reminders")),
+    });
+};
+
+export const useSetMarksDueDate = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (vars: { examination: string; date: string | null }) =>
+            (await axiosInstance.patch(`${BASE}/examinations/${vars.examination}/`, { marks_due_date: vars.date })).data,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: [KEY] });
+            queryClient.invalidateQueries({ queryKey: ["examinations"] });
+            toast.success("Due date saved");
+        },
+        onError: (error: unknown) => toast.error(allocationError(error, "Could not save the due date")),
+    });
+};

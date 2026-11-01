@@ -81,3 +81,22 @@ export interface AdmitCardData {
     class: string;
     cards: AdmitCard[];
 }
+
+export interface MarksProgressRow {
+    schedule: string;
+    subject: string;
+    class: string;
+    date: string;
+    teachers: string[];
+    expected: number;
+    entered: number;
+    state: "complete" | "in_progress" | "not_started";
+    locked: boolean;
+    overdue: boolean;
+}
+
+export interface MarksProgress {
+    due_date: string | null;
+    summary: { papers: number; complete: number; in_progress: number; not_started: number; overdue: number };
+    rows: MarksProgressRow[];
+}
