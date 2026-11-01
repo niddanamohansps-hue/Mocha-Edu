@@ -180,30 +180,17 @@ export const getMenuItems = (
         });
     }
 
-    // 6.7 Examinations
+    // 6.7 Examinations, in the order a school works through an exam: set up, prepare papers, exam day,
+    // then marks and results.
     const examinationChildren: SidebarItemType[] = [];
+    // Set up
     if (can("view_examinations") || can("manage_examinations")) {
         examinationChildren.push({ label: "Examinations", href: "/dashboard/examinations" });
-    }
-    if (can("enter_marks")) {
-        examinationChildren.push({ label: "Marks Entry", href: "/dashboard/examinations/marks" });
-    }
-    if (can("view_results") || user?.active_role === "student") {
-        examinationChildren.push({ label: "Results", href: "/dashboard/examinations/results" });
     }
     if (can("manage_grading")) {
         examinationChildren.push({ label: "Grading", href: "/dashboard/examinations/grading" });
     }
-    if (can("manage_marks") || can("view_results") || user?.active_role === "student") {
-        examinationChildren.push({ label: "Rechecks", href: "/dashboard/examinations/rechecks" });
-    }
-    if (can("manage_exam_allocation") || can("view_examinations")) {
-        examinationChildren.push({ label: "Rooms & Invigilators", href: "/dashboard/examinations/allocation" });
-    }
-    if (user?.active_role === "staff" || user?.active_role === "instructor" || can("manage_exam_allocation")) {
-        examinationChildren.push({ label: "Exam Duties", href: "/dashboard/examinations/duties" });
-    }
-
+    // Prepare papers
     if (can("view_question_bank") || can("create_questions") || can("review_questions") || can("manage_question_bank")) {
         examinationChildren.push({ label: "Question Bank", href: "/dashboard/question-bank" });
     }
@@ -212,6 +199,23 @@ export const getMenuItems = (
     }
     if (can("prepare_papers") || can("approve_papers")) {
         examinationChildren.push({ label: "Question Papers", href: "/dashboard/question-bank/papers" });
+    }
+    // Exam day
+    if (can("manage_exam_allocation") || can("view_examinations")) {
+        examinationChildren.push({ label: "Rooms & Invigilators", href: "/dashboard/examinations/allocation" });
+    }
+    if (user?.active_role === "staff" || user?.active_role === "instructor" || can("manage_exam_allocation")) {
+        examinationChildren.push({ label: "Exam Duties", href: "/dashboard/examinations/duties" });
+    }
+    // Marks and results
+    if (can("enter_marks")) {
+        examinationChildren.push({ label: "Marks Entry", href: "/dashboard/examinations/marks" });
+    }
+    if (can("view_results") || user?.active_role === "student") {
+        examinationChildren.push({ label: "Results", href: "/dashboard/examinations/results" });
+    }
+    if (can("manage_marks") || can("view_results") || user?.active_role === "student") {
+        examinationChildren.push({ label: "Rechecks", href: "/dashboard/examinations/rechecks" });
     }
 
     if (examinationChildren.length > 0) {
@@ -486,6 +490,48 @@ const MENU_ORDER: { group: string; labels: string[] }[] = [
     { group: "Admin", labels: ["Administration"] },
 ];
 
+/**
+ * The order of the links inside each group: the work people do every day first, reports next, and set-up or
+ * settings last. Links a role cannot see are simply absent, and anything not listed keeps its place after the
+ * listed ones, so a new link never disappears or reshuffles the rest.
+ */
+const CHILD_ORDER: Record<string, string[]> = {
+    "Student Management": ["Student Directory", "Admissions", "Parents & Guardians", "Promotion & Transfer"],
+    Staff: ["Staff Directory", "Faculty Directory", "Recruitment", "My Interviews", "Leave Management"],
+    Academics: ["Academic Structure", "Academic Calendar", "Homework"],
+    "Course Content": ["Study Materials", "Manage Content", "Assignments", "Grade Submissions"],
+    Attendance: ["Mark Attendance", "History", "Reports", "Staff Attendance", "Attendance Settings"],
+    Timetable: ["Timetable", "My Schedule", "Substitutions"],
+    Examinations: [
+        "Examinations", "Grading",
+        "Question Bank", "Questions to Review", "Question Papers",
+        "Rooms & Invigilators", "Exam Duties",
+        "Marks Entry", "Results", "Rechecks",
+    ],
+    Fees: ["Student Fees / Collect Payment", "Outstanding Report", "My Fees", "Fee Structures", "Payment Gateways"],
+    Payroll: ["Payroll runs", "Salaries", "My payslips", "Setup"],
+    Inventory: ["Stock", "Movements", "Purchases", "Assets", "Setup"],
+    Certificates: ["Certificates", "ID Cards"],
+    Administration: [
+        "Institution Profile", "Roles & Permissions", "Import data",
+        "Automatic Alerts", "Alert Log", "Audit Logs", "Billing", "System Health",
+    ],
+};
+
+function orderChildren(item: SidebarItemType): SidebarItemType {
+    const order = CHILD_ORDER[item.label];
+    if (!order || !item.children) return item;
+    const rank = (label: string) => {
+        const index = order.indexOf(label);
+        return index === -1 ? order.length : index;
+    };
+    const children = item.children
+        .map((child, index) => ({ child, index }))
+        .sort((x, y) => rank(x.child.label) - rank(y.child.label) || x.index - y.index)
+        .map(({ child }) => child);
+    return { ...item, children };
+}
+
 function organiseMenu(items: SidebarItemType[]): SidebarItemType[] {
     let menu = [...items];
 
@@ -519,5 +565,5 @@ function organiseMenu(items: SidebarItemType[]): SidebarItemType[] {
     return menu
         .map((item, index) => ({ item, index, ...(rank.get(item.label) ?? last) }))
         .sort((a, b) => a.position - b.position || a.index - b.index)
-        .map(({ item, group }) => ({ ...item, group }));
+        .map(({ item, group }) => ({ ...orderChildren(item), group }));
 }
