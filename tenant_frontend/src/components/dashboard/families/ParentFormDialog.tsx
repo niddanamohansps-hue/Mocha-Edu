@@ -42,6 +42,7 @@ const parentSchema = z.object({
     occupation: z.string().trim().optional(),
     office_address: z.string().trim().optional(),
     income_level: z.string().trim().optional(),
+    whatsapp_opt_in: z.boolean(),
 });
 
 type ParentFormValues = z.infer<typeof parentSchema>;
@@ -77,6 +78,7 @@ export function ParentFormDialog({
             occupation: "",
             office_address: "",
             income_level: "",
+            whatsapp_opt_in: false,
         },
     });
 
@@ -94,6 +96,7 @@ export function ParentFormDialog({
                     occupation: parent.occupation || "",
                     office_address: parent.office_address || "",
                     income_level: parent.income_level || "",
+                    whatsapp_opt_in: parent.whatsapp_opt_in ?? false,
                 });
             } else {
                 form.reset({
@@ -107,6 +110,7 @@ export function ParentFormDialog({
                     occupation: "",
                     office_address: "",
                     income_level: "",
+                    whatsapp_opt_in: false,
                 });
             }
         }
@@ -124,6 +128,7 @@ export function ParentFormDialog({
             occupation: values.occupation || undefined,
             office_address: values.office_address || undefined,
             income_level: values.income_level || undefined,
+            whatsapp_opt_in: values.whatsapp_opt_in,
         };
 
         if (isEdit && parent) {
@@ -315,6 +320,16 @@ export function ParentFormDialog({
                                 className="rounded-xl"
                             />
                         </div>
+
+                        <label className="md:col-span-3 flex items-start gap-3 rounded-xl border border-slate-200 p-3 text-sm dark:border-slate-800">
+                            <input type="checkbox" className="mt-1" {...form.register("whatsapp_opt_in")} />
+                            <span>
+                                <span className="font-medium">Send fee reminders and absence alerts on WhatsApp</span>
+                                <span className="block text-xs text-slate-500">
+                                    Tick only if the parent has agreed. Messages go to the phone number above; a number is needed.
+                                </span>
+                            </span>
+                        </label>
                     </div>
 
                     <DialogFooter className="gap-2 pt-4">

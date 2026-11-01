@@ -37,6 +37,8 @@ export interface Parent {
     occupation?: string | null;
     office_address?: string | null;
     income_level?: string | null;
+    whatsapp_opt_in?: boolean;
+    whatsapp_opt_in_at?: string | null;
     children: ParentChildRelation[];
 }
 
@@ -51,6 +53,7 @@ export interface ParentFormData {
     occupation?: string;
     office_address?: string;
     income_level?: string;
+    whatsapp_opt_in?: boolean;
 }
 
 export interface StudentParentRelation {

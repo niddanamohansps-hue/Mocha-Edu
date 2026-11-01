@@ -182,6 +182,14 @@ export function ParentDetailDialog({
                                             <span className="text-xs text-slate-400 font-semibold uppercase">Income:</span>
                                             <span>{parent.income_level || "Not disclosed"}</span>
                                         </div>
+                                        <div className="flex items-center gap-2.5 text-slate-700 dark:text-slate-300">
+                                            <span className="text-xs text-slate-400 font-semibold uppercase">WhatsApp:</span>
+                                            <span>
+                                                {parent.whatsapp_opt_in
+                                                    ? `Agreed${parent.whatsapp_opt_in_at ? ` on ${new Date(parent.whatsapp_opt_in_at).toLocaleDateString()}` : ""}`
+                                                    : "Not agreed"}
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
