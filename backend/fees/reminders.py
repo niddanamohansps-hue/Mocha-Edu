@@ -22,7 +22,14 @@ from django.conf import settings
 from django.utils import timezone
 from django_tenants.utils import get_public_schema_name
 
-from notifications.alerts import dispatch_alert, resolve_alert_recipients
+from django.conf import settings as django_settings
+
+from notifications.alerts import (
+    dispatch_alert,
+    dispatch_whatsapp_alert,
+    resolve_alert_recipients,
+    resolve_whatsapp_recipients,
+)
 from notifications.models import AlertLog, NotificationSettings
 
 from .models import StudentFee
@@ -98,6 +105,28 @@ def _wanted(fee, today, cfg):
     return AlertLog.Kind.FEE_OVERDUE, _overdue_key(fee, number), title[:200], body[:500]
 
 
+def _send_whatsapp_reminders(fee, student, kind, key):
+    """The WhatsApp copy of a fee reminder, for parents who opted in. Never raises: a failure here must not
+    stop the in-app and email reminders."""
+    try:
+        recipients = resolve_whatsapp_recipients(student)
+        if not recipients:
+            return
+        template = (
+            django_settings.WHATSAPP_TEMPLATE_FEE_DUE
+            if kind == AlertLog.Kind.FEE_DUE_SOON
+            else django_settings.WHATSAPP_TEMPLATE_FEE_OVERDUE
+        )
+        name = f"{student.profile.first_name} {student.profile.last_name}".strip()
+        params = [name, fee.fee_head.name, _money(fee._outstanding), fee.due_date.isoformat()]
+        for recipient in recipients:
+            dispatch_whatsapp_alert(
+                kind=kind, dedupe_key=key, recipient=recipient, student=student, template=template, params=params
+            )
+    except Exception:
+        logger.exception("Could not queue a WhatsApp fee reminder (fee %s).", fee.id)
+
+
 def send_fee_reminders_for_current_school(*, deadline=None, today=None):
     """Send the fee reminders that are due, in the current tenant schema. Returns a summary."""
     from django.db import connection
@@ -130,6 +159,7 @@ def send_fee_reminders_for_current_school(*, deadline=None, today=None):
             summary["deferred"] = len(work) - index
             break
         student = fee.student
+        _send_whatsapp_reminders(fee, student, kind, key)
         if student.id not in recipients_by_student:
             recipients_by_student[student.id] = resolve_alert_recipients(student)
         recipients = recipients_by_student[student.id]

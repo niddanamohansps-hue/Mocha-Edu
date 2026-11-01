@@ -17,6 +17,20 @@ class Parent(models.Model):
     office_address = models.TextField(blank=True)
     income_level = models.CharField(max_length=50, blank=True)
 
+    # The parent agreed to receive fee and attendance messages on WhatsApp (their profile phone number). The
+    # school records that consent; nothing is sent to a parent without it.
+    whatsapp_opt_in = models.BooleanField(default=False)
+    whatsapp_opt_in_at = models.DateTimeField(null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        from django.utils import timezone
+
+        if self.whatsapp_opt_in and self.whatsapp_opt_in_at is None:
+            self.whatsapp_opt_in_at = timezone.now()
+        elif not self.whatsapp_opt_in:
+            self.whatsapp_opt_in_at = None
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f"Parent: {self.profile.first_name}"
 

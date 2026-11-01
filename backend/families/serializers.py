@@ -126,6 +126,8 @@ class ParentSerializer(serializers.ModelSerializer):
             "occupation",
             "office_address",
             "income_level",
+            "whatsapp_opt_in",
+            "whatsapp_opt_in_at",
             "children",
             # Writable profile fields:
             "first_name",

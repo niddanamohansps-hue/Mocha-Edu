@@ -17,7 +17,14 @@ import logging
 from django.db import connection, transaction
 from django_tenants.utils import get_public_schema_name
 
-from notifications.alerts import dispatch_alert, resolve_alert_recipients
+from django.conf import settings as django_settings
+
+from notifications.alerts import (
+    dispatch_alert,
+    dispatch_whatsapp_alert,
+    resolve_alert_recipients,
+    resolve_whatsapp_recipients,
+)
 from notifications.models import AlertLog, NotificationSettings
 
 logger = logging.getLogger(__name__)
@@ -28,6 +35,23 @@ LINK = "/dashboard/attendance/history"
 
 def _key(student_id, day):
     return f"{AlertLog.Kind.ABSENCE}:{student_id}:{day.isoformat()}"
+
+
+def _send_whatsapp_absence(student, day, when):
+    """The WhatsApp copy of an absence alert, for parents who opted in. Never raises."""
+    try:
+        name = f"{student.profile.first_name} {student.profile.last_name}".strip()
+        for recipient in resolve_whatsapp_recipients(student):
+            dispatch_whatsapp_alert(
+                kind=AlertLog.Kind.ABSENCE,
+                dedupe_key=_key(student.id, day),
+                recipient=recipient,
+                student=student,
+                template=django_settings.WHATSAPP_TEMPLATE_ABSENCE,
+                params=[name, str(when)],
+            )
+    except Exception:
+        logger.exception("Could not queue a WhatsApp absence alert (student %s).", student.id)
 
 
 def send_absence_alerts_for_session(session_id, *, today=None):
@@ -58,6 +82,7 @@ def send_absence_alerts_for_session(session_id, *, today=None):
     for mark in marks:
         student = mark.student
         summary["absent"] += 1
+        _send_whatsapp_absence(student, session.date, when)
         recipients = resolve_alert_recipients(student)
         if not recipients:
             summary["no_recipient"] += 1

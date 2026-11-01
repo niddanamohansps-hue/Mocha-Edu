@@ -74,6 +74,37 @@ def notify_many(*, recipient_user_ids, title, body="", category="", link=""):
     return created
 
 
+def queue_whatsapp(*, to_phone, template, params, language=None):
+    """
+    Queues one WhatsApp template message through the outbox, exactly as queue_email() does for email: the row is
+    written in the caller's transaction and the Celery task is only dispatched once that has committed. A
+    dispatch failure leaves the event PENDING and is logged; nothing is raised into the caller.
+    """
+    from django.conf import settings
+
+    from .models import WhatsAppOutboxEvent
+    from .tasks import send_whatsapp_event
+
+    event = WhatsAppOutboxEvent.objects.create(
+        to_phone=to_phone,
+        template=template,
+        language=language or getattr(settings, "WHATSAPP_TEMPLATE_LANGUAGE", "en"),
+        params=[str(p) for p in params],
+    )
+    schema_name = connection.schema_name
+
+    def _dispatch():
+        try:
+            send_whatsapp_event.delay(schema_name, str(event.id))
+        except (CeleryError, KombuError) as exc:
+            logger.warning(
+                "Failed to dispatch WhatsAppOutboxEvent %s (schema=%s); it stays PENDING: %s", event.id, schema_name, exc
+            )
+
+    transaction.on_commit(_dispatch)
+    return event
+
+
 def queue_email(*, to_email, subject, body):
     """
     Queues an email for async delivery via the transactional outbox:

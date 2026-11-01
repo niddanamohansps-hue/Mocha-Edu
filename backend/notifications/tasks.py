@@ -148,7 +148,7 @@ def recover_stale_outbox_events():
     Iterates every tenant schema explicitly since, like the task above, a
     periodic task has no per-request tenant context to rely on.
     """
-    from .models import EmailOutboxEvent
+    from .models import EmailOutboxEvent, WhatsAppOutboxEvent
 
     cutoff = timezone.now() - timedelta(minutes=STALE_THRESHOLD_MINUTES)
     recovered = 0
@@ -161,6 +161,14 @@ def recover_stale_outbox_events():
             )
             for event in stale_events:
                 send_outbox_email.delay(tenant.schema_name, str(event.id))
+                recovered += 1
+            # WhatsApp messages stuck the same way get the same second chance.
+            stale_whatsapp = WhatsAppOutboxEvent.objects.filter(
+                status__in=[WhatsAppOutboxEvent.Status.PENDING, WhatsAppOutboxEvent.Status.RETRYING],
+                updated_at__lt=cutoff,
+            )
+            for event in stale_whatsapp:
+                send_whatsapp_event.delay(tenant.schema_name, str(event.id))
                 recovered += 1
 
     if recovered:
@@ -177,3 +185,43 @@ def send_push_notifications(schema_name, notification_ids):
 
     with schema_context(schema_name):
         return send(notification_ids)
+
+
+@shared_task(bind=True, max_retries=3, acks_late=True, reject_on_worker_lost=True)
+def send_whatsapp_event(self, schema_name, event_id):
+    """Deliver one WhatsAppOutboxEvent, with the same retry and terminal-state rules as send_outbox_email."""
+    from .models import WhatsAppOutboxEvent
+    from .whatsapp import WhatsAppError, send_template
+
+    with schema_context(schema_name):
+        event = WhatsAppOutboxEvent.objects.filter(id=event_id).first()
+        if event is None:
+            logger.error("WhatsAppOutboxEvent %s not found in schema %s", event_id, schema_name)
+            return
+        if event.status in (WhatsAppOutboxEvent.Status.SENT, WhatsAppOutboxEvent.Status.FAILED):
+            return  # already finished; a duplicate or late dispatch does nothing
+
+        try:
+            message_id = send_template(event.to_phone, event.template, event.language, event.params)
+        except Exception as exc:
+            permanent = isinstance(exc, WhatsAppError) and exc.permanent
+            event.attempts += 1
+            event.last_error = str(exc)[:1000]
+            event.error_type = "permanent" if permanent else "temporary"
+            if permanent or event.attempts >= event.max_attempts:
+                event.status = WhatsAppOutboxEvent.Status.FAILED
+                event.next_attempt_at = None
+                event.save(update_fields=["attempts", "last_error", "error_type", "status", "next_attempt_at", "updated_at"])
+                logger.error("WhatsAppOutboxEvent %s failed (%s): %s", event_id, event.error_type, event.last_error)
+                return
+            countdown = _backoff_seconds(event.attempts)
+            event.status = WhatsAppOutboxEvent.Status.RETRYING
+            event.next_attempt_at = timezone.now() + timedelta(seconds=countdown)
+            event.save(update_fields=["attempts", "last_error", "error_type", "status", "next_attempt_at", "updated_at"])
+            raise self.retry(exc=exc, countdown=countdown)
+
+        event.status = WhatsAppOutboxEvent.Status.SENT
+        event.provider_message_id = message_id
+        event.sent_at = timezone.now()
+        event.next_attempt_at = None
+        event.save(update_fields=["status", "provider_message_id", "sent_at", "next_attempt_at", "updated_at"])

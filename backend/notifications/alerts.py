@@ -17,7 +17,8 @@ from django.db import IntegrityError, connection, transaction
 from django_tenants.utils import get_public_schema_name
 
 from .models import AlertLog
-from .services import notify, queue_email
+from .services import notify, queue_email, queue_whatsapp
+from .whatsapp import mask_phone, normalize_phone, whatsapp_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -186,4 +187,73 @@ def dispatch_alert(
         log.outbox_event = event
         log.save(update_fields=["notification_id", "outbox_event"])
 
+    return AlertResult(created=True, log=log)
+
+
+@dataclass(frozen=True)
+class WhatsAppRecipient:
+    parent_id: object
+    phone: str
+
+
+def resolve_whatsapp_recipients(student):
+    """
+    Parents of ``student`` who agreed to WhatsApp messages (``Parent.whatsapp_opt_in``) and have a usable phone
+    number on their profile. No portal login is needed. Returns nothing at all while WhatsApp is not enabled in
+    settings, so a school that has not set it up never has a message queued.
+    """
+    if not whatsapp_enabled():
+        return []
+    from families.models import StudentParentRelation
+
+    recipients, seen = [], set()
+    links = StudentParentRelation.objects.filter(student=student).select_related("parent__profile")
+    for link in links:
+        parent = link.parent
+        if not parent.whatsapp_opt_in:
+            continue
+        phone = normalize_phone(parent.profile.phone)
+        if not phone or phone in seen:
+            continue
+        seen.add(phone)
+        recipients.append(WhatsAppRecipient(parent_id=parent.id, phone=phone))
+    return recipients
+
+
+def dispatch_whatsapp_alert(*, kind, dedupe_key, recipient, student, template, params):
+    """
+    Sends one WhatsApp alert to one parent exactly once, using the same claim-by-AlertLog idempotency as
+    ``dispatch_alert``. The log row and the outbox event commit or roll back together.
+    """
+    if connection.schema_name == get_public_schema_name():
+        raise AlertError("Alerts can only be dispatched inside a tenant schema.")
+    if kind not in AlertLog.Kind.values:
+        raise AlertError(f"Unknown alert kind: {kind!r}")
+    if not dedupe_key or len(dedupe_key) > KEY_MAX:
+        raise AlertError(f"dedupe_key must be 1-{KEY_MAX} characters.")
+    if recipient is None or not recipient.parent_id or not recipient.phone:
+        raise AlertError("A parent recipient with a phone number is required.")
+
+    with transaction.atomic():
+        try:
+            with transaction.atomic():
+                log = AlertLog.objects.create(
+                    kind=kind,
+                    dedupe_key=dedupe_key,
+                    recipient_user_id=recipient.parent_id,
+                    recipient_hint=mask_phone(recipient.phone),
+                    student_id=student.id,
+                    enrollment_id=student.enrollment_id or "",
+                )
+        except IntegrityError:
+            existing = AlertLog.objects.filter(
+                kind=kind, dedupe_key=dedupe_key, recipient_user_id=recipient.parent_id
+            ).first()
+            if existing is None:
+                raise
+            return AlertResult(created=False, log=existing)
+
+        event = queue_whatsapp(to_phone=recipient.phone, template=template, params=params)
+        log.whatsapp_event = event
+        log.save(update_fields=["whatsapp_event"])
     return AlertResult(created=True, log=log)

@@ -120,6 +120,47 @@ class EmailOutboxEvent(models.Model):
         return f"{self.to_email} [{self.status}]"
 
 
+class WhatsAppOutboxEvent(models.Model):
+    """
+    Transactional outbox for WhatsApp template messages, the same shape as EmailOutboxEvent: written in the
+    caller's transaction, dispatched to Celery only once that has committed, retried with backoff on temporary
+    failures and ended in SENT or FAILED. "Sent" means the provider accepted the message; delivery and read
+    receipts are not tracked yet.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        RETRYING = "retrying", "Retrying"
+        SENT = "sent", "Sent"
+        FAILED = "failed", "Failed"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    to_phone = models.CharField(max_length=20)
+    template = models.CharField(max_length=100)
+    language = models.CharField(max_length=10, default="en")
+    params = models.JSONField(default=list)
+
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING, db_index=True)
+    attempts = models.PositiveIntegerField(default=0)
+    max_attempts = models.PositiveIntegerField(default=3)
+    last_error = models.TextField(blank=True)
+    error_type = models.CharField(max_length=10, blank=True)
+    next_attempt_at = models.DateTimeField(null=True, blank=True)
+    provider_message_id = models.CharField(max_length=100, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["status", "updated_at"], name="wa_outbox_status_updated_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.template} [{self.status}]"
+
+
 class NotificationSettings(models.Model):
     """
     Per-school alert settings: exactly one row per tenant schema, enforced by the
@@ -261,6 +302,11 @@ class AlertLog(models.Model):
     outbox_event = models.ForeignKey(
         EmailOutboxEvent, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
     )
+    # Set for a WhatsApp alert. Its recipient_user_id then holds the parent's id (parents need no login to be
+    # messaged on WhatsApp), which cannot collide with a user id.
+    whatsapp_event = models.ForeignKey(
+        WhatsAppOutboxEvent, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -278,9 +324,11 @@ class AlertLog(models.Model):
     def delivery_status(self):
         """The outbox event's own status (pending / retrying / sent / failed), or
         ``in_app_only`` when no email was queued."""
-        if self.outbox_event_id is None:
-            return self.IN_APP_ONLY
-        return self.outbox_event.status
+        if self.outbox_event_id is not None:
+            return self.outbox_event.status
+        if self.whatsapp_event_id is not None:
+            return self.whatsapp_event.status
+        return self.IN_APP_ONLY
 
 
 class PushSubscription(models.Model):

@@ -345,6 +345,19 @@ DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="noreply@edusekai.loca
 # remain). The matching public site key is NEXT_PUBLIC_TURNSTILE_SITE_KEY in the tenant frontend.
 TURNSTILE_SECRET_KEY = config("TURNSTILE_SECRET_KEY", default="")
 
+# WhatsApp alerts (Meta WhatsApp Business Cloud API). WHATSAPP_PROVIDER is "disabled" (default: nothing is
+# queued or sent), "console" (development: messages are only logged) or "meta" (real delivery). Business-started
+# messages must use templates approved in the Meta dashboard; the names below must match them exactly.
+WHATSAPP_PROVIDER = config("WHATSAPP_PROVIDER", default="disabled")
+WHATSAPP_PHONE_NUMBER_ID = config("WHATSAPP_PHONE_NUMBER_ID", default="")
+WHATSAPP_ACCESS_TOKEN = config("WHATSAPP_ACCESS_TOKEN", default="")
+WHATSAPP_API_VERSION = config("WHATSAPP_API_VERSION", default="v21.0")
+WHATSAPP_DEFAULT_COUNTRY_CODE = config("WHATSAPP_DEFAULT_COUNTRY_CODE", default="91")
+WHATSAPP_TEMPLATE_LANGUAGE = config("WHATSAPP_TEMPLATE_LANGUAGE", default="en")
+WHATSAPP_TEMPLATE_FEE_DUE = config("WHATSAPP_TEMPLATE_FEE_DUE", default="fee_due_reminder")
+WHATSAPP_TEMPLATE_FEE_OVERDUE = config("WHATSAPP_TEMPLATE_FEE_OVERDUE", default="fee_overdue_reminder")
+WHATSAPP_TEMPLATE_ABSENCE = config("WHATSAPP_TEMPLATE_ABSENCE", default="absence_alert")
+
 # JWT
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(
