@@ -64,6 +64,10 @@ class Examination(models.Model):
     date_sheet_published_at = models.DateTimeField(null=True, blank=True)
     date_sheet_version = models.PositiveIntegerField(default=0)
 
+    # The day by which teachers should have entered every paper's marks. Optional; drives the progress board and
+    # the automatic reminders.
+    marks_due_date = models.DateField(null=True, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -510,6 +510,11 @@ CELERY_BEAT_SCHEDULE = {
         "task": "fees.tasks.send_fee_reminders",
         "schedule": crontab(hour=2, minute=30),
     },
+    # Teachers whose exam marks are due within a day or late, once a day (02:30 UTC = 08:00 in India).
+    "remind-pending-exam-marks": {
+        "task": "examinations.tasks.remind_pending_marks",
+        "schedule": crontab(hour=2, minute=30),
+    },
 }
 
 # CORS

@@ -35,7 +35,7 @@ class ExaminationSerializer(serializers.ModelSerializer):
             "id", "academic_year", "name", "exam_type", "exam_type_name",
             "start_date", "end_date", "is_published", "published_at", "publication_requested_by_user_id",
             "publication_requested_at", "published_by_user_id", "date_sheet_published_at", "date_sheet_version",
-            "created_at", "updated_at",
+            "marks_due_date", "created_at", "updated_at",
         ]
         read_only_fields = ["id", "is_published", "published_at", "publication_requested_by_user_id",
                             "publication_requested_at", "published_by_user_id", "date_sheet_published_at",

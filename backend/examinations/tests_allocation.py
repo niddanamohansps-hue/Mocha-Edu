@@ -507,3 +507,123 @@ class DateSheetTests(AllocationBase):
             self._publish()  # provider is "disabled" by default
             self.assertEqual(WhatsAppOutboxEvent.objects.count(), 0)
             self.assertEqual(Notification.objects.filter(recipient_user_id=self.parent_user.id).count(), 1)
+
+
+class MarksProgressTests(AllocationBase):
+    def setUp(self):
+        super().setUp()
+        from academics.models import SubjectAssignment
+
+        with tenant_context(self.school):
+            # A teacher with a login for each of the first two papers (the same teacher for class A's Math).
+            self.t_user = User.objects.create_user(username=f"tm_{uuid.uuid4().hex[:5]}@s.com", password="Password123!")
+            self.teacher = self.teachers[4]
+            self.teacher.profile.user_id = self.t_user.id
+            self.teacher.profile.save()
+            SubjectAssignment.objects.create(section=self.section_a, subject=self.math, instructor=self.teacher.instructor_record)
+            SubjectAssignment.objects.create(section=self.section_b, subject=self.english, instructor=self.teacher.instructor_record)
+            self.exam.marks_due_date = datetime.date(2026, 6, 10)
+            self.exam.save()
+
+    def _enter(self, paper, students, marks="50", attendance="present"):
+        from .models import ExamMark
+
+        for student in students:
+            ExamMark.objects.create(
+                exam_schedule=paper, student=student, marks_obtained=None if attendance != "present" and marks is None else marks,
+                attendance=attendance,
+            )
+
+    def _progress(self, today=datetime.date(2026, 6, 5)):
+        from .progress import schedule_progress
+
+        return schedule_progress(self.exam, today)
+
+    def test_progress_counts_scores_and_recorded_absences_but_not_blank_marks(self):
+        with tenant_context(self.school):
+            first = {row["subject"] + row["class"]: row for row in self._progress()["rows"]}
+            self.assertEqual(first["MathGrade 10 A"]["state"], "not_started")
+
+            self._enter(self.paper_a, self.students_a[:2])  # two scored
+            self._enter(self.paper_a, self.students_a[2:3], marks=None, attendance="absent")  # one absent counts
+            from .models import ExamMark
+
+            ExamMark.objects.create(exam_schedule=self.paper_a, student=self.students_a[3], marks_obtained=None)  # blank
+            row = next(r for r in self._progress()["rows"] if r["subject"] == "Math" and r["class"] == "Grade 10 A")
+            self.assertEqual((row["entered"], row["expected"], row["state"]), (3, 4, "in_progress"))
+            self.assertEqual(row["teachers"], ["T5 Teacher"])
+
+            ExamMark.objects.filter(exam_schedule=self.paper_a, student=self.students_a[3]).update(marks_obtained="40")
+            row = next(r for r in self._progress()["rows"] if r["class"] == "Grade 10 A")
+            self.assertEqual((row["entered"], row["state"]), (4, "complete"))
+
+    def test_papers_are_overdue_only_after_the_due_date_and_never_when_complete_or_locked(self):
+        with tenant_context(self.school):
+            self._enter(self.paper_a, self.students_a)  # class A Math complete
+            self.paper_b2.is_locked = True
+            self.paper_b2.save()
+            before = self._progress(datetime.date(2026, 6, 10))
+            self.assertEqual(before["summary"]["overdue"], 0)  # the due day itself is not late
+            after = self._progress(datetime.date(2026, 6, 11))
+            by_class = {(r["subject"], r["class"]): r for r in after["rows"]}
+            self.assertFalse(by_class[("Math", "Grade 10 A")]["overdue"])  # complete
+            self.assertFalse(by_class[("Math", "Grade 10 B")]["overdue"])  # locked
+            self.assertTrue(by_class[("English", "Grade 10 B")]["overdue"])  # untouched and late
+            self.assertEqual(after["summary"]["overdue"], 1)
+
+    def test_reminders_go_to_assigned_teachers_once_and_note_unassigned_papers(self):
+        from .progress import remind_pending_marks
+
+        with tenant_context(self.school):
+            self._enter(self.paper_a, self.students_a[:1])
+            first = remind_pending_marks(self.exam, datetime.date(2026, 6, 11))
+            self.assertEqual(first["teachers"], 1)
+            self.assertEqual(first["unassigned"], 1)  # class B's Math (paper_b2) has no teacher assigned
+            note = Notification.objects.get(recipient_user_id=self.t_user.id)
+            self.assertIn("Marks pending", note.title)
+            self.assertIn("Math Grade 10 A (1/4)", note.body)
+            self.assertIn("It was due on 10 Jun 2026", note.body)
+
+            again = remind_pending_marks(self.exam, datetime.date(2026, 6, 11))
+            self.assertEqual((again["teachers"], again["already_reminded"]), (0, 1))
+            self.assertEqual(Notification.objects.filter(recipient_user_id=self.t_user.id).count(), 1)
+
+    def test_nothing_is_sent_when_everything_is_in(self):
+        from .progress import remind_pending_marks
+
+        with tenant_context(self.school):
+            self._enter(self.paper_a, self.students_a)
+            self._enter(self.paper_b, self.students_b)
+            self._enter(self.paper_b2, self.students_b)
+            self.assertEqual(remind_pending_marks(self.exam)["teachers"], 0)
+            self.assertEqual(Notification.objects.filter(recipient_user_id=self.t_user.id).count(), 0)
+
+    def test_the_api_shows_progress_and_only_managers_can_send_reminders(self):
+        from .allocation_views import MarksProgressView
+        from .views import ExaminationViewSet
+
+        with tenant_context(self.school):
+            request = self.factory.get("/x/", {"examination": str(self.exam.pk)})
+            request.tenant = self.school
+            force_authenticate(request, user=self.owner)
+            data = MarksProgressView.as_view()(request).data
+            self.assertEqual(data["summary"]["papers"], 3)
+            self.assertEqual(str(data["due_date"]), "2026-06-10")
+
+            denied = self._call(ExaminationViewSet, {"post": "remind_marks"}, "post", self.clerk, {}, pk=str(self.exam.pk))
+            self.assertEqual(denied.status_code, 403)
+            sent = self._call(ExaminationViewSet, {"post": "remind_marks"}, "post", self.owner, {}, pk=str(self.exam.pk))
+            self.assertEqual(sent.status_code, 200, sent.data)
+            self.assertEqual(sent.data["teachers"], 1)
+
+    def test_the_daily_job_only_chases_examinations_that_are_due_or_late(self):
+        from .progress import remind_all_schools
+
+        with tenant_context(self.school):
+            # Due on 10 June: nothing on the 5th, a reminder on the 9th (due within a day).
+            from unittest import mock
+
+            with mock.patch("examinations.progress.school_today", return_value=datetime.date(2026, 6, 5)):
+                self.assertEqual(remind_all_schools()["examinations"], 0)
+            with mock.patch("examinations.progress.school_today", return_value=datetime.date(2026, 6, 9)):
+                self.assertEqual(remind_all_schools(), {"examinations": 1, "teachers": 1})

@@ -149,3 +149,16 @@ class AdmitCardsView(APIView):
         examination = get_object_or_404(Examination, pk=request.query_params.get("examination"))
         section = get_object_or_404(Section.objects.select_related("level"), pk=request.query_params.get("section"))
         return Response(allocation.build_admit_cards(examination, section))
+
+
+class MarksProgressView(APIView):
+    """How far marks entry has got for an examination, paper by paper."""
+
+    def get_permissions(self):
+        return [IsAuthenticated(), HasPermission("view_examinations")]
+
+    def get(self, request):
+        from .progress import schedule_progress
+
+        examination = get_object_or_404(Examination, pk=request.query_params.get("examination"))
+        return Response(schedule_progress(examination))

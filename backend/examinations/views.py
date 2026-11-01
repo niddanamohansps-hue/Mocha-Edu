@@ -117,6 +117,19 @@ class ExaminationViewSet(viewsets.ModelViewSet):
         _tell_publishers(examination, exclude=request.user.id)
         return Response(ExaminationSerializer(examination).data)
 
+    @action(detail=True, methods=["post"], url_path="remind-marks")
+    def remind_marks(self, request, pk=None):
+        """Send each assigned teacher who has papers left to finish a reminder."""
+        from .progress import remind_pending_marks
+
+        examination = self.get_object()
+        if examination.is_published:
+            return Response({"error": "Results are already published."}, status=status.HTTP_400_BAD_REQUEST)
+        result = remind_pending_marks(examination)
+        log_action(request, action="marks_reminders_sent", model_name="Examination", object_id=examination.id,
+                   changes=result)
+        return Response(result)
+
     @action(detail=True, methods=["post"], url_path="publish-date-sheet")
     def publish_date_sheet(self, request, pk=None):
         """Tell the students and parents of every class sitting this examination that the date sheet is out."""
