@@ -162,3 +162,32 @@ class MarksProgressView(APIView):
 
         examination = get_object_or_404(Examination, pk=request.query_params.get("examination"))
         return Response(schedule_progress(examination))
+
+
+class RankListView(APIView):
+    """A merit list for one section, or for a whole class, from the published results."""
+
+    def get_permissions(self):
+        return [IsAuthenticated(), HasPermission("view_results")]
+
+    def get(self, request):
+        from academics.models import AcademicLevel, Section
+
+        from .ranking import rank_list
+
+        examination = get_object_or_404(Examination, pk=request.query_params.get("examination"))
+        section = (
+            get_object_or_404(Section.objects.select_related("level"), pk=request.query_params["section"])
+            if request.query_params.get("section") else None
+        )
+        level = get_object_or_404(AcademicLevel, pk=request.query_params["level"]) if request.query_params.get("level") else None
+        try:
+            return Response(
+                rank_list(
+                    examination, section=section, level=level,
+                    include_failed=_bool(request.query_params.get("include_failed"), False),
+                    top=_int(request.query_params.get("top"), 3),
+                )
+            )
+        except allocation.AllocationError as exc:
+            raise _fail(exc)

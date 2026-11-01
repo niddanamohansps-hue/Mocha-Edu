@@ -1,7 +1,7 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from .allocation_views import AdmitCardsView, DutyRosterView, MarksProgressView, ExamInvigilationViewSet, ExamSittingViewSet, MyDutiesView
+from .allocation_views import AdmitCardsView, DutyRosterView, MarksProgressView, RankListView, ExamInvigilationViewSet, ExamSittingViewSet, MyDutiesView
 from .views import (
     BelowPassingReportView,
     CoScholasticActivityViewSet,
@@ -54,6 +54,7 @@ urlpatterns = [
     path("my-duties/", MyDutiesView.as_view(), name="exam-my-duties"),
     path("admit-cards/", AdmitCardsView.as_view(), name="exam-admit-cards"),
     path("marks-progress/", MarksProgressView.as_view(), name="exam-marks-progress"),
+    path("rank-list/", RankListView.as_view(), name="exam-rank-list"),
     path("reports/below-passing/", BelowPassingReportView.as_view(), name="below-passing-report"),
     path("", include(router.urls)),
 ]

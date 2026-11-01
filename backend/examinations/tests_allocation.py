@@ -627,3 +627,70 @@ class MarksProgressTests(AllocationBase):
                 self.assertEqual(remind_all_schools()["examinations"], 0)
             with mock.patch("examinations.progress.school_today", return_value=datetime.date(2026, 6, 9)):
                 self.assertEqual(remind_all_schools(), {"examinations": 1, "teachers": 1})
+
+
+class RankListTests(AllocationBase):
+    def _result(self, student, percentage, passed=True):
+        from .models import ExamResult
+
+        return ExamResult.objects.create(
+            examination=self.exam, student=student, academic_year="2026",
+            total_marks_obtained=Decimal(percentage), total_max_marks=Decimal("100"), percentage=Decimal(percentage),
+            overall_grade="A", is_pass=passed,
+        )
+
+    def _publish(self):
+        self.exam.is_published = True
+        self.exam.save()
+
+    def _ranks(self, user=None, **params):
+        from .allocation_views import RankListView
+
+        request = self.factory.get("/x/", {"examination": str(self.exam.pk), **params})
+        request.tenant = self.school
+        force_authenticate(request, user=user or self.owner)
+        return RankListView.as_view()(request)
+
+    def test_ties_share_a_rank_and_the_next_rank_is_skipped(self):
+        with tenant_context(self.school):
+            a1, a2, a3, a4 = self.students_a
+            self._result(a1, "90")
+            self._result(a2, "85")
+            self._result(a3, "85")
+            self._result(a4, "70")
+            self._publish()
+            data = self._ranks(section=str(self.section_a.pk)).data
+            self.assertEqual(data["title"], "Grade 10 A")
+            self.assertEqual([(r["name"], r["rank"]) for r in data["rows"]],
+                             [("A1 Pupil", 1), ("A2 Pupil", 2), ("A3 Pupil", 2), ("A4 Pupil", 4)])
+            self.assertEqual([r["rank"] for r in data["toppers"]], [1, 2, 2])  # the top three places, ties included
+
+    def test_failed_students_are_listed_unranked_unless_asked_for(self):
+        with tenant_context(self.school):
+            a1, a2, a3, _ = self.students_a
+            self._result(a1, "80")
+            self._result(a2, "20", passed=False)
+            self._result(a3, "60")
+            self._publish()
+            default = self._ranks(section=str(self.section_a.pk)).data["rows"]
+            self.assertEqual([(r["name"], r["rank"]) for r in default], [("A1 Pupil", 1), ("A3 Pupil", 2), ("A2 Pupil", None)])
+            everyone = self._ranks(section=str(self.section_a.pk), include_failed="true").data["rows"]
+            self.assertEqual([r["rank"] for r in everyone], [1, 2, 3])
+
+    def test_a_class_list_ranks_across_its_sections(self):
+        with tenant_context(self.school):
+            self._result(self.students_a[0], "70")
+            self._result(self.students_b[0], "95")
+            self._publish()
+            rows = self._ranks(level=str(self.section_a.level.pk)).data["rows"]
+            self.assertEqual([(r["name"], r["class"], r["rank"]) for r in rows],
+                             [("B1 Pupil", "Grade 10 B", 1), ("A1 Pupil", "Grade 10 A", 2)])
+
+    def test_nothing_is_ranked_before_publication_or_without_a_scope_or_permission(self):
+        with tenant_context(self.school):
+            self._result(self.students_a[0], "70")
+            self.assertEqual(self._ranks(section=str(self.section_a.pk)).status_code, 400)  # not published
+            self._publish()
+            self.assertEqual(self._ranks().status_code, 400)  # neither section nor class
+            self.assertEqual(self._ranks(section=str(self.section_a.pk), level=str(self.section_a.level.pk)).status_code, 400)
+            self.assertEqual(self._ranks(self.clerk, section=str(self.section_a.pk)).status_code, 403)
