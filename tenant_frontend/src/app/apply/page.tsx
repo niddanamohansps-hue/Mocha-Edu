@@ -206,7 +206,7 @@ export default function PublicApplyPage() {
     const schoolName = info?.institution?.name || "EduSekai Partner School";
 
     return (
-        <div className="min-h-screen bg-slate-50/70 dark:bg-slate-950 text-slate-900 dark:text-slate-100 selection:bg-blue-500 selection:text-white">
+        <div className="h-screen overflow-y-auto bg-slate-50/70 dark:bg-slate-950 text-slate-900 dark:text-slate-100 selection:bg-blue-500 selection:text-white">
             {/* Top Navigation Bar */}
             <header className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800">
                 <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
