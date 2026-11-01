@@ -190,6 +190,12 @@ export const getMenuItems = (
     if (can("manage_grading")) {
         examinationChildren.push({ label: "Grading", href: "/dashboard/examinations/grading" });
     }
+    if (can("manage_examinations") || can("view_examinations")) {
+        examinationChildren.push({ label: "Term Weightage", href: "/dashboard/examinations/term-weightage" });
+    }
+    if (can("manage_examinations") || can("enter_marks")) {
+        examinationChildren.push({ label: "Co-scholastic", href: "/dashboard/examinations/co-scholastic" });
+    }
     // Prepare papers
     if (can("view_question_bank") || can("create_questions") || can("review_questions") || can("manage_question_bank")) {
         examinationChildren.push({ label: "Question Bank", href: "/dashboard/question-bank" });
@@ -203,6 +209,9 @@ export const getMenuItems = (
     // Exam day
     if (can("manage_exam_allocation") || can("view_examinations")) {
         examinationChildren.push({ label: "Rooms & Invigilators", href: "/dashboard/examinations/allocation" });
+    }
+    if (can("manage_examinations") || can("manage_exam_allocation")) {
+        examinationChildren.push({ label: "Admit Cards", href: "/dashboard/examinations/admit-cards" });
     }
     if (user?.active_role === "staff" || user?.active_role === "instructor" || can("manage_exam_allocation")) {
         examinationChildren.push({ label: "Exam Duties", href: "/dashboard/examinations/duties" });
@@ -503,9 +512,9 @@ const CHILD_ORDER: Record<string, string[]> = {
     Attendance: ["Mark Attendance", "History", "Reports", "Staff Attendance", "Attendance Settings"],
     Timetable: ["Timetable", "My Schedule", "Substitutions"],
     Examinations: [
-        "Examinations", "Grading",
+        "Examinations", "Grading", "Term Weightage", "Co-scholastic",
         "Question Bank", "Questions to Review", "Question Papers",
-        "Rooms & Invigilators", "Exam Duties",
+        "Rooms & Invigilators", "Admit Cards", "Exam Duties",
         "Marks Entry", "Results", "Rechecks",
     ],
     Fees: ["Student Fees / Collect Payment", "Outstanding Report", "My Fees", "Fee Structures", "Payment Gateways"],

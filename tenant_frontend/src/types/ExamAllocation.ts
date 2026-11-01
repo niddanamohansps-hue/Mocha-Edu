@@ -58,3 +58,26 @@ export interface DutyRow {
     room: string;
     role: "chief" | "invigilator" | "relief";
 }
+
+export interface AdmitCardPaper {
+    subject: string;
+    date: string;
+    start_time: string;
+    end_time: string;
+    room: string;
+    seat: number | null;
+}
+
+export interface AdmitCard {
+    student_id: string;
+    name: string;
+    enrollment_id: string;
+    class: string;
+    papers: AdmitCardPaper[];
+}
+
+export interface AdmitCardData {
+    examination: { id: string; name: string; start_date: string; end_date: string };
+    class: string;
+    cards: AdmitCard[];
+}

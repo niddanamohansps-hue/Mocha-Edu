@@ -12,6 +12,7 @@ import {
     useExamSchedules,
     useExamTypes,
     useLockExamSchedule,
+    usePublishDateSheet,
     usePublishExamination,
     useExaminationSettings,
     useRequestPublication,
@@ -27,6 +28,8 @@ import {
     Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import Unauthorized from "@/components/Unauthorized";
+import { ScheduleComponentsDialog } from "@/components/dashboard/examinations/ScheduleComponentsDialog";
+import { ConfirmationDialog } from "@/components/feedback/ConfirmationDialog";
 import { LoadingState } from "@/components/feedback/LoadingState";
 import { EmptyState } from "@/components/feedback/EmptyState";
 import { ErrorState } from "@/components/feedback/ErrorState";
@@ -54,6 +57,8 @@ export default function ExaminationsPage() {
     const { mutate: createSchedule, isPending: isCreatingSchedule } = useCreateExamSchedule();
     const { mutate: lockSchedule } = useLockExamSchedule();
     const { mutate: publish, isPending: isPublishing } = usePublishExamination();
+    const publishDateSheet = usePublishDateSheet();
+    const [confirmDateSheet, setConfirmDateSheet] = useState(false);
     const examSettings = useExaminationSettings();
     const updateSettings = useUpdateExaminationSettings();
     const requestPublication = useRequestPublication();
@@ -65,6 +70,7 @@ export default function ExaminationsPage() {
     const [newTypeName, setNewTypeName] = useState("");
 
     const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
+    const [partsFor, setPartsFor] = useState<string | null>(null);
     const [scheduleForm, setScheduleForm] = useState({
         subject: "", section: "", date: "", start_time: "", end_time: "",
         period: "", room: "", max_marks: "100", pass_marks: "40",
@@ -185,6 +191,11 @@ export default function ExaminationsPage() {
                                     <Plus className="h-4 w-4" /> Add Schedule
                                 </Button>
                             )}
+                            {canManage && !selectedExam.is_published && (schedules?.length ?? 0) > 0 && (
+                                <Button variant="outline" onClick={() => setConfirmDateSheet(true)} disabled={publishDateSheet.isPending}>
+                                    {selectedExam.date_sheet_version > 0 ? "Announce date sheet again" : "Announce date sheet"}
+                                </Button>
+                            )}
                             {twoPerson && canManage && !selectedExam.is_published && !selectedExam.publication_requested_by_user_id && (
                                 <Button variant="outline" onClick={() => requestPublication.mutate(selectedExam.id)} disabled={requestPublication.isPending}>
                                     Request publication
@@ -202,6 +213,13 @@ export default function ExaminationsPage() {
                         </div>
                     </div>
 
+                    {selectedExam.date_sheet_published_at && (
+                        <p className="text-sm text-slate-500">
+                            Date sheet announced on {new Date(selectedExam.date_sheet_published_at).toLocaleString()}
+                            {selectedExam.date_sheet_version > 1 ? ` (announcement ${selectedExam.date_sheet_version})` : ""}.
+                        </p>
+                    )}
+
                     {loadingSchedules ? (
                         <LoaderCircle className="h-6 w-6 animate-spin text-indigo-600" />
                     ) : (
@@ -215,6 +233,7 @@ export default function ExaminationsPage() {
                                         <th className="px-4 py-3">Time</th>
                                         <th className="px-4 py-3">Room</th>
                                         <th className="px-4 py-3">Max/Pass</th>
+                                        <th className="px-4 py-3">Score parts</th>
                                         <th className="px-4 py-3">Lock</th>
                                     </tr>
                                 </thead>
@@ -227,6 +246,13 @@ export default function ExaminationsPage() {
                                             <td className="px-4 py-2 text-slate-500">{s.start_time}-{s.end_time}</td>
                                             <td className="px-4 py-2 text-slate-500">{s.room_name || "—"}</td>
                                             <td className="px-4 py-2 text-slate-500">{s.max_marks}/{s.pass_marks}</td>
+                                            <td className="px-4 py-2">
+                                                <Button size="sm" variant="ghost" onClick={() => setPartsFor(s.id)}>
+                                                    {s.components && s.components.length > 0
+                                                        ? s.components.map((c) => c.code).join(" + ")
+                                                        : canManage ? "Add" : "None"}
+                                                </Button>
+                                            </td>
                                             <td className="px-4 py-2">
                                                 {canManage && (
                                                     <Button
@@ -244,6 +270,30 @@ export default function ExaminationsPage() {
                         </div>
                     )}
                 </div>
+            )}
+
+            {selectedExam && (
+                <ConfirmationDialog
+                    open={confirmDateSheet}
+                    onOpenChange={setConfirmDateSheet}
+                    title="Announce the date sheet?"
+                    description={
+                        selectedExam.date_sheet_version > 0
+                            ? "Students and parents were already told. This tells everyone again, so only do it after a change."
+                            : "Every student of the classes sitting this examination, and their linked parents, get a notice (and a WhatsApp message where a parent agreed to it)."
+                    }
+                    confirmLabel="Announce"
+                    isLoading={publishDateSheet.isPending}
+                    onConfirm={() => publishDateSheet.mutate(selectedExam.id, { onSuccess: () => setConfirmDateSheet(false) })}
+                />
+            )}
+
+            {partsFor && schedules?.find((s) => s.id === partsFor) && (
+                <ScheduleComponentsDialog
+                    schedule={schedules.find((s) => s.id === partsFor)!}
+                    canEdit={canManage && !selectedExam?.is_published}
+                    onClose={() => setPartsFor(null)}
+                />
             )}
 
             <Dialog open={examDialogOpen} onOpenChange={setExamDialogOpen}>

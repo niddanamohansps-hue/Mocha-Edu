@@ -140,6 +140,21 @@ export const usePublishExamination = () => {
     });
 };
 
+export const usePublishDateSheet = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (id: string) => {
+            const response = await axiosInstance.post(`/examinations/examinations/${id}/publish-date-sheet/`);
+            return response.data as Examination;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["examinations"] });
+            toast.success("Date sheet announced to students and parents");
+        },
+        onError: (error: any) => toast.error(errorMessage(error, "Failed to announce the date sheet")),
+    });
+};
+
 // === SCHEDULES ===
 
 export const useExamSchedules = (examinationId?: string) => {

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axiosInstance from "@/lib/axios";
 import { toast } from "sonner";
-import type { DutyRow, SittingPlan, SittingSummary } from "@/types/ExamAllocation";
+import type { AdmitCardData, DutyRow, SittingPlan, SittingSummary } from "@/types/ExamAllocation";
 
 const KEY = "exam-allocation";
 const BASE = "/examinations";
@@ -100,4 +100,12 @@ export const useDutyRoster = (examination: string | undefined) =>
         queryKey: [KEY, "roster", examination],
         enabled: !!examination,
         queryFn: async () => (await axiosInstance.get<DutyRow[]>(`${BASE}/duty-roster/`, { params: { examination } })).data,
+    });
+
+export const useAdmitCards = (examination: string | undefined, section: string | undefined) =>
+    useQuery({
+        queryKey: [KEY, "admit-cards", examination, section],
+        enabled: !!examination && !!section,
+        queryFn: async () =>
+            (await axiosInstance.get<AdmitCardData>(`${BASE}/admit-cards/`, { params: { examination, section } })).data,
     });
