@@ -197,6 +197,12 @@ export const getMenuItems = (
     if (can("manage_marks") || can("view_results") || user?.active_role === "student") {
         examinationChildren.push({ label: "Rechecks", href: "/dashboard/examinations/rechecks" });
     }
+    if (can("manage_exam_allocation") || can("view_examinations")) {
+        examinationChildren.push({ label: "Rooms & Invigilators", href: "/dashboard/examinations/allocation" });
+    }
+    if (user?.active_role === "staff" || user?.active_role === "instructor" || can("manage_exam_allocation")) {
+        examinationChildren.push({ label: "Exam Duties", href: "/dashboard/examinations/duties" });
+    }
 
     if (can("view_question_bank") || can("create_questions") || can("review_questions") || can("manage_question_bank")) {
         examinationChildren.push({ label: "Question Bank", href: "/dashboard/question-bank" });
