@@ -966,4 +966,17 @@ SYSTEM_PERMISSIONS = [
         "module": "PTM",
         "description": "View upcoming PTM sessions and book or manage meeting time slots for linked children",
     },
+    # Recruitment
+    {
+        "codename": "view_recruitment",
+        "name": "View Recruitment",
+        "module": "Recruitment",
+        "description": "View job openings, applicants, resumes, interviews and the hiring pipeline",
+    },
+    {
+        "codename": "manage_recruitment",
+        "name": "Manage Recruitment",
+        "module": "Recruitment",
+        "description": "Create and close job openings, record applicants, move them through the pipeline and schedule interviews",
+    },
 ]

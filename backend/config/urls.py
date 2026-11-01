@@ -45,6 +45,7 @@ urlpatterns = [
     path("api/expenses/", include("expenses.urls")),
     path("api/front-office/", include("front_office.urls")),
     path("api/ptm/", include("ptm.urls")),
+    path("api/recruitment/", include("recruitment.urls")),
 ]
 
 import posixpath
@@ -63,7 +64,8 @@ def protected_media_serve(request, path, document_root=None, show_indexes=False)
         or norm_path.startswith("leave_documents/")
         or norm_path.startswith("expense_receipts/")
         or norm_path.startswith("homework/")
-        or norm_path in ("submissions", "admission_documents", "leave_documents", "expense_receipts", "homework")
+        or norm_path.startswith("recruitment_resumes/")
+        or norm_path in ("submissions", "admission_documents", "leave_documents", "expense_receipts", "homework", "recruitment_resumes")
     ):
         from django.http import HttpResponseForbidden
         return HttpResponseForbidden("Direct access to private files is forbidden. Use authorized API endpoints.")

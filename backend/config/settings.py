@@ -118,6 +118,7 @@ TENANT_APPS = (
     "expenses",
     "front_office",
     "ptm",
+    "recruitment",
 )
 
 INSTALLED_APPS = list(SHARED_APPS) + [
@@ -275,6 +276,9 @@ REST_FRAMEWORK = {
         "public_admissions_info": "60/min",
         "public_admissions_rotate": "10/hour",
         "public_certificate_verify": "60/min",
+        "public_careers_info": "60/min",
+        "public_careers_apply": "10/hour",
+        "public_careers_status": "30/hour",
         # Public eSewa return/verify endpoints (fees.views.OnlinePaymentVerifyView and its
         # callback subclass). Provisional engineering value. NUM_PROXIES must be set in
         # production, otherwise DRF keys throttles on a client-suppliable X-Forwarded-For.
@@ -307,6 +311,9 @@ if len(sys.argv) > 1 and sys.argv[1] == "test":
     REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["public_admissions_info"] = "1000/min"
     REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["public_admissions_rotate"] = "1000/min"
     REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["public_certificate_verify"] = "1000/min"
+    REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["public_careers_info"] = "1000/min"
+    REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["public_careers_apply"] = "1000/min"
+    REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["public_careers_status"] = "1000/min"
     REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["online_payment_verify"] = "1000/min"
     REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["signup_payment_init"] = "1000/min"
     REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["signup_payment_verify"] = "1000/min"
@@ -333,6 +340,10 @@ EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="")
 EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")
 EMAIL_USE_TLS = config("EMAIL_USE_TLS", default=True, cast=bool)
 DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="noreply@edusekai.local")
+
+# Cloudflare Turnstile for the public careers form. Empty = no CAPTCHA (the rate limit and the hidden field
+# remain). The matching public site key is NEXT_PUBLIC_TURNSTILE_SITE_KEY in the tenant frontend.
+TURNSTILE_SECRET_KEY = config("TURNSTILE_SECRET_KEY", default="")
 
 # JWT
 SIMPLE_JWT = {
