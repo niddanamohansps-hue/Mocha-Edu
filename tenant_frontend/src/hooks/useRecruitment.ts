@@ -7,6 +7,7 @@ import type {
     ApplicantStage,
     Interview,
     JobOpening,
+    PanelOption,
     RecruitmentSummary,
 } from "@/types/Recruitment";
 
@@ -121,9 +122,33 @@ export const useInterviews = (applicant: string | null) =>
 
 export const useScheduleInterview = () =>
     useRecruitmentMutation(
-        async (data: Partial<Interview>) => (await axiosInstance.post("/recruitment/interviews/", data)).data,
+        async (data: Partial<Interview> & { panelist_ids?: string[] }) => (await axiosInstance.post("/recruitment/interviews/", data)).data,
         "Interview scheduled",
         "Could not schedule the interview",
+    );
+
+export const usePanelOptions = (enabled: boolean) =>
+    useQuery({
+        queryKey: [KEY, "panel-options"],
+        enabled,
+        queryFn: async () => (await axiosInstance.get<PanelOption[]>("/recruitment/panel-options/")).data,
+    });
+
+/** The interviews the logged-in person sits on (for the My Interviews page). */
+export const useMyInterviews = () =>
+    useQuery({
+        queryKey: [KEY, "interviews", "mine"],
+        queryFn: async () => (await axiosInstance.get<Interview[]>("/recruitment/interviews/", { params: { mine: "true" } })).data,
+    });
+
+export const useSubmitFeedback = () =>
+    useRecruitmentMutation(
+        async (vars: { id: string; score: string; feedback?: string }) => {
+            const { id, ...body } = vars;
+            return (await axiosInstance.post(`/recruitment/interviews/${id}/feedback/`, body)).data;
+        },
+        "Your feedback has been recorded",
+        "Could not record your feedback",
     );
 
 export const useInterviewAction = () =>

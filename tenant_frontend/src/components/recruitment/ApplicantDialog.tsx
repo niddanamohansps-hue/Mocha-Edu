@@ -14,6 +14,7 @@ import {
     useInterviewAction,
     useInterviews,
     useMoveApplicant,
+    usePanelOptions,
     useScheduleInterview,
 } from "@/hooks/useRecruitment";
 import { NEXT_STAGES, STAGES, type Applicant } from "@/types/Recruitment";
@@ -42,6 +43,8 @@ export function ApplicantDialog({
     const [reason, setReason] = useState("");
     const [joiningDate, setJoiningDate] = useState("");
     const [gender, setGender] = useState("");
+    const { data: panelOptions = [] } = usePanelOptions(canManage);
+    const [panel, setPanel] = useState<string[]>([]);
     const [round, setRound] = useState("Interview");
     const [scheduledAt, setScheduledAt] = useState("");
     const [scoreFor, setScoreFor] = useState<string | null>(null);
@@ -182,10 +185,42 @@ export function ApplicantDialog({
                             </div>
                             {interview.status === "completed" && (
                                 <p className="mt-1 text-slate-600 dark:text-slate-400">
-                                    Score {interview.score}/10{interview.feedback ? ` - ${interview.feedback}` : ""}
+                                    {interview.panel.length > 0 ? "Average score" : "Score"} {interview.score}/10
+                                    {interview.feedback ? ` - ${interview.feedback}` : ""}
                                 </p>
                             )}
-                            {canManage && interview.status === "scheduled" && (
+                            {interview.panel.length > 0 && (
+                                <ul className="mt-2 space-y-1 text-slate-600 dark:text-slate-400">
+                                    {interview.panel.map((member) => (
+                                        <li key={member.id}>
+                                            <span className="font-medium">{member.name}</span>
+                                            {member.submitted
+                                                ? `: ${member.score ?? "submitted"}/10${member.feedback ? ` - ${member.feedback}` : ""}`
+                                                : ": waiting"}
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                            {canManage && interview.status === "scheduled" && interview.panel.length > 0 && (
+                                <div className="mt-2 flex gap-2">
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        disabled={interviewAction.isPending || !interview.panel.some((m) => m.submitted)}
+                                        onClick={() => interviewAction.mutate({ id: interview.id, action: "complete" })}
+                                    >
+                                        Close with scores so far
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => interviewAction.mutate({ id: interview.id, action: "cancel" })}
+                                    >
+                                        Cancel
+                                    </Button>
+                                </div>
+                            )}
+                            {canManage && interview.status === "scheduled" && interview.panel.length === 0 && (
                                 <div className="mt-2 space-y-2">
                                     {scoreFor === interview.id ? (
                                         <>
@@ -251,13 +286,36 @@ export function ApplicantDialog({
                                             applicant: applicant.id,
                                             round_name: round || "Interview",
                                             scheduled_at: new Date(scheduledAt).toISOString(),
+                                            panelist_ids: panel,
                                         },
-                                        { onSuccess: () => setScheduledAt("") },
+                                        { onSuccess: () => { setScheduledAt(""); setPanel([]); } },
                                     )
                                 }
                             >
                                 Schedule
                             </Button>
+                        </div>
+                    )}
+                    {canSchedule && panelOptions.length > 0 && (
+                        <div className="space-y-1.5">
+                            <Label>Panel (optional): each panelist records their own score</Label>
+                            <div className="grid max-h-36 grid-cols-2 gap-1 overflow-y-auto rounded-lg border border-slate-200 p-2 text-sm dark:border-slate-800">
+                                {panelOptions.map((option) => (
+                                    <label key={option.id} className="flex items-center gap-2">
+                                        <input
+                                            type="checkbox"
+                                            checked={panel.includes(option.id)}
+                                            onChange={(e) =>
+                                                setPanel((current) =>
+                                                    e.target.checked ? [...current, option.id] : current.filter((id) => id !== option.id),
+                                                )
+                                            }
+                                        />
+                                        {option.name}
+                                        <span className="text-xs text-slate-400">{option.designation}</span>
+                                    </label>
+                                ))}
+                            </div>
                         </div>
                     )}
                 </section>

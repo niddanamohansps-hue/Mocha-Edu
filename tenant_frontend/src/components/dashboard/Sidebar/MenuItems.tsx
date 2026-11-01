@@ -65,6 +65,9 @@ export const getMenuItems = (
     if (can("add_staff") || can("view_recruitment")) {
         staffChildren.push({ label: "Recruitment", href: "/dashboard/hr/recruit" });
     }
+    if (can("record_interview_feedback")) {
+        staffChildren.push({ label: "My Interviews", href: "/dashboard/hr/interviews" });
+    }
     if (can("view_own_leaves") || can("view_all_leaves") || can("manage_staff_leaves") || user?.active_role === "staff" || user?.active_role === "instructor" || user?.active_role === "owner") {
         staffChildren.push({ label: "Leave Management", href: "/dashboard/staff/leaves" });
     }

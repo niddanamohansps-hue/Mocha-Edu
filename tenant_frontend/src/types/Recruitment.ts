@@ -92,6 +92,32 @@ export interface Interview {
     score: string | null;
     feedback: string;
     created_at: string;
+    panel: PanelEntry[];
+    can_submit: boolean;
+    applicant_summary: {
+        opening_title: string;
+        qualification: string;
+        experience_years: number;
+        current_employer: string;
+        resume_url: string | null;
+    };
+}
+
+export interface PanelEntry {
+    id: string;
+    staff: string;
+    name: string;
+    submitted: boolean;
+    is_me: boolean;
+    /** Hidden (null) from other panelists until the interview is complete. */
+    score: string | null;
+    feedback: string;
+}
+
+export interface PanelOption {
+    id: string;
+    name: string;
+    designation: string;
 }
 
 export interface RecruitmentSummary {
