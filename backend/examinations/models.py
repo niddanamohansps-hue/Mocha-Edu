@@ -537,3 +537,65 @@ class CoScholasticGrade(models.Model):
 
     def __str__(self):
         return f"{self.student} - {self.activity.name}: {self.grade} ({self.examination.name})"
+
+
+class ExamSitting(models.Model):
+    """All the papers of one examination that start at the same date and time. Rooms and invigilators are
+    allocated per sitting. Rows are created and kept in step with the schedules by allocation.sync_sittings."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    examination = models.ForeignKey(Examination, on_delete=models.CASCADE, related_name="sittings")
+    date = models.DateField()
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+
+    class Meta:
+        ordering = ["date", "start_time"]
+        constraints = [
+            models.UniqueConstraint(fields=["examination", "date", "start_time"], name="uniq_exam_sitting_slot"),
+        ]
+
+    def __str__(self):
+        return f"{self.examination} {self.date} {self.start_time:%H:%M}"
+
+
+class ExamSeat(models.Model):
+    """One student's seat for a sitting, for the paper they are sitting there."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    sitting = models.ForeignKey(ExamSitting, on_delete=models.CASCADE, related_name="seats")
+    room = models.ForeignKey("timetable.Room", on_delete=models.PROTECT, related_name="exam_seats")
+    student = models.ForeignKey("students.Student", on_delete=models.CASCADE, related_name="exam_seats")
+    schedule = models.ForeignKey(ExamSchedule, on_delete=models.CASCADE, related_name="seats")
+    seat_number = models.PositiveIntegerField()
+
+    class Meta:
+        ordering = ["room__name", "seat_number"]
+        constraints = [
+            models.UniqueConstraint(fields=["sitting", "student"], name="uniq_exam_seat_student"),
+            models.UniqueConstraint(fields=["sitting", "room", "seat_number"], name="uniq_exam_seat_position"),
+        ]
+
+
+class ExamInvigilation(models.Model):
+    """A staff member's duty in a room for a sitting."""
+
+    class Role(models.TextChoices):
+        CHIEF = "chief", "Chief invigilator"
+        INVIGILATOR = "invigilator", "Invigilator"
+        RELIEF = "relief", "Relief"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    sitting = models.ForeignKey(ExamSitting, on_delete=models.CASCADE, related_name="invigilations")
+    room = models.ForeignKey("timetable.Room", on_delete=models.PROTECT, related_name="exam_invigilations")
+    # PROTECT: a staff record that has an exam duty on file is part of the exam record.
+    staff = models.ForeignKey("staff.StaffMember", on_delete=models.PROTECT, related_name="exam_invigilations")
+    role = models.CharField(max_length=20, choices=Role.choices, default=Role.INVIGILATOR)
+    created_by_id = models.UUIDField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["room__name", "role"]
+        constraints = [
+            models.UniqueConstraint(fields=["sitting", "staff"], name="uniq_exam_duty_staff_per_sitting"),
+        ]

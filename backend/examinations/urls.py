@@ -1,6 +1,7 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
+from .allocation_views import DutyRosterView, ExamInvigilationViewSet, ExamSittingViewSet, MyDutiesView
 from .views import (
     BelowPassingReportView,
     CoScholasticActivityViewSet,
@@ -29,6 +30,9 @@ router.register(r"co-scholastic/activities", CoScholasticActivityViewSet, basena
 router.register(r"co-scholastic/grades", CoScholasticGradeViewSet, basename="coscholastic-grade")
 router.register(r"grading", GradeBoundaryViewSet, basename="grade-boundary")
 router.register(r"rechecks", RecheckViewSet, basename="exam-recheck")
+# A prefix of its own: "examinations/<anything>/" would be read as an examination id.
+router.register(r"exam-sittings", ExamSittingViewSet, basename="exam-sitting")
+router.register(r"exam-invigilations", ExamInvigilationViewSet, basename="exam-invigilation")
 
 urlpatterns = [
     path(
@@ -46,6 +50,8 @@ urlpatterns = [
     ),
     path("marks/<uuid:mark_id>/grace/", ExamMarkGraceView.as_view(), name="exam-mark-grace"),
     path("settings/", ExaminationSettingsView.as_view(), name="examination-settings"),
+    path("duty-roster/", DutyRosterView.as_view(), name="exam-duty-roster"),
+    path("my-duties/", MyDutiesView.as_view(), name="exam-my-duties"),
     path("reports/below-passing/", BelowPassingReportView.as_view(), name="below-passing-report"),
     path("", include(router.urls)),
 ]

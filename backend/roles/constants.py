@@ -398,6 +398,12 @@ SYSTEM_PERMISSIONS = [
         "description": "Create, edit, and delete examinations and their schedules",
     },
     {
+        "codename": "manage_exam_allocation",
+        "name": "Manage Exam Rooms & Invigilators",
+        "module": "Examinations",
+        "description": "Allocate students to exam rooms and seats, and staff to invigilation duties",
+    },
+    {
         "codename": "enter_marks",
         "name": "Enter Marks",
         "module": "Examinations",

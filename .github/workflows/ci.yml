@@ -64,7 +64,7 @@ jobs:
           - name: money
             labels: expenses payments billing payroll
           - name: exams
-            labels: examinations.tests_stage_b examinations.tests_stage_c examinations.tests_scope_fixes
+            labels: examinations.tests_stage_b examinations.tests_stage_c examinations.tests_scope_fixes examinations.tests_allocation
           - name: school-life
             labels: front_office ptm recruitment homework attendance announcements notifications
     defaults:
