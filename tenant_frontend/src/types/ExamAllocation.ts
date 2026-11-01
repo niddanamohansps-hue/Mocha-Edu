@@ -100,3 +100,25 @@ export interface MarksProgress {
     summary: { papers: number; complete: number; in_progress: number; not_started: number; overdue: number };
     rows: MarksProgressRow[];
 }
+
+export interface RankRow {
+    rank: number | null;
+    student_id: string;
+    name: string;
+    enrollment_id: string;
+    class: string;
+    total_marks: string;
+    max_marks: string;
+    percentage: string;
+    grade: string;
+    is_pass: boolean;
+}
+
+export interface RankList {
+    examination: { id: string; name: string; academic_year: string };
+    scope: "section" | "class";
+    title: string;
+    include_failed: boolean;
+    rows: RankRow[];
+    toppers: RankRow[];
+}

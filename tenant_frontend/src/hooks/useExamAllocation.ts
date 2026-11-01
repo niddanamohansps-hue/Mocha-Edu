@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axiosInstance from "@/lib/axios";
 import { toast } from "sonner";
-import type { AdmitCardData, DutyRow, MarksProgress, SittingPlan, SittingSummary } from "@/types/ExamAllocation";
+import type { AdmitCardData, DutyRow, MarksProgress, RankList, SittingPlan, SittingSummary } from "@/types/ExamAllocation";
 
 const KEY = "exam-allocation";
 const BASE = "/examinations";
@@ -149,3 +149,19 @@ export const useSetMarksDueDate = () => {
         onError: (error: unknown) => toast.error(allocationError(error, "Could not save the due date")),
     });
 };
+
+export const useRankList = (
+    examination: string | undefined,
+    scope: "section" | "level",
+    target: string | undefined,
+    includeFailed: boolean,
+    enabled: boolean,
+) =>
+    useQuery({
+        queryKey: [KEY, "rank-list", examination, scope, target, includeFailed],
+        enabled: enabled && !!examination && !!target,
+        queryFn: async () =>
+            (await axiosInstance.get<RankList>(`${BASE}/rank-list/`, {
+                params: { examination, [scope]: target, include_failed: includeFailed },
+            })).data,
+    });

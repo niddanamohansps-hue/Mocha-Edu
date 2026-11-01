@@ -219,12 +219,16 @@ export const getMenuItems = (
     // Marks and results
     if (can("manage_examinations") || can("view_examinations")) {
         examinationChildren.push({ label: "Marks Progress", href: "/dashboard/examinations/marks-progress" });
+        examinationChildren.push({ label: "Mark Sheets", href: "/dashboard/examinations/mark-sheets" });
     }
     if (can("enter_marks")) {
         examinationChildren.push({ label: "Marks Entry", href: "/dashboard/examinations/marks" });
     }
     if (can("view_results") || user?.active_role === "student") {
         examinationChildren.push({ label: "Results", href: "/dashboard/examinations/results" });
+    }
+    if (can("view_results")) {
+        examinationChildren.push({ label: "Rank List", href: "/dashboard/examinations/rank-list" });
     }
     if (can("manage_marks") || can("view_results") || user?.active_role === "student") {
         examinationChildren.push({ label: "Rechecks", href: "/dashboard/examinations/rechecks" });
@@ -518,7 +522,7 @@ const CHILD_ORDER: Record<string, string[]> = {
         "Examinations", "Grading", "Term Weightage", "Co-scholastic",
         "Question Bank", "Questions to Review", "Question Papers",
         "Rooms & Invigilators", "Admit Cards", "Exam Duties",
-        "Marks Progress", "Marks Entry", "Results", "Rechecks",
+        "Marks Progress", "Mark Sheets", "Marks Entry", "Results", "Rank List", "Rechecks",
     ],
     Fees: ["Student Fees / Collect Payment", "Outstanding Report", "My Fees", "Fee Structures", "Payment Gateways"],
     Payroll: ["Payroll runs", "Salaries", "My payslips", "Setup"],
