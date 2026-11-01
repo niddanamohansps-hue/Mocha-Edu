@@ -5,6 +5,7 @@ from .views import (
     ApplicantViewSet,
     InterviewViewSet,
     JobOpeningViewSet,
+    PanelOptionsView,
     PublicApplyView,
     PublicOpeningsView,
     PublicStatusView,
@@ -18,6 +19,7 @@ router.register(r"interviews", InterviewViewSet, basename="recruitment-interview
 
 urlpatterns = [
     path("summary/", RecruitmentSummaryView.as_view(), name="recruitment-summary"),
+    path("panel-options/", PanelOptionsView.as_view(), name="recruitment-panel-options"),
     path("public/openings/", PublicOpeningsView.as_view(), name="recruitment-public-openings"),
     path("public/apply/", PublicApplyView.as_view(), name="recruitment-public-apply"),
     path("public/status/", PublicStatusView.as_view(), name="recruitment-public-status"),

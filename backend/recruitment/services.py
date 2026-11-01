@@ -9,7 +9,7 @@ from django.utils import timezone
 from core.audit import log_action
 from core.dates import school_today
 
-from .models import Applicant, ApplicantEvent, JobOpening, new_reference
+from .models import Applicant, ApplicantEvent, Interview, InterviewPanelist, JobOpening, new_reference
 
 Stage = Applicant.Stage
 
@@ -202,3 +202,109 @@ def send_application_confirmation(applicant, raw_token, status_url, school_name)
             "Keep the access code private; anyone who has it can see this application's status.\n"
         ),
     )
+
+
+def staff_for_user(user):
+    """The staff record behind a login, or None. Filtered through the profile's user link, so a user with
+    duplicate profiles is still resolved to the one that has a staff record."""
+    from staff.models import StaffMember
+
+    if not user or not getattr(user, "is_authenticated", False):
+        return None
+    return StaffMember.objects.filter(profile__user_id=user.id).select_related("profile").first()
+
+
+@transaction.atomic
+def set_panel(interview, staff_ids, request=None):
+    """Make the panel exactly these staff members. Someone who has already submitted a score stays, whatever
+    the list says, so a recorded judgement is never silently dropped. Returns the staff newly added."""
+    from staff.models import StaffMember
+
+    wanted = set(staff_ids)
+    found = set(StaffMember.objects.filter(pk__in=wanted, is_active=True).values_list("pk", flat=True))
+    if found != wanted:
+        raise ValidationError("One or more panelists are not active staff members.")
+    existing = {p.staff_id: p for p in interview.panelists.all()}
+    for staff_id, panelist in existing.items():
+        if staff_id not in wanted and panelist.submitted_at is None:
+            panelist.delete()
+    added = []
+    for staff_id in wanted - set(existing):
+        InterviewPanelist.objects.create(interview=interview, staff_id=staff_id)
+        added.append(staff_id)
+    if added:
+        log_action(request, "interview_panel_changed", "Interview", str(interview.id), {"added": [str(a) for a in added]})
+    return added
+
+
+def notify_panelists(interview, staff_ids):
+    """Tell newly assigned panelists, where they have a login, that they have an interview to judge."""
+    from notifications.services import notify_many
+    from staff.models import StaffMember
+
+    user_ids = [
+        uid
+        for uid in StaffMember.objects.filter(pk__in=staff_ids).values_list("profile__user_id", flat=True)
+        if uid
+    ]
+    if user_ids:
+        notify_many(
+            recipient_user_ids=user_ids,
+            title=f"Interview panel: {interview.applicant.full_name}",
+            body=f"{interview.round_name} on {interview.scheduled_at:%d %b %Y, %H:%M}. Open My Interviews to record your score.",
+            category="recruitment",
+            link="/dashboard/hr/interviews",
+        )
+
+
+def _finish(interview, score, feedback=""):
+    interview.status = Interview.Status.COMPLETED
+    interview.score = score
+    interview.feedback = feedback
+    interview.save(update_fields=["status", "score", "feedback", "updated_at"])
+    return interview
+
+
+def _panel_average(interview):
+    scores = [p.score for p in interview.panelists.all() if p.submitted_at is not None and p.score is not None]
+    return round(sum(scores) / len(scores), 1)
+
+
+@transaction.atomic
+def submit_panelist_feedback(interview, staff, score, feedback="", request=None):
+    """A panelist records their own score. The last one to submit completes the interview with the average."""
+    interview = Interview.objects.select_for_update().get(pk=interview.pk)
+    if interview.status != Interview.Status.SCHEDULED:
+        raise ValidationError("This interview is no longer open for feedback.")
+    panelist = interview.panelists.filter(staff=staff).first()
+    if panelist is None:
+        raise ValidationError("You are not on this interview's panel.")
+    if panelist.submitted_at is not None:
+        raise ValidationError("You have already recorded your feedback for this interview.")
+    panelist.score = score
+    panelist.feedback = feedback
+    panelist.submitted_at = timezone.now()
+    panelist.save(update_fields=["score", "feedback", "submitted_at"])
+    log_action(request, "interview_feedback_recorded", "Interview", str(interview.id), {"panelist": str(staff.id)})
+    if not interview.panelists.filter(submitted_at=None).exists():
+        _finish(interview, _panel_average(interview))
+    return interview
+
+
+@transaction.atomic
+def complete_interview(interview, score=None, feedback="", request=None):
+    """HR closes an interview. With a panel, the result is the average of the scores submitted so far (at least
+    one is needed); without one, HR supplies the score."""
+    interview = Interview.objects.select_for_update().get(pk=interview.pk)
+    if interview.status != Interview.Status.SCHEDULED:
+        raise ValidationError("Only a scheduled interview can be completed.")
+    if interview.panelists.exists():
+        if not interview.panelists.exclude(submitted_at=None).exists():
+            raise ValidationError("No panelist has recorded a score yet.")
+        _finish(interview, _panel_average(interview))
+    else:
+        if score is None:
+            raise ValidationError("A score is required.")
+        _finish(interview, score, feedback)
+    log_action(request, "interview_completed", "Interview", str(interview.id), {"score": str(interview.score)})
+    return interview

@@ -2,7 +2,7 @@ import os
 
 from django.conf import settings
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db import connection
+from django.db import connection, transaction
 from django.db.models import Count, Q
 from django.http import FileResponse, Http404, HttpResponse
 from rest_framework import status, viewsets
@@ -16,6 +16,7 @@ from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from core.audit import log_action
+from accounts.tenant_access import HasAnyPermission
 from roles.permissions import HasPermission
 
 from .models import Applicant, Interview, JobOpening
@@ -26,12 +27,14 @@ from .serializers import (
     InterviewCompleteSerializer,
     InterviewSerializer,
     JobOpeningSerializer,
+    PanelistFeedbackSerializer,
     PublicApplySerializer,
     PublicOpeningSerializer,
     StageMoveSerializer,
 )
 from .services import (
     close_opening,
+    complete_interview,
     hire_applicant,
     CANDIDATE_STATUS,
     decoy_credentials,
@@ -39,9 +42,13 @@ from .services import (
     is_accepting_applications,
     issue_access_token,
     move_stage,
+    notify_panelists,
     open_opening,
     record_event,
     send_application_confirmation,
+    set_panel,
+    staff_for_user,
+    submit_panelist_feedback,
 )
 from .captcha import verify_captcha
 
@@ -60,6 +67,24 @@ class _ReadOrManage:
     def get_permissions(self):
         code = "view_recruitment" if self.action in self.read_actions else "manage_recruitment"
         return [IsAuthenticated(), HasPermission(code)]
+
+
+def _serve_resume(request, applicant):
+    """The applicant's resume through a permission-checked response (never a /media/ URL)."""
+    if not applicant.resume:
+        raise Http404("This applicant has no resume.")
+    log_action(request, "applicant_resume_viewed", "Applicant", str(applicant.id))
+    filename = os.path.basename(applicant.resume.name)
+    if getattr(settings, "USE_X_ACCEL_REDIRECT", False):
+        response = HttpResponse()
+        prefix = getattr(settings, "X_ACCEL_PREFIX", "/protected_media/").rstrip("/")
+        response["X-Accel-Redirect"] = f"{prefix}/{applicant.resume.name}"
+        response["Content-Disposition"] = f'inline; filename="{filename}"'
+        return response
+    try:
+        return FileResponse(applicant.resume.open("rb"), filename=filename)
+    except OSError:
+        raise Http404("The resume could not be read from storage.")
 
 
 class JobOpeningViewSet(_ReadOrManage, viewsets.ModelViewSet):
@@ -171,56 +196,108 @@ class ApplicantViewSet(_ReadOrManage, viewsets.ModelViewSet):
 
     @action(detail=True, methods=["get"], url_path="resume")
     def resume(self, request, pk=None):
-        applicant = self.get_object()
-        if not applicant.resume:
-            raise Http404("This applicant has no resume.")
-        log_action(request, "applicant_resume_viewed", "Applicant", str(applicant.id))
-        filename = os.path.basename(applicant.resume.name)
-        if getattr(settings, "USE_X_ACCEL_REDIRECT", False):
-            response = HttpResponse()
-            prefix = getattr(settings, "X_ACCEL_PREFIX", "/protected_media/").rstrip("/")
-            response["X-Accel-Redirect"] = f"{prefix}/{applicant.resume.name}"
-            response["Content-Disposition"] = f'inline; filename="{filename}"'
-            return response
-        try:
-            return FileResponse(applicant.resume.open("rb"), filename=filename)
-        except OSError:
-            raise Http404("The resume could not be read from storage.")
+        return _serve_resume(request, self.get_object())
 
 
-class InterviewViewSet(_ReadOrManage, viewsets.ModelViewSet):
+class InterviewViewSet(viewsets.ModelViewSet):
     serializer_class = InterviewSerializer
     http_method_names = ["get", "post", "patch", "put", "head", "options"]
 
+    def get_permissions(self):
+        if self.action in ("list", "retrieve", "resume"):
+            # Panelists read their own interviews; get_queryset narrows them to those.
+            return [IsAuthenticated(), HasAnyPermission("view_recruitment", "record_interview_feedback")]
+        if self.action == "feedback":
+            return [IsAuthenticated(), HasPermission("record_interview_feedback")]
+        return [IsAuthenticated(), HasPermission("manage_recruitment")]
+
+    def _is_hr(self):
+        return HasPermission("view_recruitment")().has_permission(self.request, self)
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        staff = staff_for_user(self.request.user)
+        context["is_hr"] = self._is_hr()
+        context["my_staff_id"] = staff.id if staff else None
+        return context
+
     def get_queryset(self):
-        qs = Interview.objects.select_related("applicant", "interviewer__profile")
+        qs = Interview.objects.select_related("applicant__opening", "interviewer__profile").prefetch_related(
+            "panelists__staff__profile"
+        )
+        if not self._is_hr():
+            staff = staff_for_user(self.request.user)
+            qs = qs.filter(panelists__staff=staff) if staff else qs.none()
         params = self.request.query_params
         if params.get("applicant"):
             qs = qs.filter(applicant_id=params["applicant"])
         if params.get("status"):
             qs = qs.filter(status=params["status"])
-        return qs
+        if params.get("mine") == "true":
+            staff = staff_for_user(self.request.user)
+            qs = qs.filter(panelists__staff=staff) if staff else qs.none()
+        return qs.distinct()
+
+    def _save_panel(self, serializer, instance):
+        ids = serializer.validated_data.get("panelist_ids")
+        if ids is None:
+            return
+        try:
+            added = set_panel(instance, ids, self.request)
+        except DjangoValidationError as exc:
+            raise _as_api_error(exc)
+        if added:
+            notify_panelists(instance, added)
 
     def perform_create(self, serializer):
-        serializer.save(created_by_id=self.request.user.id)
+        with transaction.atomic():
+            interview = serializer.save(created_by_id=self.request.user.id)
+            self._save_panel(serializer, interview)
+
+    def perform_update(self, serializer):
+        with transaction.atomic():
+            interview = serializer.save()
+            self._save_panel(serializer, interview)
 
     def update(self, request, *args, **kwargs):
         if self.get_object().status != Interview.Status.SCHEDULED:
             raise ValidationError("Only a scheduled interview can be changed.")
         return super().update(request, *args, **kwargs)
 
+    @action(detail=True, methods=["post"], url_path="feedback")
+    def feedback(self, request, pk=None):
+        """A panelist records their own score and comment; the interview completes when the last one does."""
+        data = PanelistFeedbackSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        staff = staff_for_user(request.user)
+        if staff is None:
+            raise ValidationError("Your login is not linked to a staff record.")
+        try:
+            interview = submit_panelist_feedback(
+                self.get_object(), staff, data.validated_data["score"], data.validated_data.get("feedback", ""), request
+            )
+        except DjangoValidationError as exc:
+            raise _as_api_error(exc)
+        return Response(self.get_serializer(self.get_queryset().get(pk=interview.pk)).data)
+
+    @action(detail=True, methods=["get"], url_path="resume")
+    def resume(self, request, pk=None):
+        return _serve_resume(request, self.get_object().applicant)
+
     @action(detail=True, methods=["post"], url_path="complete")
     def complete(self, request, pk=None):
         interview = self.get_object()
-        if interview.status != Interview.Status.SCHEDULED:
-            raise ValidationError("Only a scheduled interview can be completed.")
-        data = InterviewCompleteSerializer(data=request.data)
-        data.is_valid(raise_exception=True)
-        interview.status = Interview.Status.COMPLETED
-        interview.score = data.validated_data["score"]
-        interview.feedback = data.validated_data.get("feedback", "")
-        interview.save(update_fields=["status", "score", "feedback", "updated_at"])
-        return Response(self.get_serializer(interview).data)
+        panel = interview.panelists.exists()
+        score = feedback = None
+        if not panel:
+            data = InterviewCompleteSerializer(data=request.data)
+            data.is_valid(raise_exception=True)
+            score, feedback = data.validated_data["score"], data.validated_data.get("feedback", "")
+        try:
+            interview = complete_interview(interview, score, feedback or "", request)
+        except DjangoValidationError as exc:
+            raise _as_api_error(exc)
+        return Response(self.get_serializer(self.get_queryset().get(pk=interview.pk)).data)
 
     @action(detail=True, methods=["post"], url_path="cancel")
     def cancel(self, request, pk=None):
@@ -230,6 +307,29 @@ class InterviewViewSet(_ReadOrManage, viewsets.ModelViewSet):
         interview.status = Interview.Status.CANCELLED
         interview.save(update_fields=["status", "updated_at"])
         return Response(self.get_serializer(interview).data)
+
+
+class PanelOptionsView(APIView):
+    """Active staff HR can put on an interview panel."""
+
+    permission_classes = [IsAuthenticated, HasPermission("manage_recruitment")]
+
+    def get(self, request):
+        from staff.models import StaffMember
+
+        members = StaffMember.objects.filter(is_active=True).select_related("profile").order_by(
+            "profile__first_name", "profile__last_name"
+        )
+        return Response(
+            [
+                {
+                    "id": m.id,
+                    "name": f"{m.profile.first_name} {m.profile.last_name}".strip(),
+                    "designation": m.designation,
+                }
+                for m in members
+            ]
+        )
 
 
 class RecruitmentSummaryView(APIView):

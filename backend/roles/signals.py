@@ -38,6 +38,7 @@ SYSTEM_ROLES = [
             "view_ptm",
             "manage_ptm",
             "record_ptm_feedback",
+            "record_interview_feedback",
         ],
     },
     {
@@ -55,6 +56,7 @@ SYSTEM_ROLES = [
             "manage_homework",
             "view_ptm",
             "record_ptm_feedback",
+            "record_interview_feedback",
         ],
     },
     {

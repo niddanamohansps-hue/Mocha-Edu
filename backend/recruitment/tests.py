@@ -89,10 +89,13 @@ class RecruitmentTests(TransactionTestCase):
             for viewset, mapping, path in (
                 (JobOpeningViewSet, {"get": "list"}, "/api/recruitment/openings/"),
                 (ApplicantViewSet, {"get": "list"}, "/api/recruitment/applicants/"),
-                (InterviewViewSet, {"get": "list"}, "/api/recruitment/interviews/"),
             ):
                 self.assertEqual(self._call(viewset, mapping, "get", path, self.clerk).status_code, 403, path)
                 self.assertEqual(self._call(viewset, mapping, "get", path, self.owner).status_code, 200, path)
+            # Interviews are open to panelists too (staff hold that permission by default), but they only ever see
+            # the ones they sit on; a clerk who is on no panel sees none.
+            listed = self._call(InterviewViewSet, {"get": "list"}, "get", "/api/recruitment/interviews/", self.clerk)
+            self.assertEqual((listed.status_code, list(listed.data)), (200, []))
             request = self.factory.get("/api/recruitment/summary/")
             request.tenant = self.school
             force_authenticate(request, user=self.clerk)
@@ -471,3 +474,135 @@ class RecruitmentTests(TransactionTestCase):
                     down = self._public(PublicApplyView, "post", self._public_form(opening, email="x@example.com", **{"cf-turnstile-response": "t"}))
                     self.assertEqual(down.status_code, 400)  # fails closed
             self.assertEqual(Applicant.objects.count(), 1)
+
+    # ---- interview panels ---------------------------------------------------------------------
+
+    def _staff_user(self, label, role="staff"):
+        from profiles.models import Profile
+
+        user = User.objects.create_user(
+            username=f"{label}_{uuid_module.uuid4().hex[:6]}@school.com", email=f"{label}@school.com", password="Password123!"
+        )
+        profile = Profile.objects.create(user_id=user.id, first_name=label.title(), last_name="Panel", email=f"{label}@school.com")
+        UserRole.objects.create(user=user, role=Role.objects.get(slug=role))
+        # Assigning the staff role already creates the staff record, so reuse it rather than adding a second.
+        member, _ = StaffMember.objects.get_or_create(
+            profile=profile, defaults={"employee_id": f"E-{label}-{uuid_module.uuid4().hex[:4]}", "designation": "Teacher"}
+        )
+        return user, member
+
+    def _panel_interview(self, *members):
+        opening = self._opening()
+        self._publish(opening)
+        applicant = Applicant.objects.get(pk=self._apply(opening).data["id"])
+        for stage in ("shortlisted", "interview"):
+            self._move(applicant, stage)
+        made = self._call(
+            InterviewViewSet, {"post": "create"}, "post", "/x/", self.owner,
+            {"applicant": str(applicant.pk), "round_name": "Panel", "scheduled_at": "2027-03-01T09:00:00Z",
+             "panelist_ids": [str(m.pk) for m in members]},
+        )
+        self.assertEqual(made.status_code, 201, made.data)
+        return applicant, Interview.objects.get(pk=made.data["id"])
+
+    def _feedback(self, user, interview, score, feedback=""):
+        return self._call(
+            InterviewViewSet, {"post": "feedback"}, "post", "/x/", user, {"score": score, "feedback": feedback}, pk=str(interview.pk)
+        )
+
+    def _view(self, user, interview):
+        return self._call(InterviewViewSet, {"get": "retrieve"}, "get", "/x/", user, pk=str(interview.pk))
+
+    def test_panelists_score_separately_and_the_last_one_completes_the_interview_with_the_average(self):
+        from notifications.models import Notification
+
+        with tenant_context(self.school):
+            (ua, a), (ub, b) = self._staff_user("asha"), self._staff_user("bina")
+            applicant, interview = self._panel_interview(a, b)
+            self.assertEqual(Notification.objects.filter(recipient_user_id__in=[ua.id, ub.id]).count(), 2)
+
+            first = self._feedback(ua, interview, "8", "Strong demo")
+            self.assertEqual(first.status_code, 200, first.data)
+            interview.refresh_from_db()
+            self.assertEqual((interview.status, interview.score), ("scheduled", None))
+            self.assertEqual(self._feedback(ua, interview, "9").status_code, 400)  # no second go
+
+            last = self._feedback(ub, interview, "6")
+            self.assertEqual(last.status_code, 200)
+            interview.refresh_from_db()
+            self.assertEqual((interview.status, float(interview.score)), ("completed", 7.0))
+            self.assertEqual(self._feedback(ub, interview, "6").status_code, 400)  # closed
+            shown = self._call(ApplicantViewSet, {"get": "retrieve"}, "get", "/x/", self.owner, pk=str(applicant.pk))
+            self.assertEqual(shown.data["average_score"], 7.0)
+
+    def test_panelists_cannot_see_each_others_scores_until_the_interview_is_complete(self):
+        with tenant_context(self.school):
+            (ua, a), (ub, b), (uc, c) = self._staff_user("asha"), self._staff_user("bina"), self._staff_user("chitra")
+            _, interview = self._panel_interview(a, b, c)
+            self._feedback(ua, interview, "9", "Excellent")
+
+            def entry(viewer, name):
+                rows = self._view(viewer, interview).data["panel"]
+                return next(r for r in rows if r["name"].lower().startswith(name))
+
+            seen_by_b = entry(ub, "asha")
+            self.assertEqual((seen_by_b["submitted"], seen_by_b["score"], seen_by_b["feedback"]), (True, None, ""))
+            self.assertEqual(float(entry(ua, "asha")["score"]), 9.0)  # one's own is visible
+            self.assertEqual(float(entry(self.owner, "asha")["score"]), 9.0)  # HR sees all
+
+            self._feedback(ub, interview, "7")
+            self._feedback(uc, interview, "8")
+            self.assertEqual(float(entry(ub, "asha")["score"]), 9.0)  # revealed once complete
+
+    def test_only_assigned_panelists_can_see_or_judge_an_interview(self):
+        with tenant_context(self.school):
+            (ua, a), (ub, _b) = self._staff_user("asha"), self._staff_user("bina")
+            _, interview = self._panel_interview(a)
+            listed = lambda user: self._call(InterviewViewSet, {"get": "list"}, "get", "/x/", user).data
+
+            self.assertEqual([i["id"] for i in listed(ua)], [str(interview.pk)])
+            self.assertEqual(listed(ub), [])
+            self.assertEqual(self._view(ub, interview).status_code, 404)
+            self.assertEqual(self._feedback(ub, interview, "5").status_code, 404)
+            # HR is not a panelist, so cannot score on someone's behalf.
+            self.assertEqual(self._feedback(self.owner, interview, "5").status_code, 400)
+            self.assertEqual(self._feedback(ua, interview, "11").status_code, 400)  # out of range
+
+    def test_a_panelist_can_open_the_candidates_resume_but_a_stranger_cannot(self):
+        with tenant_context(self.school):
+            (ua, a), (ub, _b) = self._staff_user("asha"), self._staff_user("bina")
+            opening = self._opening()
+            self._publish(opening)
+            form = {"opening": str(opening.pk), "first_name": "Q", "last_name": "R",
+                    "resume": SimpleUploadedFile("cv.pdf", b"%PDF-1.4 panel", content_type="application/pdf")}
+            applicant = Applicant.objects.get(pk=self._call(ApplicantViewSet, {"post": "create"}, "post", "/x/", self.owner, form, fmt="multipart").data["id"])
+            made = self._call(
+                InterviewViewSet, {"post": "create"}, "post", "/x/", self.owner,
+                {"applicant": str(applicant.pk), "scheduled_at": "2027-03-01T09:00:00Z", "panelist_ids": [str(a.pk)]},
+            )
+            interview = Interview.objects.get(pk=made.data["id"])
+            self.assertIn("/interviews/", made.data["applicant_summary"]["resume_url"])
+            self.assertNotIn("expected_salary", made.data["applicant_summary"])
+            opened = self._call(InterviewViewSet, {"get": "resume"}, "get", "/x/", ua, pk=str(interview.pk))
+            self.assertEqual(b"".join(opened.streaming_content), b"%PDF-1.4 panel")
+            self.assertEqual(self._call(InterviewViewSet, {"get": "resume"}, "get", "/x/", ub, pk=str(interview.pk)).status_code, 404)
+
+    def test_hr_can_close_a_panel_interview_early_and_changes_keep_recorded_scores(self):
+        with tenant_context(self.school):
+            (ua, a), (ub, b), (uc, c) = self._staff_user("asha"), self._staff_user("bina"), self._staff_user("chitra")
+            _, interview = self._panel_interview(a, b)
+            complete = lambda: self._call(InterviewViewSet, {"post": "complete"}, "post", "/x/", self.owner, {}, pk=str(interview.pk))
+            self.assertEqual(complete().status_code, 400)  # nobody has scored
+
+            self._feedback(ua, interview, "8")
+            edit = self._call(
+                InterviewViewSet, {"patch": "partial_update"}, "patch", "/x/", self.owner,
+                {"panelist_ids": [str(b.pk), str(c.pk)]}, pk=str(interview.pk),
+            )
+            self.assertEqual(edit.status_code, 200, edit.data)
+            names = sorted(row["name"] for row in edit.data["panel"])
+            self.assertEqual(names, ["Asha Panel", "Bina Panel", "Chitra Panel"])  # Asha already scored, so she stays
+
+            done = complete()
+            self.assertEqual(done.status_code, 200, done.data)
+            self.assertEqual(float(done.data["score"]), 8.0)  # the average of the scores that exist

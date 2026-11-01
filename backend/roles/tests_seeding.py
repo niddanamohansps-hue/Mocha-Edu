@@ -30,11 +30,12 @@ STAFF_DEFAULTS = {
     "review_admission_applications", "make_admission_decisions", "enroll_admitted_students",
     "view_own_leaves", "apply_staff_leave", "cancel_own_leave", "view_all_leaves",
     "manage_staff_leaves", "manage_leave_types", "view_ptm", "manage_ptm", "record_ptm_feedback",
+    "record_interview_feedback",
 }
 INSTRUCTOR_DEFAULTS = {
     "view_calendar_events", "view_admissions", "review_admission_applications",
     "view_own_leaves", "apply_staff_leave", "cancel_own_leave", "view_homework", "manage_homework",
-    "view_ptm", "record_ptm_feedback",
+    "view_ptm", "record_ptm_feedback", "record_interview_feedback",
 }
 STUDENT_DEFAULTS = {"view_own_fees", "pay_own_fees", "view_calendar_events", "view_own_homework"}
 PARENT_DEFAULTS = {

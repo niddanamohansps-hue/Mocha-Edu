@@ -183,3 +183,22 @@ class Interview(models.Model):
 
     class Meta:
         ordering = ["scheduled_at"]
+
+
+class InterviewPanelist(models.Model):
+    """One panel member's own score and comment for an interview."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    interview = models.ForeignKey(Interview, on_delete=models.CASCADE, related_name="panelists")
+    # PROTECT: a staff record that has judged a candidate is part of the hiring record and must not vanish.
+    staff = models.ForeignKey("staff.StaffMember", on_delete=models.PROTECT, related_name="interview_panels")
+    score = models.DecimalField(max_digits=4, decimal_places=1, null=True, blank=True, help_text="0 to 10")
+    feedback = models.TextField(blank=True)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["interview", "staff"], name="uniq_panelist_per_interview"),
+        ]

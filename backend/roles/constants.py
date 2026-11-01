@@ -979,4 +979,10 @@ SYSTEM_PERMISSIONS = [
         "module": "Recruitment",
         "description": "Create and close job openings, record applicants, move them through the pipeline and schedule interviews",
     },
+    {
+        "codename": "record_interview_feedback",
+        "name": "Record Interview Feedback",
+        "module": "Recruitment",
+        "description": "See the interviews you are a panelist on, view the candidate's resume, and record your own score and comments",
+    },
 ]
