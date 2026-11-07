@@ -694,3 +694,425 @@ class RankListTests(AllocationBase):
             self.assertEqual(self._ranks().status_code, 400)  # neither section nor class
             self.assertEqual(self._ranks(section=str(self.section_a.pk), level=str(self.section_a.level.pk)).status_code, 400)
             self.assertEqual(self._ranks(self.clerk, section=str(self.section_a.pk)).status_code, 403)
+
+
+class SelfServiceTests(AllocationBase):
+    """What students and parents may see: the announced date sheet, their own admit card, and a rank if enabled."""
+
+    def setUp(self):
+        super().setUp()
+        from families.models import Parent, StudentParentRelation
+
+        with tenant_context(self.school):
+            self.kid = self.students_a[0]
+            self.kid_user = User.objects.create_user(username=f"kid_{uuid.uuid4().hex[:5]}@s.com", password="Password123!")
+            self.kid.profile.user_id = self.kid_user.id
+            self.kid.profile.save()
+            UserRole.objects.create(user=self.kid_user, role=Role.objects.get(slug="student"))
+
+            self.mum_user = User.objects.create_user(username=f"mum_{uuid.uuid4().hex[:5]}@s.com", password="Password123!")
+            mum_profile = Profile.objects.create(user_id=self.mum_user.id, first_name="Mum", last_name="P")
+            # Like any school that lets parents see results, grant the parent role the permission the portal needs.
+            from roles.models import Permission
+
+            Role.objects.get(slug="parent").permissions.add(Permission.objects.get(codename="view_child_results"))
+            UserRole.objects.create(user=self.mum_user, role=Role.objects.get(slug="parent"))
+            self.mum = Parent.objects.create(profile=mum_profile)
+            StudentParentRelation.objects.create(student=self.kid, parent=self.mum, relation_type="mother")
+
+            self.other_user = User.objects.create_user(username=f"oth_{uuid.uuid4().hex[:5]}@s.com", password="Password123!")
+            other_profile = Profile.objects.create(user_id=self.other_user.id, first_name="Other", last_name="P")
+            UserRole.objects.create(user=self.other_user, role=Role.objects.get(slug="parent"))
+            Parent.objects.create(profile=other_profile)  # a parent of nobody here
+
+    def _get(self, view, user, params=None, **kwargs):
+        request = self.factory.get("/x/", params or {})
+        request.tenant = self.school
+        force_authenticate(request, user=user)
+        return view.as_view()(request, **kwargs)
+
+    def _announce(self):
+        Examination.objects.filter(pk=self.exam.pk).update(date_sheet_version=1)
+
+    def test_nothing_is_visible_until_the_school_announces_the_date_sheet(self):
+        from parent_portal.views import ChildAdmitCardView, ChildExamsView
+
+        from .allocation_views import MyAdmitCardView, MyExamsView
+
+        with tenant_context(self.school):
+            self.assertEqual(self._get(MyExamsView, self.kid_user).data, [])
+            self.assertEqual(self._get(MyAdmitCardView, self.kid_user, {"examination": str(self.exam.pk)}).status_code, 404)
+            self.assertEqual(self._get(ChildExamsView, self.mum_user, student_id=self.kid.pk).data, [])
+            self.assertEqual(
+                self._get(ChildAdmitCardView, self.mum_user, {"examination": str(self.exam.pk)}, student_id=self.kid.pk).status_code, 404
+            )
+
+    def test_a_student_sees_only_their_own_admit_card_with_room_and_seat(self):
+        from .allocation_views import MyAdmitCardView, MyExamsView
+
+        with tenant_context(self.school):
+            allocation.allocate_rooms(self.sitting1)
+            self._announce()
+            listed = self._get(MyExamsView, self.kid_user).data
+            self.assertEqual([e["name"] for e in listed], ["Term 1"])
+
+            data = self._get(MyAdmitCardView, self.kid_user, {"examination": str(self.exam.pk)}).data
+            self.assertEqual(len(data["cards"]), 1)
+            card = data["cards"][0]
+            self.assertEqual(card["enrollment_id"], "ENR-A1")
+            self.assertEqual([p["subject"] for p in card["papers"]], ["Math"])
+            seat = ExamSeat.objects.get(sitting=self.sitting1, student=self.kid)
+            self.assertEqual((card["papers"][0]["room"], card["papers"][0]["seat"]), ("Hall", seat.seat_number))
+
+    def test_a_parent_sees_their_childs_card_and_no_other_parent_can(self):
+        from parent_portal.views import ChildAdmitCardView, ChildExamsView
+
+        with tenant_context(self.school):
+            self._announce()
+            params = {"examination": str(self.exam.pk)}
+            self.assertEqual(len(self._get(ChildExamsView, self.mum_user, student_id=self.kid.pk).data), 1)
+            mine = self._get(ChildAdmitCardView, self.mum_user, params, student_id=self.kid.pk)
+            self.assertEqual((mine.status_code, mine.data["cards"][0]["enrollment_id"]), (200, "ENR-A1"))
+            # A parent whose child is someone else's is refused.
+            self.assertEqual(self._get(ChildAdmitCardView, self.other_user, params, student_id=self.kid.pk).status_code, 403)
+            self.assertEqual(self._get(ChildExamsView, self.other_user, student_id=self.kid.pk).status_code, 403)
+
+    def test_ranks_reach_families_only_when_the_school_turns_them_on(self):
+        from .models import ExamResult, ExaminationSettings
+        from .self_service import family_ranks
+
+        with tenant_context(self.school):
+            for student, pct in zip(self.students_a[:3], ("90", "80", "20")):
+                ExamResult.objects.create(
+                    examination=self.exam, student=student, academic_year="2026", total_marks_obtained=Decimal(pct),
+                    total_max_marks=Decimal("100"), percentage=Decimal(pct), overall_grade="A", is_pass=pct != "20",
+                )
+            Examination.objects.filter(pk=self.exam.pk).update(is_published=True)
+            self.assertEqual(family_ranks(self.kid), {})  # off by default
+
+            ExaminationSettings.objects.update_or_create(singleton=True, defaults={"show_rank_to_families": True})
+            mine = family_ranks(self.kid)[str(self.exam.pk)]
+            self.assertEqual((mine["rank"], mine["of"], mine["section"]), (1, 3, "Grade 10 A"))
+            self.assertEqual(family_ranks(self.students_a[1])[str(self.exam.pk)]["rank"], 2)
+            self.assertEqual(family_ranks(self.students_a[2]), {})  # a student who did not pass gets no rank
+
+    def test_the_report_card_a_parent_opens_carries_the_ranks(self):
+        from unittest import mock
+
+        from parent_portal.views import ChildReportCardView
+
+        with tenant_context(self.school):
+            with mock.patch("examinations.services.build_student_report_card", return_value={"examinations": []}):
+                with mock.patch("examinations.self_service.family_ranks", return_value={"x": {"rank": 1}}):
+                    card = self._get(ChildReportCardView, self.mum_user, student_id=self.kid.pk)
+            self.assertEqual(card.status_code, 200, card.data)
+            self.assertEqual(card.data["ranks"], {"x": {"rank": 1}})
+
+    def test_the_settings_accept_either_setting_and_nothing_else(self):
+        from .views import ExaminationSettingsView
+
+        def patch(user, data):
+            request = self.factory.patch("/x/", data, format="json")
+            request.tenant = self.school
+            force_authenticate(request, user=user)
+            return ExaminationSettingsView.as_view()(request)
+
+        with tenant_context(self.school):
+            got = self._get(ExaminationSettingsView, self.owner)
+            self.assertEqual((got.data["show_rank_to_families"], got.data["require_separate_publisher"]), (False, False))
+            ok = patch(self.owner, {"show_rank_to_families": True})
+            self.assertEqual((ok.status_code, ok.data["show_rank_to_families"], ok.data["require_separate_publisher"]), (200, True, False))
+            both = patch(self.owner, {"show_rank_to_families": False, "require_separate_publisher": True})
+            self.assertEqual((both.data["show_rank_to_families"], both.data["require_separate_publisher"]), (False, True))
+            for bad in ({}, {"other": True}, {"show_rank_to_families": "yes"}, {"show_rank_to_families": True, "other": True}):
+                self.assertEqual(patch(self.owner, bad).status_code, 400, bad)
+            self.assertEqual(patch(self.clerk, {"show_rank_to_families": True}).status_code, 403)
+
+
+class AnalyticsTests(AllocationBase):
+    """Class A: Math 90/60/50/20 and English 90/60/30/40 (pass mark 35). Class B: one pass, one borderline, one absent."""
+
+    def _result(self, student, math, english):
+        """``math``/``english`` are a percentage, or None for absent. A subject below 35 is a fail."""
+        from .models import ExamResult
+
+        def entry(subject, name, pct):
+            if pct is None:
+                return {"subject": str(subject.pk), "subject_name": name, "marks_obtained": None, "max_marks": 100.0,
+                        "percentage": None, "grade": None, "is_absent": True, "is_pass": False}
+            return {"subject": str(subject.pk), "subject_name": name, "marks_obtained": float(pct), "max_marks": 100.0,
+                    "percentage": float(pct), "grade": "A", "is_absent": False, "is_pass": pct >= 35}
+
+        breakdown = [entry(self.math, "Math", math), entry(self.english, "English", english)]
+        sat = [b["percentage"] for b in breakdown if b["percentage"] is not None]
+        overall = sum(sat) / len(breakdown) if len(sat) == len(breakdown) else sum(sat) / len(sat)
+        passed = all(b["is_pass"] for b in breakdown if not b["is_absent"])
+        return ExamResult.objects.create(
+            examination=self.exam, student=student, academic_year="2026", total_marks_obtained=Decimal(str(overall)),
+            total_max_marks=Decimal("100"), percentage=Decimal(str(overall)), overall_grade="A", is_pass=passed,
+            subject_breakdown=breakdown,
+        )
+
+    def _seed(self):
+        for student, math, english in zip(self.students_a, (90, 60, 50, 20), (90, 60, 30, 40)):
+            self._result(student, math, english)
+        for student, math, english in zip(self.students_b, (80, 36, 70), (80, 36, None)):
+            self._result(student, math, english)
+        Examination.objects.filter(pk=self.exam.pk).update(is_published=True)
+        self.exam.refresh_from_db()
+
+    def _api(self, view, user=None, **params):
+        request = self.factory.get("/x/", {k: str(v) for k, v in params.items()})
+        request.tenant = self.school
+        force_authenticate(request, user=user or self.owner)
+        return view.as_view()(request)
+
+    def test_a_sections_overall_figures_and_distribution(self):
+        from .analytics import exam_analytics
+
+        with tenant_context(self.school):
+            self._seed()
+            data = exam_analytics(self.exam, section=self.section_a)
+            self.assertEqual(data["title"], "Grade 10 A")
+            self.assertEqual(
+                data["overall"],
+                {"students": 4, "passed": 2, "failed": 2, "pass_percentage": 50.0, "average_percentage": 55.0,
+                 "highest_percentage": 90.0, "lowest_percentage": 30.0},
+            )
+            counts = {b["label"]: b["count"] for b in data["distribution"]}
+            self.assertEqual(counts, {"Below 35": 1, "35-49": 1, "50-59": 0, "60-74": 1, "75-89": 0, "90 and above": 1})
+
+    def test_subjects_use_each_papers_own_pass_result_and_the_weakest_comes_first(self):
+        from .analytics import exam_analytics
+
+        with tenant_context(self.school):
+            self._seed()
+            subjects = {s["subject"]: s for s in exam_analytics(self.exam, section=self.section_a)["subjects"]}
+            self.assertEqual((subjects["Math"]["passed"], subjects["Math"]["pass_percentage"], subjects["Math"]["average_percentage"]), (3, 75.0, 55.0))
+            self.assertEqual((subjects["English"]["passed"], subjects["English"]["average_percentage"]), (3, 55.0))
+            self.assertEqual((subjects["Math"]["highest_percentage"], subjects["Math"]["lowest_percentage"]), (90.0, 20.0))
+
+            whole = exam_analytics(self.exam, level=self.section_a.level)
+            english = next(s for s in whole["subjects"] if s["subject"] == "English")
+            self.assertEqual((english["appeared"], english["absent"]), (6, 1))  # an absent student is counted apart
+            self.assertEqual([r["section"] for r in whole["sections"]], ["Grade 10 A", "Grade 10 B"])
+            self.assertEqual(whole["overall"]["students"], 7)
+
+    def test_two_examinations_are_compared_subject_by_subject(self):
+        from .analytics import compare_examinations
+        from .models import ExamResult
+
+        with tenant_context(self.school):
+            self._seed()
+            later = Examination.objects.create(
+                academic_year="2026", name="Term 2", exam_type=self.exam_type, start_date=DAY2, end_date=DAY2, is_published=True
+            )
+            for student, math, english in zip(self.students_a, (95, 65, 55, 25), (90, 60, 30, 40)):
+                entries = [
+                    {"subject": str(self.math.pk), "subject_name": "Math", "marks_obtained": float(math), "max_marks": 100.0,
+                     "percentage": float(math), "grade": "A", "is_absent": False, "is_pass": math >= 35},
+                    {"subject": str(self.english.pk), "subject_name": "English", "marks_obtained": float(english), "max_marks": 100.0,
+                     "percentage": float(english), "grade": "A", "is_absent": False, "is_pass": english >= 35},
+                ]
+                ExamResult.objects.create(
+                    examination=later, student=student, academic_year="2026", total_marks_obtained=Decimal("1"),
+                    total_max_marks=Decimal("100"), percentage=Decimal(str((math + english) / 2)),
+                    overall_grade="A", is_pass=all(e["is_pass"] for e in entries), subject_breakdown=entries,
+                )
+            data = compare_examinations(self.exam, later, section=self.section_a)
+            rows = {r["subject"]: r for r in data["subjects"]}
+            self.assertEqual((rows["Math"]["first_average"], rows["Math"]["second_average"], rows["Math"]["change"]), (55.0, 60.0, 5.0))
+            self.assertEqual(rows["English"]["change"], 0.0)
+            self.assertEqual((data["first"]["name"], data["second"]["name"]), ("Term 1", "Term 2"))
+
+    def test_the_weak_student_list_orders_failures_first_and_flags_borderline_and_absent(self):
+        from .analytics import weak_students
+
+        with tenant_context(self.school):
+            self._seed()
+            data = weak_students(self.exam, level=self.section_a.level)
+            names = [r["name"] for r in data["rows"]]
+            # A4 failed Math (30%), A3 failed English (40%); B2 is borderline in both subjects; B3 missed English.
+            self.assertEqual(names, ["A4 Pupil", "A3 Pupil", "B2 Pupil", "B3 Pupil"])
+            by_name = {r["name"]: r for r in data["rows"]}
+            self.assertEqual([(w["subject"], w["status"]) for w in by_name["A4 Pupil"]["weak_subjects"]], [("Math", "failed")])
+            self.assertEqual({(w["subject"], w["status"]) for w in by_name["B2 Pupil"]["weak_subjects"]},
+                             {("Math", "borderline"), ("English", "borderline")})
+            self.assertEqual([(w["subject"], w["status"]) for w in by_name["B3 Pupil"]["weak_subjects"]], [("English", "absent")])
+            self.assertTrue(all("attendance_percentage" in r for r in data["rows"]))
+            # A wider margin catches more students; a student with 60% and 90% is never listed.
+            self.assertNotIn("A1 Pupil", names)
+            self.assertNotIn("A2 Pupil", names)
+
+    def test_reports_wait_for_publication_need_a_scope_and_the_permission(self):
+        from .allocation_views import AnalyticsCompareView, AnalyticsView, WeakStudentsView
+
+        with tenant_context(self.school):
+            self._seed()
+            Examination.objects.filter(pk=self.exam.pk).update(is_published=False)
+            section = str(self.section_a.pk)
+            for view in (AnalyticsView, WeakStudentsView):
+                self.assertEqual(self._api(view, examination=self.exam.pk, section=section).status_code, 400)  # not published
+            Examination.objects.filter(pk=self.exam.pk).update(is_published=True)
+
+            ok = self._api(AnalyticsView, examination=self.exam.pk, section=section)
+            self.assertEqual((ok.status_code, ok.data["overall"]["students"]), (200, 4))
+            self.assertEqual(self._api(AnalyticsView, examination=self.exam.pk).status_code, 400)  # no scope
+            self.assertEqual(self._api(WeakStudentsView, examination=self.exam.pk, section=section, margin=10).status_code, 200)
+            for view in (AnalyticsView, WeakStudentsView):
+                self.assertEqual(self._api(view, self.clerk, examination=self.exam.pk, section=section).status_code, 403)
+            both = self._api(AnalyticsCompareView, examination=self.exam.pk, other=self.exam.pk, section=section)
+            self.assertEqual(both.status_code, 200)
+            self.assertTrue(all(r["change"] == 0.0 for r in both.data["subjects"]))
+
+
+class ModerationTests(AllocationBase):
+    """Class A's Math paper (max 100, pass 35): four students scored 30, 33, 50 and 98, one was absent."""
+
+    def setUp(self):
+        super().setUp()
+        from .models import ExamMark
+
+        with tenant_context(self.school):
+            self.marks = {}
+            for student, value in zip(self.students_a[:4], ("30", "33", "50", "98")):
+                self.marks[student.enrollment_id] = ExamMark.objects.create(
+                    exam_schedule=self.paper_a, student=student, marks_obtained=Decimal(value), attendance="present"
+                )
+
+    def _preview(self, **options):
+        from .moderation import preview_moderation
+
+        return preview_moderation(self.paper_a, **options)
+
+    def _apply(self, user=None, **options):
+        from .moderation import apply_moderation
+
+        options.setdefault("reason", "Paper was harder than planned")
+        return apply_moderation(self.paper_a, user_id=(user or self.owner).id, **options)
+
+    def _current(self):
+        from .models import ExamMark
+
+        return {m.student.enrollment_id: m.marks_obtained for m in ExamMark.objects.filter(exam_schedule=self.paper_a).select_related("student")}
+
+    def test_a_preview_shows_the_effect_and_changes_nothing(self):
+        from .models import ExamMarkChange
+
+        with tenant_context(self.school):
+            result = self._preview(method="add", value="5")
+            summary = result["summary"]
+            self.assertEqual((summary["students_with_marks"], summary["changed"], summary["capped"]), (4, 4, 1))
+            self.assertEqual((summary["passed_before"], summary["passed_after"]), (2, 4))  # 30 and 33 now reach 35 and 38
+            self.assertEqual((summary["average_before"], summary["average_after"]), (52.75, 57.0))  # 98 stops at 100
+            rows = {r["enrollment_id"]: r for r in result["rows"]}
+            self.assertEqual((rows["ENR-A4"]["old"], rows["ENR-A4"]["new"]), (Decimal("98"), Decimal("100")))
+            self.assertEqual((rows["ENR-A1"]["passed_before"], rows["ENR-A1"]["passed_after"]), (False, True))
+            self.assertEqual(self._current()["ENR-A1"], Decimal("30"))  # untouched
+            self.assertEqual(ExamMarkChange.objects.count(), 0)
+
+    def test_applying_changes_the_marks_and_keeps_a_history_row_for_each(self):
+        from .models import ExamMarkChange
+
+        with tenant_context(self.school):
+            result = self._apply(method="add", value="5", expected_changed=4)
+            self.assertEqual(result["changed"], 4)
+            self.assertEqual(self._current(), {"ENR-A1": Decimal("35"), "ENR-A2": Decimal("38"), "ENR-A3": Decimal("55"), "ENR-A4": Decimal("100")})
+            history = ExamMarkChange.objects.filter(kind="moderation")
+            self.assertEqual(history.count(), 4)
+            first = history.get(mark=self.marks["ENR-A1"])
+            self.assertEqual((first.old_marks, first.new_marks, first.reason, first.changed_by_user_id), (Decimal("30"), Decimal("35"), "Paper was harder than planned", self.owner.id))
+
+    def test_scaling_rounds_to_the_chosen_step_and_is_capped_at_the_maximum(self):
+        with tenant_context(self.school):
+            whole = {r["enrollment_id"]: r["new"] for r in self._preview(method="scale", value="1.1")["rows"]}
+            self.assertEqual(whole, {"ENR-A1": Decimal("33"), "ENR-A2": Decimal("36"), "ENR-A3": Decimal("55"), "ENR-A4": Decimal("100")})
+            half = {r["enrollment_id"]: r["new"] for r in self._preview(method="scale", value="1.1", step="0.5")["rows"]}
+            self.assertEqual(half["ENR-A2"], Decimal("36.5"))  # 36.3 to the nearest half mark
+
+    def test_it_can_be_limited_to_students_below_a_mark(self):
+        with tenant_context(self.school):
+            self._apply(method="add", value="5", below="40")
+            self.assertEqual(self._current(), {"ENR-A1": Decimal("35"), "ENR-A2": Decimal("38"), "ENR-A3": Decimal("50"), "ENR-A4": Decimal("98")})
+
+    def test_grace_marks_already_given_count_towards_the_maximum_and_absentees_are_untouched(self):
+        from .models import ExamMark
+
+        with tenant_context(self.school):
+            ExamMark.objects.filter(pk=self.marks["ENR-A4"].pk).update(grace_marks=Decimal("1"))  # 98 + 1 grace
+            absent = ExamMark.objects.create(
+                exam_schedule=self.paper_a, student=self.students_b[0], marks_obtained=None, attendance="absent"
+            )
+            rows = {r["enrollment_id"]: r for r in self._preview(method="add", value="5")["rows"]}
+            self.assertEqual(rows["ENR-A4"]["new"], Decimal("99"))  # 99 + 1 grace = 100, no more
+            self.assertNotIn(absent.student.enrollment_id, rows)
+
+    def test_published_papers_and_papers_with_score_parts_are_refused(self):
+        from .models import ExamScheduleComponent
+        from .moderation import ModerationError
+
+        with tenant_context(self.school):
+            ExamScheduleComponent.objects.create(
+                exam_schedule=self.paper_a, name="Theory", code="TH", max_marks=Decimal("100"), pass_marks=Decimal("35")
+            )
+            with self.assertRaises(ModerationError) as parts:
+                self._preview(method="add", value="5")
+            self.assertIn("score parts", str(parts.exception))
+            ExamScheduleComponent.objects.all().delete()
+
+            Examination.objects.filter(pk=self.exam.pk).update(is_published=True)
+            self.paper_a.refresh_from_db()
+            with self.assertRaises(ModerationError) as published:
+                self._apply(method="add", value="5")
+            self.assertIn("published", str(published.exception))
+            self.assertEqual(self._current()["ENR-A1"], Decimal("30"))
+
+    def test_a_reason_is_required_and_stale_previews_and_empty_changes_are_refused(self):
+        from .moderation import ModerationError
+        from .models import ExamMark
+
+        with tenant_context(self.school):
+            for bad_reason in ("", "  ", "no"):
+                with self.assertRaises(ModerationError):
+                    self._apply(method="add", value="5", reason=bad_reason)
+            with self.assertRaises(ModerationError) as stale:
+                self._apply(method="add", value="5", expected_changed=3)  # the preview said 4
+            self.assertIn("Preview again", str(stale.exception))
+            with self.assertRaises(ModerationError):
+                self._apply(method="add", value="0")  # nothing would change
+            self.assertEqual(self._current()["ENR-A1"], Decimal("30"))
+            self.assertEqual(ExamMark.objects.filter(exam_schedule=self.paper_a).count(), 4)
+
+    def test_invalid_choices_are_refused(self):
+        from .moderation import ModerationError
+
+        with tenant_context(self.school):
+            for options in (
+                {"method": "halve", "value": "1"},
+                {"method": "scale", "value": "0"},
+                {"method": "scale", "value": "-2"},
+                {"method": "add", "value": "abc"},
+                {"method": "add", "value": "5", "step": "3"},
+            ):
+                with self.assertRaises(ModerationError, msg=str(options)):
+                    self._preview(**options)
+
+    def test_only_users_who_may_moderate_can_preview_or_apply(self):
+        from .allocation_views import ModerationApplyView, ModerationPreviewView
+
+        def post(view, user, data):
+            request = self.factory.post("/x/", data, format="json")
+            request.tenant = self.school
+            force_authenticate(request, user=user)
+            return view.as_view()(request, schedule_id=self.paper_a.pk)
+
+        with tenant_context(self.school):
+            body = {"method": "add", "value": "5", "reason": "Harder paper"}
+            self.assertEqual(post(ModerationPreviewView, self.clerk, body).status_code, 403)
+            self.assertEqual(post(ModerationApplyView, self.clerk, body).status_code, 403)
+            preview = post(ModerationPreviewView, self.owner, body)
+            self.assertEqual((preview.status_code, preview.data["summary"]["changed"]), (200, 4))
+            applied = post(ModerationApplyView, self.owner, {**body, "expected_changed": 4})
+            self.assertEqual((applied.status_code, applied.data["changed"]), (200, 4))
+            bad = post(ModerationApplyView, self.owner, {**body, "method": "nope"})
+            self.assertEqual(bad.status_code, 400)

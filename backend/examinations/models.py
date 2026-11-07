@@ -243,6 +243,7 @@ class ExamMarkChange(models.Model):
         IMPORT = "import", "Imported"
         GRACE = "grace", "Grace marks"
         RECHECK = "recheck", "Recheck"
+        MODERATION = "moderation", "Moderation"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     mark = models.ForeignKey(ExamMark, on_delete=models.CASCADE, related_name="changes")
@@ -430,12 +431,15 @@ class ExaminationSettings(models.Model):
     """The school's examination rules: exactly one row per school. Reading never writes: with no row, ``load()``
     returns the defaults. Two-person publishing is off by default, so nothing changes until a school turns it on."""
 
-    EDITABLE_FIELDS = ("require_separate_publisher",)
+    EDITABLE_FIELDS = ("require_separate_publisher", "show_rank_to_families")
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     singleton = models.BooleanField(default=True, unique=True, editable=False)
     # When on, one person requests publication of an examination's results and a different person publishes them.
     require_separate_publisher = models.BooleanField(default=False)
+    # When on, a student's section rank is shown on the report card that students and parents see. Off by default:
+    # many schools do not publish ranks to families.
+    show_rank_to_families = models.BooleanField(default=False)
     updated_by_user_id = models.UUIDField(null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
 

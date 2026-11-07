@@ -232,6 +232,50 @@ class ChildUpcomingExamsView(APIView):
         )
 
 
+class ChildExamsView(APIView):
+    """The child's examinations whose date sheet the school has announced."""
+
+    permission_classes = [IsAuthenticated, HasPermission("view_child_results")]
+
+    def get(self, request, student_id):
+        parent = get_parent_for_user(request.user)
+        if parent is None:
+            return Response(NOT_A_PARENT, status=403)
+        student = get_child_for_parent(parent, student_id)
+        if student is None:
+            return Response(NO_CHILD_ACCESS, status=403)
+
+        from examinations.self_service import visible_examinations
+
+        return Response(visible_examinations(student))
+
+
+class ChildAdmitCardView(APIView):
+    """The child's admit card (papers, room and seat) for one announced examination."""
+
+    permission_classes = [IsAuthenticated, HasPermission("view_child_results")]
+
+    def get(self, request, student_id):
+        parent = get_parent_for_user(request.user)
+        if parent is None:
+            return Response(NOT_A_PARENT, status=403)
+        student = get_child_for_parent(parent, student_id)
+        if student is None:
+            return Response(NO_CHILD_ACCESS, status=403)
+
+        from django.http import Http404
+        from django.shortcuts import get_object_or_404
+
+        from examinations.models import Examination
+        from examinations.self_service import admit_card_for
+
+        examination = get_object_or_404(Examination, pk=request.query_params.get("examination"))
+        data = admit_card_for(examination, student)
+        if data is None:
+            raise Http404()
+        return Response(data)
+
+
 class ChildFeesView(APIView):
     """
     Queries fees.models.StudentFee/Payment directly - never calls the
@@ -320,6 +364,10 @@ class ChildReportCardView(APIView):
 
         academic_year = request.query_params.get("academic_year")
         report_card = build_student_report_card(student, academic_year=academic_year)
+
+        from examinations.self_service import family_ranks
+
+        report_card["ranks"] = family_ranks(student, academic_year)
         return Response(report_card)
 
 

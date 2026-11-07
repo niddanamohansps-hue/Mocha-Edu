@@ -3,17 +3,13 @@ from .allocation import AllocationError
 from .models import ExamResult
 
 
-def rank_list(examination, *, section=None, level=None, include_failed=False, top=3):
-    """Rank the published results of one section, or of a whole class level.
-
-    Ties share a rank and the next rank is skipped (two students on 2nd place are followed by 4th). Students who did
-    not pass are listed after the ranked ones without a rank, unless ``include_failed`` ranks them too. Only published
-    results are ranked, so a list can never disagree with, or leak ahead of, the published result.
-    """
+def scoped_results(examination, *, section=None, level=None):
+    """``[(ExamResult, enrolment)]`` for the published results of one section or one class level, best percentage
+    first. Raises AllocationError unless the results are published and exactly one of section or level is given."""
     from students.models import StudentLevel
 
     if not examination.is_published:
-        raise AllocationError("Rank lists are available once the results have been published.")
+        raise AllocationError("This is available once the results have been published.")
     if (section is None) == (level is None):
         raise AllocationError("Choose either a section or a class.")
 
@@ -24,10 +20,25 @@ def rank_list(examination, *, section=None, level=None, include_failed=False, to
     for row in enrolments.order_by("is_current"):
         placed[row.student_id] = row
 
-    results = [
-        r for r in ExamResult.objects.filter(examination=examination, student_id__in=placed).select_related("student__profile")
-    ]
+    results = list(
+        ExamResult.objects.filter(examination=examination, student_id__in=placed).select_related("student__profile")
+    )
     results.sort(key=lambda r: (-r.percentage, r.student.enrollment_id))
+    return [(r, placed[r.student_id]) for r in results]
+
+
+def rank_list(examination, *, section=None, level=None, include_failed=False, top=3):
+    """Rank the published results of one section, or of a whole class level.
+
+    Ties share a rank and the next rank is skipped (two students on 2nd place are followed by 4th). Students who did
+    not pass are listed after the ranked ones without a rank, unless ``include_failed`` ranks them too. Only published
+    results are ranked, so a list can never disagree with, or leak ahead of, the published result.
+    """
+    if not examination.is_published:
+        raise AllocationError("Rank lists are available once the results have been published.")
+    scoped = scoped_results(examination, section=section, level=level)
+    placed = {result.student_id: enrolment for result, enrolment in scoped}
+    results = [result for result, _ in scoped]
 
     rows, rank, previous, position = [], None, None, 0
     ranked_pool = [r for r in results if include_failed or r.is_pass]

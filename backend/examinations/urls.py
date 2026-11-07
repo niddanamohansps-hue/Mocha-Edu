@@ -1,7 +1,22 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from .allocation_views import AdmitCardsView, DutyRosterView, MarksProgressView, RankListView, ExamInvigilationViewSet, ExamSittingViewSet, MyDutiesView
+from .allocation_views import (
+    AdmitCardsView,
+    AnalyticsCompareView,
+    AnalyticsView,
+    DutyRosterView,
+    ExamInvigilationViewSet,
+    ExamSittingViewSet,
+    MarksProgressView,
+    MyAdmitCardView,
+    MyDutiesView,
+    ModerationApplyView,
+    ModerationPreviewView,
+    MyExamsView,
+    RankListView,
+    WeakStudentsView,
+)
 from .views import (
     BelowPassingReportView,
     CoScholasticActivityViewSet,
@@ -55,6 +70,13 @@ urlpatterns = [
     path("admit-cards/", AdmitCardsView.as_view(), name="exam-admit-cards"),
     path("marks-progress/", MarksProgressView.as_view(), name="exam-marks-progress"),
     path("rank-list/", RankListView.as_view(), name="exam-rank-list"),
+    path("moderation/<uuid:schedule_id>/preview/", ModerationPreviewView.as_view(), name="exam-moderation-preview"),
+    path("moderation/<uuid:schedule_id>/apply/", ModerationApplyView.as_view(), name="exam-moderation-apply"),
+    path("analytics/", AnalyticsView.as_view(), name="exam-analytics"),
+    path("analytics/compare/", AnalyticsCompareView.as_view(), name="exam-analytics-compare"),
+    path("weak-students/", WeakStudentsView.as_view(), name="exam-weak-students"),
+    path("my-exams/", MyExamsView.as_view(), name="exam-my-exams"),
+    path("my-admit-card/", MyAdmitCardView.as_view(), name="exam-my-admit-card"),
     path("reports/below-passing/", BelowPassingReportView.as_view(), name="below-passing-report"),
     path("", include(router.urls)),
 ]

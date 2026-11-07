@@ -2,6 +2,8 @@ from django.urls import path
 
 from .views import (
     ChildAttendanceView,
+    ChildAdmitCardView,
+    ChildExamsView,
     ChildFeesView,
     ChildPayFeeView,
     ChildReportCardView,
@@ -35,6 +37,16 @@ urlpatterns = [
         "children/<uuid:student_id>/upcoming-exams/",
         ChildUpcomingExamsView.as_view(),
         name="parent-portal-child-upcoming-exams",
+    ),
+    path(
+        "children/<uuid:student_id>/exams/",
+        ChildExamsView.as_view(),
+        name="parent-portal-child-exams",
+    ),
+    path(
+        "children/<uuid:student_id>/admit-card/",
+        ChildAdmitCardView.as_view(),
+        name="parent-portal-child-admit-card",
     ),
     path(
         "children/<uuid:student_id>/report-card/",

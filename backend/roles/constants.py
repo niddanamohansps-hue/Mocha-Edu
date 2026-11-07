@@ -404,6 +404,12 @@ SYSTEM_PERMISSIONS = [
         "description": "Allocate students to exam rooms and seats, and staff to invigilation duties",
     },
     {
+        "codename": "moderate_exam_marks",
+        "name": "Moderate Exam Marks",
+        "module": "Examinations",
+        "description": "Adjust a whole paper's marks (add or scale) before results are published, with a reason on record",
+    },
+    {
         "codename": "enter_marks",
         "name": "Enter Marks",
         "module": "Examinations",

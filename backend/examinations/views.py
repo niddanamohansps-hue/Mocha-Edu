@@ -233,27 +233,37 @@ class ExaminationSettingsView(APIView):
         perm = HasPermission("view_examinations" if self.request.method in ("GET", "HEAD", "OPTIONS") else "manage_examinations")
         return [IsAuthenticated(), perm]
 
+    def _payload(self, row):
+        return {
+            "require_separate_publisher": row.require_separate_publisher,
+            "show_rank_to_families": row.show_rank_to_families,
+            "is_default": row._state.adding,
+        }
+
     def get(self, request):
         from .models import ExaminationSettings
 
-        row = ExaminationSettings.load()
-        return Response({"require_separate_publisher": row.require_separate_publisher, "is_default": row._state.adding})
+        return Response(self._payload(ExaminationSettings.load()))
 
     def patch(self, request):
         from rest_framework.exceptions import ValidationError
 
         from .models import ExaminationSettings
 
-        value = request.data.get("require_separate_publisher")
-        if set(request.data) != {"require_separate_publisher"} or not isinstance(value, bool):
-            raise ValidationError({"require_separate_publisher": "Send true or false."})
+        data = request.data
+        unknown = set(data) - set(ExaminationSettings.EDITABLE_FIELDS)
+        if not data or unknown or any(not isinstance(v, bool) for v in data.values()):
+            raise ValidationError({"non_field_errors": ["Send true or false for the settings you change."]})
         row, _ = ExaminationSettings.objects.get_or_create(singleton=True)
-        previous = row.require_separate_publisher
-        row.require_separate_publisher, row.updated_by_user_id = value, request.user.id
+        changes = {}
+        for field, value in data.items():
+            changes[field] = [getattr(row, field), value]
+            setattr(row, field, value)
+        row.updated_by_user_id = request.user.id
         row.save()
         log_action(request, action="examination_settings_changed", model_name="ExaminationSettings", object_id=row.id,
-                   changes={"require_separate_publisher": [previous, value]})
-        return Response({"require_separate_publisher": row.require_separate_publisher, "is_default": False})
+                   changes=changes)
+        return Response(self._payload(row))
 
 
 class ExamScheduleViewSet(viewsets.ModelViewSet):
@@ -796,6 +806,12 @@ class StudentReportCardView(APIView):
 
         academic_year = request.query_params.get("academic_year")
         report_card = build_student_report_card(student, academic_year=academic_year)
+        # The student seeing their own card gets their rank when the school shows ranks to families.
+        own = get_student_for_user(request.user)
+        if own is not None and own.id == student.id:
+            from .self_service import family_ranks
+
+            report_card["ranks"] = family_ranks(student, academic_year)
         return Response(report_card)
 
 

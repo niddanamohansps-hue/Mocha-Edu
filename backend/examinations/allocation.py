@@ -450,7 +450,7 @@ def duty_rows(queryset):
     return rows
 
 
-def build_admit_cards(examination, section):
+def build_admit_cards(examination, section, only_student=None):
     """One admit card per student of the section: their papers in date order, each with the room and seat from the
     seating plan. A paper with no seat yet falls back to the room set on the paper itself, then to blank."""
     schedules = list(
@@ -459,6 +459,8 @@ def build_admit_cards(examination, section):
         .order_by("date", "start_time")
     )
     students = _roster(section.id)
+    if only_student is not None:
+        students = [s for s in students if s.id == only_student.id]
     seats = {}
     for seat in ExamSeat.objects.filter(
         sitting__examination=examination, student__in=students

@@ -1,4 +1,5 @@
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.http import Http404
 from django.shortcuts import get_object_or_404
 from rest_framework import viewsets
 from rest_framework.decorators import action
@@ -191,3 +192,128 @@ class RankListView(APIView):
             )
         except allocation.AllocationError as exc:
             raise _fail(exc)
+
+
+class MyExamsView(APIView):
+    """The logged-in student's announced examinations. Only their own, so no permission beyond being a student here."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from .self_service import visible_examinations
+        from .services import get_student_for_user
+
+        student = get_student_for_user(request.user)
+        return Response(visible_examinations(student) if student else [])
+
+
+class MyAdmitCardView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from .self_service import admit_card_for
+        from .services import get_student_for_user
+
+        student = get_student_for_user(request.user)
+        if student is None:
+            raise Http404()
+        examination = get_object_or_404(Examination, pk=request.query_params.get("examination"))
+        data = admit_card_for(examination, student)
+        if data is None:
+            raise Http404()  # not announced yet, or no papers: the same answer, so nothing is revealed
+        return Response(data)
+
+
+def _scope(request):
+    """The section or class level a request asks about (exactly one is expected by the callers)."""
+    from academics.models import AcademicLevel, Section
+
+    params = request.query_params
+    section = get_object_or_404(Section.objects.select_related("level"), pk=params["section"]) if params.get("section") else None
+    level = get_object_or_404(AcademicLevel, pk=params["level"]) if params.get("level") else None
+    return section, level
+
+
+class _ReportView(APIView):
+    """Examination reports for staff with view_exam_reports."""
+
+    def get_permissions(self):
+        return [IsAuthenticated(), HasPermission("view_exam_reports")]
+
+    def _run(self, request, build):
+        try:
+            return Response(build())
+        except allocation.AllocationError as exc:
+            raise _fail(exc)
+
+
+class AnalyticsView(_ReportView):
+    def get(self, request):
+        from .analytics import exam_analytics
+
+        examination = get_object_or_404(Examination, pk=request.query_params.get("examination"))
+        section, level = _scope(request)
+        return self._run(request, lambda: exam_analytics(examination, section=section, level=level))
+
+
+class AnalyticsCompareView(_ReportView):
+    def get(self, request):
+        from .analytics import compare_examinations
+
+        examination = get_object_or_404(Examination, pk=request.query_params.get("examination"))
+        other = get_object_or_404(Examination, pk=request.query_params.get("other"))
+        section, level = _scope(request)
+        return self._run(request, lambda: compare_examinations(examination, other, section=section, level=level))
+
+
+class WeakStudentsView(_ReportView):
+    def get(self, request):
+        from .analytics import weak_students
+
+        examination = get_object_or_404(Examination, pk=request.query_params.get("examination"))
+        section, level = _scope(request)
+        margin = _int(request.query_params.get("margin"), 5)
+        return self._run(request, lambda: weak_students(examination, section=section, level=level, margin=margin))
+
+
+class _ModerationView(APIView):
+    def get_permissions(self):
+        return [IsAuthenticated(), HasPermission("moderate_exam_marks")]
+
+    def _schedule(self, schedule_id):
+        from .models import ExamSchedule
+
+        return get_object_or_404(ExamSchedule.objects.select_related("examination", "subject", "section__level"), pk=schedule_id)
+
+    @staticmethod
+    def _options(data):
+        return {"method": data.get("method"), "value": data.get("value"), "step": data.get("step", "1"), "below": data.get("below")}
+
+
+class ModerationPreviewView(_ModerationView):
+    """What a moderation would do to this paper's marks. Changes nothing."""
+
+    def post(self, request, schedule_id):
+        from .moderation import ModerationError, preview_moderation
+
+        try:
+            return Response(preview_moderation(self._schedule(schedule_id), **self._options(request.data)))
+        except ModerationError as exc:
+            raise _fail(exc)
+
+
+class ModerationApplyView(_ModerationView):
+    """Apply a moderation. Needs a reason; the preview's count guards against marks moving in between."""
+
+    def post(self, request, schedule_id):
+        from .moderation import ModerationError, apply_moderation
+
+        data = request.data
+        try:
+            result = apply_moderation(
+                self._schedule(schedule_id), reason=data.get("reason"), user_id=request.user.id, request=request,
+                expected_changed=data.get("expected_changed"), **self._options(data),
+            )
+        except ModerationError as exc:
+            raise _fail(exc)
+        return Response(result)
