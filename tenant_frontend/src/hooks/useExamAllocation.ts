@@ -1,7 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axiosInstance from "@/lib/axios";
 import { toast } from "sonner";
-import type { AdmitCardData, DutyRow, MarksProgress, RankList, SittingPlan, SittingSummary } from "@/types/ExamAllocation";
+import type {
+    AdmitCardData,
+    DutyRow,
+    ExamAnalytics,
+    ExamComparison,
+    FamilyExam,
+    MarksProgress,
+    ModerationOptions,
+    ModerationPreview,
+    RankList,
+    SittingPlan,
+    SittingSummary,
+    WeakStudents,
+} from "@/types/ExamAllocation";
 
 const KEY = "exam-allocation";
 const BASE = "/examinations";
@@ -165,3 +178,73 @@ export const useRankList = (
                 params: { examination, [scope]: target, include_failed: includeFailed },
             })).data,
     });
+
+/** The logged-in student's own announced examinations and admit card. */
+export const useMyExams = () =>
+    useQuery({
+        queryKey: [KEY, "my-exams"],
+        queryFn: async () => (await axiosInstance.get<FamilyExam[]>(`${BASE}/my-exams/`)).data,
+    });
+
+export const useMyAdmitCard = (examination: string | undefined) =>
+    useQuery({
+        queryKey: [KEY, "my-admit-card", examination],
+        enabled: !!examination,
+        queryFn: async () => (await axiosInstance.get<AdmitCardData>(`${BASE}/my-admit-card/`, { params: { examination } })).data,
+    });
+
+type Scope = "section" | "level";
+
+export const useExamAnalytics = (examination: string | undefined, scope: Scope, target: string | undefined, enabled: boolean) =>
+    useQuery({
+        queryKey: [KEY, "analytics", examination, scope, target],
+        enabled: enabled && !!examination && !!target,
+        queryFn: async () => (await axiosInstance.get<ExamAnalytics>(`${BASE}/analytics/`, { params: { examination, [scope]: target } })).data,
+    });
+
+export const useExamComparison = (
+    examination: string | undefined,
+    other: string | undefined,
+    scope: Scope,
+    target: string | undefined,
+    enabled: boolean,
+) =>
+    useQuery({
+        queryKey: [KEY, "analytics-compare", examination, other, scope, target],
+        enabled: enabled && !!examination && !!other && !!target,
+        queryFn: async () =>
+            (await axiosInstance.get<ExamComparison>(`${BASE}/analytics/compare/`, { params: { examination, other, [scope]: target } })).data,
+    });
+
+export const useWeakStudents = (examination: string | undefined, scope: Scope, target: string | undefined, margin: number, enabled: boolean) =>
+    useQuery({
+        queryKey: [KEY, "weak-students", examination, scope, target, margin],
+        enabled: enabled && !!examination && !!target,
+        queryFn: async () =>
+            (await axiosInstance.get<WeakStudents>(`${BASE}/weak-students/`, { params: { examination, [scope]: target, margin } })).data,
+    });
+
+export const usePreviewModeration = () =>
+    useMutation({
+        mutationFn: async (vars: { schedule: string } & ModerationOptions) => {
+            const { schedule, ...body } = vars;
+            return (await axiosInstance.post<ModerationPreview>(`${BASE}/moderation/${schedule}/preview/`, body)).data;
+        },
+        onError: (error: unknown) => toast.error(allocationError(error, "Could not preview the moderation")),
+    });
+
+export const useApplyModeration = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (vars: { schedule: string; reason: string; expected_changed: number } & ModerationOptions) => {
+            const { schedule, ...body } = vars;
+            return (await axiosInstance.post<{ changed: number }>(`${BASE}/moderation/${schedule}/apply/`, body)).data;
+        },
+        onSuccess: (result) => {
+            queryClient.invalidateQueries({ queryKey: ["examinations"] });
+            queryClient.invalidateQueries({ queryKey: [KEY] });
+            toast.success(`Moderation applied to ${result.changed} marks`);
+        },
+        onError: (error: unknown) => toast.error(allocationError(error, "Could not apply the moderation")),
+    });
+};

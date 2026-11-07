@@ -103,8 +103,12 @@ export const useExaminationSettings = () =>
 export const useUpdateExaminationSettings = () => {
     const queryClient = useQueryClient();
     return useMutation({
-        mutationFn: async (require_separate_publisher: boolean) =>
-            (await axiosInstance.patch("/examinations/settings/", { require_separate_publisher })).data as ExaminationSettings,
+        // A bare true/false changes two-person publishing (as before); an object changes the settings it names.
+        mutationFn: async (change: boolean | Partial<Pick<ExaminationSettings, "require_separate_publisher" | "show_rank_to_families">>) =>
+            (await axiosInstance.patch(
+                "/examinations/settings/",
+                typeof change === "boolean" ? { require_separate_publisher: change } : change,
+            )).data as ExaminationSettings,
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["examinations", "settings"] });
             toast.success("Setting saved");

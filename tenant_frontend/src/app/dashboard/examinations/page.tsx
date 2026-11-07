@@ -181,6 +181,14 @@ export default function ExaminationsPage() {
                 </label>
             )}
 
+            {canManage && examSettings.data && (
+                <label className="flex items-start gap-2 text-sm">
+                    <input type="checkbox" className="mt-1" checked={!!examSettings.data.show_rank_to_families} disabled={updateSettings.isPending}
+                        onChange={(e) => updateSettings.mutate({ show_rank_to_families: e.target.checked })} />
+                    <span>Show each student&apos;s section rank on their report card<span className="block text-xs text-slate-500">Students and parents see the rank for published results. Students who did not pass get none. Off by default.</span></span>
+                </label>
+            )}
+
             {selectedExam && (
                 <div className="space-y-4">
                     <div className="flex flex-wrap justify-between gap-2 items-center">

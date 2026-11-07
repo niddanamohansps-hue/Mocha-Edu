@@ -24,6 +24,7 @@ export interface Examination {
 
 export interface ExaminationSettings {
     require_separate_publisher: boolean;
+    show_rank_to_families: boolean;
     is_default: boolean;
 }
 
@@ -211,6 +212,8 @@ export interface ReportCard {
     };
     academic_year: string | null;
     examinations: ReportCardExamination[];
+    /** Section rank per examination id; present only when the school shows ranks to students and parents. */
+    ranks?: Record<string, { rank: number; of: number; section: string; examination_name: string }>;
     summary?: {
         total_marks_obtained: number;
         total_max_marks: number;
@@ -343,7 +346,7 @@ export interface ScheduleMarks {
 export interface MarkChange {
     id: string;
     mark: string;
-    kind: "entry" | "correction" | "import" | "grace" | "recheck";
+    kind: "entry" | "correction" | "import" | "grace" | "recheck" | "moderation";
     student_name: string;
     enrollment_id: string;
     old_marks: string | null;

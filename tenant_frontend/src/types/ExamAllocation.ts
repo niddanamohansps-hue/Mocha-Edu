@@ -122,3 +122,110 @@ export interface RankList {
     rows: RankRow[];
     toppers: RankRow[];
 }
+
+export interface FamilyExam {
+    id: string;
+    name: string;
+    academic_year: string;
+    start_date: string;
+    end_date: string;
+    date_sheet_published_at: string | null;
+    is_published: boolean;
+}
+
+export interface AnalyticsSubject {
+    subject_id: string;
+    subject: string;
+    appeared: number;
+    absent: number;
+    passed: number;
+    pass_percentage: number | null;
+    average_percentage: number | null;
+    highest_percentage: number | null;
+    lowest_percentage: number | null;
+}
+
+export interface ExamAnalytics {
+    examination: { id: string; name: string; academic_year: string };
+    scope: "section" | "class";
+    title: string;
+    overall: {
+        students: number;
+        passed: number;
+        failed: number;
+        pass_percentage: number | null;
+        average_percentage: number | null;
+        highest_percentage: number | null;
+        lowest_percentage: number | null;
+    };
+    distribution: { label: string; count: number }[];
+    sections: { section: string; students: number; passed: number; pass_percentage: number | null; average_percentage: number | null }[];
+    subjects: AnalyticsSubject[];
+}
+
+export interface ExamComparison {
+    title: string;
+    first: { name: string; students: number; pass_percentage: number | null; average_percentage: number | null };
+    second: { name: string; students: number; pass_percentage: number | null; average_percentage: number | null };
+    subjects: {
+        subject: string;
+        first_average: number | null;
+        second_average: number | null;
+        change: number | null;
+        first_pass_percentage: number | null;
+        second_pass_percentage: number | null;
+    }[];
+}
+
+export interface WeakStudent {
+    student_id: string;
+    name: string;
+    enrollment_id: string;
+    class: string;
+    percentage: number;
+    is_pass: boolean;
+    weak_subjects: { subject: string; status: "failed" | "borderline" | "absent"; percentage: number | null }[];
+    failed_count: number;
+    attendance_percentage: number | null;
+}
+
+export interface WeakStudents {
+    examination: { id: string; name: string };
+    title: string;
+    margin: number;
+    rows: WeakStudent[];
+}
+
+export interface ModerationRow {
+    mark_id: string;
+    student_id: string;
+    name: string;
+    enrollment_id: string;
+    old: string;
+    new: string;
+    passed_before: boolean;
+    passed_after: boolean;
+}
+
+export interface ModerationPreview {
+    schedule: string;
+    summary: {
+        students_with_marks: number;
+        changed: number;
+        capped: number;
+        passed_before: number;
+        passed_after: number;
+        average_before: number | null;
+        average_after: number | null;
+        max_marks: string;
+        pass_marks: string;
+    };
+    rows: ModerationRow[];
+}
+
+export interface ModerationOptions {
+    method: "add" | "scale";
+    value: string;
+    step: string;
+    below?: string;
+}

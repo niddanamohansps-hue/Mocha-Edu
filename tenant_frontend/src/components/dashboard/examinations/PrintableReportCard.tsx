@@ -188,6 +188,11 @@ export const PrintableReportCard: React.FC<PrintableReportCardProps> = ({
                                         )}
                                     </div>
                                     <div className="flex items-center gap-3">
+                                        {reportCard.ranks?.[exam.examination] && (
+                                            <span className="text-xs font-bold bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded">
+                                                Rank {reportCard.ranks[exam.examination].rank} of {reportCard.ranks[exam.examination].of}
+                                            </span>
+                                        )}
                                         {exam.gpa !== null && exam.gpa !== undefined && (
                                             <span className="text-xs font-bold bg-indigo-100 text-indigo-800 px-2.5 py-0.5 rounded">
                                                 GPA: {exam.gpa.toFixed(2)}

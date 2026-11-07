@@ -224,11 +224,20 @@ export const getMenuItems = (
     if (can("enter_marks")) {
         examinationChildren.push({ label: "Marks Entry", href: "/dashboard/examinations/marks" });
     }
+    if (can("moderate_exam_marks")) {
+        examinationChildren.push({ label: "Moderation", href: "/dashboard/examinations/moderation" });
+    }
+    if (user?.active_role === "student") {
+        examinationChildren.push({ label: "My Exams", href: "/dashboard/examinations/my-exams" });
+    }
     if (can("view_results") || user?.active_role === "student") {
         examinationChildren.push({ label: "Results", href: "/dashboard/examinations/results" });
     }
     if (can("view_results")) {
         examinationChildren.push({ label: "Rank List", href: "/dashboard/examinations/rank-list" });
+    }
+    if (can("view_exam_reports")) {
+        examinationChildren.push({ label: "Analytics", href: "/dashboard/examinations/analytics" });
     }
     if (can("manage_marks") || can("view_results") || user?.active_role === "student") {
         examinationChildren.push({ label: "Rechecks", href: "/dashboard/examinations/rechecks" });
@@ -282,6 +291,7 @@ export const getMenuItems = (
             parentPortalChildren.push({ label: "Timetable", href: "/dashboard/parent-portal/timetable" });
         }
         if (can("view_child_results")) {
+            parentPortalChildren.push({ label: "Exams & Admit Card", href: "/dashboard/parent-portal/exams" });
             parentPortalChildren.push({ label: "Results", href: "/dashboard/parent-portal/results" });
         }
         if (can("view_child_fees") || can("pay_child_fees")) {
@@ -522,7 +532,7 @@ const CHILD_ORDER: Record<string, string[]> = {
         "Examinations", "Grading", "Term Weightage", "Co-scholastic",
         "Question Bank", "Questions to Review", "Question Papers",
         "Rooms & Invigilators", "Admit Cards", "Exam Duties",
-        "Marks Progress", "Mark Sheets", "Marks Entry", "Results", "Rank List", "Rechecks",
+        "Marks Progress", "Mark Sheets", "Marks Entry", "Moderation", "My Exams", "Results", "Rank List", "Analytics", "Rechecks",
     ],
     Fees: ["Student Fees / Collect Payment", "Outstanding Report", "My Fees", "Fee Structures", "Payment Gateways"],
     Payroll: ["Payroll runs", "Salaries", "My payslips", "Setup"],

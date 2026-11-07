@@ -529,7 +529,7 @@ function HistoryPanel({ scheduleId }: { scheduleId: string }) {
                             ? `Entered ${show(c.new_marks, c.new_attendance)}`
                             : c.kind === "grace"
                             ? `Grace ${Number(c.old_grace)} → ${Number(c.new_grace)}`
-                            : `${c.kind === "recheck" ? "Recheck" : c.kind === "import" ? "Import" : "Changed"} ${show(
+                            : `${c.kind === "recheck" ? "Recheck" : c.kind === "import" ? "Import" : c.kind === "moderation" ? "Moderated" : "Changed"} ${show(
                                   c.old_marks,
                                   c.old_attendance
                               )} → ${show(c.new_marks, c.new_attendance)}`}

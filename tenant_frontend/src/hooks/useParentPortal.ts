@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import axiosInstance from "@/lib/axios";
+import type { AdmitCardData, FamilyExam } from "@/types/ExamAllocation";
 import {
     ChildAttendance,
     ChildExamResult,
@@ -120,5 +121,22 @@ export const useChildUpcomingExams = (studentId: string | undefined) => {
             return response.data as UpcomingExam[];
         },
         enabled: !!studentId,
+    });
+};
+
+export const useChildExams = (studentId: string | undefined) => {
+    return useQuery({
+        queryKey: ["parent-portal", "exams", studentId],
+        queryFn: async () => (await axiosInstance.get(`/parent-portal/children/${studentId}/exams/`)).data as FamilyExam[],
+        enabled: !!studentId,
+    });
+};
+
+export const useChildAdmitCard = (studentId: string | undefined, examination: string | undefined) => {
+    return useQuery({
+        queryKey: ["parent-portal", "admit-card", studentId, examination],
+        queryFn: async () =>
+            (await axiosInstance.get(`/parent-portal/children/${studentId}/admit-card/`, { params: { examination } })).data as AdmitCardData,
+        enabled: !!studentId && !!examination,
     });
 };
