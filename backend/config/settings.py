@@ -279,6 +279,9 @@ REST_FRAMEWORK = {
         "public_careers_info": "60/min",
         "public_careers_apply": "10/hour",
         "public_careers_status": "30/hour",
+        # Public "pay your child's fees" page reached from a reminder link.
+        "public_pay_link": "60/hour",
+        "public_pay_link_start": "15/hour",
         # Public eSewa return/verify endpoints (fees.views.OnlinePaymentVerifyView and its
         # callback subclass). Provisional engineering value. NUM_PROXIES must be set in
         # production, otherwise DRF keys throttles on a client-suppliable X-Forwarded-For.
@@ -314,6 +317,8 @@ if len(sys.argv) > 1 and sys.argv[1] == "test":
     REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["public_careers_info"] = "1000/min"
     REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["public_careers_apply"] = "1000/min"
     REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["public_careers_status"] = "1000/min"
+    REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["public_pay_link"] = "1000/min"
+    REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["public_pay_link_start"] = "1000/min"
     REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["online_payment_verify"] = "1000/min"
     REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["signup_payment_init"] = "1000/min"
     REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["signup_payment_verify"] = "1000/min"

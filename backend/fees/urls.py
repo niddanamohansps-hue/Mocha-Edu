@@ -34,7 +34,11 @@ router.register(r"heads", FeeHeadViewSet, basename="fee-head")
 router.register(r"structures", FeeStructureViewSet, basename="fee-structure")
 
 
+from .paylink_views import PayLinkDetailView, PayLinkStartView
+
 urlpatterns = [
+    path("pay-link/<str:token>/", PayLinkDetailView.as_view(), name="fees-pay-link"),
+    path("pay-link/<str:token>/start/", PayLinkStartView.as_view(), name="fees-pay-link-start"),
     path("gateways/", GatewayListView.as_view(), name="payment-gateway-list"),
     path("gateways/<str:gateway>/", GatewayDetailView.as_view(), name="payment-gateway-detail"),
     path("gateways/<str:gateway>/test/", GatewayTestView.as_view(), name="payment-gateway-test"),

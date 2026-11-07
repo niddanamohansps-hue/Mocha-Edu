@@ -32,6 +32,7 @@ from notifications.alerts import (
 )
 from notifications.models import AlertLog, NotificationSettings
 
+from . import paylinks
 from .models import StudentFee
 from .services import annotate_with_outstanding_balance
 
@@ -105,6 +106,11 @@ def _wanted(fee, today, cfg):
     return AlertLog.Kind.FEE_OVERDUE, _overdue_key(fee, number), title[:200], body[:500]
 
 
+def _pay_extras(student, body, pay_url):
+    """What to add to an in-app and email reminder so the parent can pay in one tap."""
+    return {"link": paylinks.pay_path(student), "email_body": f"{body}\n\nPay online: {pay_url}"}
+
+
 def _send_whatsapp_reminders(fee, student, kind, key):
     """The WhatsApp copy of a fee reminder, for parents who opted in. Never raises: a failure here must not
     stop the in-app and email reminders."""
@@ -118,7 +124,9 @@ def _send_whatsapp_reminders(fee, student, kind, key):
             else django_settings.WHATSAPP_TEMPLATE_FEE_OVERDUE
         )
         name = f"{student.profile.first_name} {student.profile.last_name}".strip()
-        params = [name, fee.fee_head.name, _money(fee._outstanding), fee.due_date.isoformat()]
+        # The pay link when this school can take online payments, otherwise the school's own site.
+        link = paylinks.pay_url(student) if paylinks.online_payment_available() else paylinks.portal_link("/login")
+        params = [name, fee.fee_head.name, _money(fee._outstanding), fee.due_date.isoformat(), link]
         for recipient in recipients:
             dispatch_whatsapp_alert(
                 kind=kind, dedupe_key=key, recipient=recipient, student=student, template=template, params=params
@@ -154,6 +162,7 @@ def send_fee_reminders_for_current_school(*, deadline=None, today=None):
         AlertLog.objects.filter(dedupe_key__in=[w[1][1] for w in work]).values_list("dedupe_key", "recipient_user_id")
     )
     recipients_by_student = {}
+    pay_links = {}
     for index, (fee, (kind, key, title, body)) in enumerate(work):
         if deadline is not None and time.monotonic() > deadline:
             summary["deferred"] = len(work) - index
@@ -170,9 +179,13 @@ def send_fee_reminders_for_current_school(*, deadline=None, today=None):
             if (key, recipient.user_id) in sent_before:
                 summary["already_sent"] += 1
                 continue
+            if student.id not in pay_links:
+                pay_links[student.id] = paylinks.pay_url(student) if paylinks.online_payment_available() else None
+            pay_url = pay_links[student.id]
+            extras = _pay_extras(student, body, pay_url) if pay_url else {}
             try:
                 result = dispatch_alert(
-                    kind=kind, dedupe_key=key, recipient=recipient, student=student, title=title, body=body,
+                    kind=kind, dedupe_key=key, recipient=recipient, student=student, title=title, body=body, **extras,
                 )
             except Exception:
                 summary["errors"] += 1

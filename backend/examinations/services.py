@@ -557,35 +557,10 @@ def calculate_examination_results_bulk(examination, students):
 
 
 def _build_portal_link(path):
-    """
-    Builds an absolute link to the tenant's own frontend, for use in a
-    notification email body. Reuses PASSWORD_RESET_FRONTEND_PROTOCOL/PORT
-    (accounts/views.py's ForgotPasswordView) rather than introducing a
-    second frontend-URL setting - both features point at the same
-    tenant_frontend app on the same port, just different paths.
+    """An absolute link to the tenant's own frontend (see core.links.portal_link)."""
+    from core.links import portal_link
 
-    Unlike the password-reset flow, there is no inbound HTTP request here
-    to read the tenant's host from (this runs from publish_examination(),
-    a plain service function) - the tenant's own primary Domain row
-    (already the source of truth for tenant routing) is the equivalent
-    source of the hostname. Falls back to a bare relative path if, for
-    whatever reason, the current connection has no tenant/domain - still a
-    usable (if non-clickable-without-context) instruction in the email.
-    """
-    from django.conf import settings
-    from django.db import connection
-
-    tenant = connection.tenant
-    domain = tenant.domains.filter(is_primary=True).first() if tenant else None
-    if domain is None and tenant is not None:
-        domain = tenant.domains.first()
-    if domain is None:
-        return path
-
-    port_suffix = (
-        f":{settings.PASSWORD_RESET_FRONTEND_PORT}" if settings.PASSWORD_RESET_FRONTEND_PORT else ""
-    )
-    return f"{settings.PASSWORD_RESET_FRONTEND_PROTOCOL}://{domain.domain}{port_suffix}{path}"
+    return portal_link(path)
 
 
 def _resolve_result_notification_recipients(student):

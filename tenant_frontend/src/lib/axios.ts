@@ -76,6 +76,7 @@ axiosInstance.interceptors.response.use(
                     !window.location.pathname.startsWith('/login') &&
                     !window.location.pathname.startsWith('/apply') &&
                     !window.location.pathname.startsWith('/careers') &&
+                    !window.location.pathname.startsWith('/pay') &&
                     !window.location.pathname.startsWith('/admissions/status')
                 ) {
                     localStorage.removeItem("active_role");
