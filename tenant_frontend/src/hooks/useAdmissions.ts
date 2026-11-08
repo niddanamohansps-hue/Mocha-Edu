@@ -575,3 +575,51 @@ export const useRotatePublicToken = () => {
 };
 
 
+
+
+export interface FollowUpRow {
+    id: string;
+    enquiry_number: string;
+    student_name: string;
+    guardian_name: string;
+    guardian_phone: string;
+    level: string;
+    source: string;
+    status: string;
+    assigned_to: string | null;
+    assigned_to_name: string | null;
+    enquiry_date: string;
+    follow_up_date: string | null;
+    days_overdue: number;
+    notes: string;
+}
+
+export interface FollowUpDesk {
+    overdue: FollowUpRow[];
+    today: FollowUpRow[];
+    upcoming: FollowUpRow[];
+    unscheduled: FollowUpRow[];
+    summary: { overdue: number; today: number; upcoming: number; unscheduled: number };
+}
+
+export const useFollowUpDesk = (mine: boolean) =>
+    useQuery({
+        queryKey: [ADMISSIONS_KEY, "follow-ups", mine],
+        queryFn: async () =>
+            (await axiosInstance.get<FollowUpDesk>("/admissions/enquiries/follow-ups/", { params: mine ? { mine: "true" } : {} })).data,
+    });
+
+export const useRecordFollowUp = () => {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (vars: { id: string; outcome: "contacted" | "qualified" | "lost"; note: string; next_follow_up: string | null }) => {
+            const { id, ...body } = vars;
+            return (await axiosInstance.post(`/admissions/enquiries/${id}/follow-up/`, body)).data;
+        },
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: [ADMISSIONS_KEY] });
+            toast.success("Follow-up saved");
+        },
+        onError: (err) => toast.error(admissionsErrorMessage(err, "Could not save the follow-up")),
+    });
+};

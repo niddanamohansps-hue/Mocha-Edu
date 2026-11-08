@@ -25,6 +25,8 @@ from .admissions_views import (
     PublicApplicationTokenRotateView,
     AdmissionApplicationTokenRotateView,
     AdmissionApplicationTokenRevokeView,
+    FollowUpDeskView,
+    FollowUpRecordView,
 )
 
 urlpatterns = [
@@ -40,6 +42,8 @@ urlpatterns = [
     # Staff Admissions Pipeline Endpoints (RBAC Protected)
     path("dashboard/", AdmissionDashboardStatsView.as_view(), name="admissions-dashboard-stats"),
     path("enquiries/", AdmissionEnquiryListView.as_view(), name="admissions-enquiry-list"),
+    path("enquiries/follow-ups/", FollowUpDeskView.as_view(), name="admissions-followup-desk"),
+    path("enquiries/<uuid:pk>/follow-up/", FollowUpRecordView.as_view(), name="admissions-followup-record"),
     path("enquiries/<uuid:pk>/", AdmissionEnquiryDetailView.as_view(), name="admissions-enquiry-detail"),
     path("enquiries/<uuid:pk>/convert/", AdmissionEnquiryConvertView.as_view(), name="admissions-enquiry-convert"),
     path("applications/", AdmissionApplicationListView.as_view(), name="admissions-application-list"),

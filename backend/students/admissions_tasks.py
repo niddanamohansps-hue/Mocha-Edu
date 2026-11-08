@@ -110,3 +110,18 @@ def scan_admission_document_task(self, schema_name: str, document_id: str):
 
                 return {"status": "error", "document_id": document_id, "details": scan_details}
 
+
+
+@shared_task
+def remind_admission_followups():
+    """Daily, in every school: tell each staff member which admission enquiries they should call today or are late.
+    Iterates the school schemas itself because a periodic task has no tenant of its own."""
+    from django_tenants.utils import get_tenant_model
+
+    from .admissions_followups import remind_followups
+
+    reminded = 0
+    for tenant in get_tenant_model().objects.exclude(schema_name="public"):
+        with schema_context(tenant.schema_name):
+            reminded += remind_followups()["staff"]
+    return reminded

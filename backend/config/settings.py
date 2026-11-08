@@ -520,6 +520,11 @@ CELERY_BEAT_SCHEDULE = {
         "task": "examinations.tasks.remind_pending_marks",
         "schedule": crontab(hour=2, minute=30),
     },
+    # Staff who have admission enquiries to call today or late, once a day (03:00 UTC = 08:30 in India).
+    "remind-admission-followups": {
+        "task": "students.admissions_tasks.remind_admission_followups",
+        "schedule": crontab(hour=3, minute=0),
+    },
 }
 
 # CORS

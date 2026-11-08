@@ -153,6 +153,50 @@ class AdmissionEnquiryListView(APIView):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
+class FollowUpDeskView(APIView):
+    """Enquiries that are due a call: overdue, today, the next week, and open ones nobody has scheduled."""
+
+    permission_classes = [IsAuthenticated, HasPermission("view_admissions")]
+
+    def get(self, request):
+        from .admissions_followups import followups_data
+
+        mine = None
+        if request.query_params.get("mine") == "true":
+            mine = get_staff_member_for_user(request.user)
+            if mine is None:  # not a staff member, so no enquiry is theirs
+                empty = {"overdue": [], "today": [], "upcoming": [], "unscheduled": []}
+                return Response({**empty, "summary": {key: 0 for key in empty}})
+        return Response(followups_data(assigned_to=mine))
+
+
+class FollowUpRecordView(APIView):
+    """Note what happened on a call and set the next follow-up."""
+
+    permission_classes = [IsAuthenticated, HasPermission("manage_admission_enquiries")]
+
+    def post(self, request, pk):
+        from django.utils.dateparse import parse_date
+
+        from .admissions_followups import FollowUpError, record_followup
+
+        enquiry = get_object_or_404(AdmissionEnquiry, pk=pk)
+        raw = request.data.get("next_follow_up")
+        next_date = None
+        if raw:
+            next_date = parse_date(str(raw))
+            if next_date is None:
+                return Response({"error": "Enter the next follow-up as a valid date."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            record_followup(
+                enquiry, outcome=request.data.get("outcome"), note=request.data.get("note", ""),
+                next_date=next_date, user=request.user, request=request,
+            )
+        except FollowUpError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(AdmissionEnquirySerializer(enquiry).data)
+
+
 class AdmissionEnquiryDetailView(APIView):
     """
     Retrieve, update, or delete a specific admission enquiry.

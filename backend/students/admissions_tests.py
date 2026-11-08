@@ -1700,3 +1700,130 @@ class AdmissionsApiTests(AdmissionsFixtureMixin, TransactionTestCase):
 
 
 
+
+
+class AdmissionsFollowUpTests(AdmissionsFixtureMixin, TransactionTestCase):
+    """Enquiries due a call, recording what happened, and the daily reminder."""
+
+    def _enquiry(self, name, status="new", follow_up=None, assigned=None, enquiry_date=None):
+        from datetime import timedelta
+
+        from core.dates import school_today
+
+        return AdmissionEnquiry.objects.create(
+            enquiry_number=f"ENQ-T-{uuid_module.uuid4().hex[:6].upper()}", student_name=name, guardian_name="Parent",
+            guardian_phone="+919800000000", academic_year="2026-27", status=status, follow_up_date=follow_up,
+            assigned_to=assigned, enquiry_date=enquiry_date or school_today() - timedelta(days=1),
+        )
+
+    def _days(self, n):
+        from datetime import timedelta
+
+        from core.dates import school_today
+
+        return school_today() + timedelta(days=n)
+
+    def test_the_desk_sorts_open_enquiries_and_hides_finished_ones(self):
+        with tenant_context(self.school):
+            self._enquiry("Late", follow_up=self._days(-3))
+            self._enquiry("Now", status="contacted", follow_up=self._days(0))
+            self._enquiry("Soon", status="qualified", follow_up=self._days(5))
+            self._enquiry("Far", follow_up=self._days(30))  # beyond the week: not shown
+            self._enquiry("Forgotten", enquiry_date=self._days(-10))  # old, no date at all
+            self._enquiry("Fresh")  # new yesterday with no date yet: not flagged
+            self._enquiry("Done", status="converted", follow_up=self._days(-1))
+            self._enquiry("Lost", status="closed", follow_up=self._days(-1))
+        client = self._client_as(self.staff_user)
+        res = client.get("/api/admissions/enquiries/follow-ups/", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(res.status_code, 200, res.data)
+        names = {key: [r["student_name"] for r in res.data[key]] for key in ("overdue", "today", "upcoming", "unscheduled")}
+        self.assertEqual(names, {"overdue": ["Late"], "today": ["Now"], "upcoming": ["Soon"], "unscheduled": ["Forgotten"]})
+        self.assertEqual(res.data["overdue"][0]["days_overdue"], 3)
+        self.assertEqual(res.data["summary"], {"overdue": 1, "today": 1, "upcoming": 1, "unscheduled": 1})
+        # a viewer with only view_admissions can read the desk
+        viewer = self._client_as(self.viewer_user).get("/api/admissions/enquiries/follow-ups/", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(viewer.status_code, 200)
+
+    def test_mine_narrows_the_desk_to_the_signed_in_staff_members_enquiries(self):
+        with tenant_context(self.school):
+            self._enquiry("Mine", follow_up=self._days(0), assigned=self.staff_member)
+            self._enquiry("Nobodys", follow_up=self._days(0))
+        client = self._client_as(self.staff_user)
+        res = client.get("/api/admissions/enquiries/follow-ups/?mine=true", HTTP_HOST=self.DOMAIN)
+        self.assertEqual([r["student_name"] for r in res.data["today"]], ["Mine"])
+        owner = self._client_as(self.owner_user).get("/api/admissions/enquiries/follow-ups/?mine=true", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(owner.data["summary"]["today"], 0)  # the owner has no staff record
+
+    def test_recording_a_call_notes_it_moves_the_enquiry_on_and_sets_the_next_date(self):
+        with tenant_context(self.school):
+            enquiry = self._enquiry("Aarav", follow_up=self._days(0))
+        client = self._client_as(self.staff_user)
+        url = f"/api/admissions/enquiries/{enquiry.pk}/follow-up/"
+        nxt = self._days(4).isoformat()
+        ok = client.post(url, {"outcome": "contacted", "note": "  Will visit on Saturday ", "next_follow_up": nxt}, format="json", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(ok.status_code, 200, ok.data)
+        self.assertEqual((ok.data["status"], ok.data["follow_up_date"]), ("contacted", nxt))
+        self.assertIn("Contacted: Will visit on Saturday", ok.data["notes"])
+        self.assertIn("adm_staff", ok.data["notes"])  # who wrote it
+        # a later call can qualify it, and never moves it back to new
+        again = client.post(url, {"outcome": "contacted", "note": "Asked about fees", "next_follow_up": nxt}, format="json", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(again.data["status"], "contacted")
+        qual = client.post(url, {"outcome": "qualified", "note": "Wants to apply"}, format="json", HTTP_HOST=self.DOMAIN)
+        self.assertEqual((qual.data["status"], qual.data["follow_up_date"]), ("qualified", None))
+        self.assertEqual(qual.data["notes"].count("\n"), 2)  # three dated lines, nothing overwritten
+
+    def test_losing_an_enquiry_needs_a_reason_and_finishes_it(self):
+        with tenant_context(self.school):
+            enquiry = self._enquiry("Rohan", follow_up=self._days(1))
+        client = self._client_as(self.staff_user)
+        url = f"/api/admissions/enquiries/{enquiry.pk}/follow-up/"
+        self.assertEqual(client.post(url, {"outcome": "lost", "note": "  "}, format="json", HTTP_HOST=self.DOMAIN).status_code, 400)
+        lost = client.post(url, {"outcome": "lost", "note": "Joined another school", "next_follow_up": self._days(3).isoformat()}, format="json", HTTP_HOST=self.DOMAIN)
+        self.assertEqual((lost.status_code, lost.data["status"], lost.data["follow_up_date"]), (200, "closed", None))
+        self.assertEqual(client.post(url, {"outcome": "contacted", "note": "x"}, format="json", HTTP_HOST=self.DOMAIN).status_code, 400)  # finished
+        gone = client.get("/api/admissions/enquiries/follow-ups/", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(gone.data["summary"]["overdue"] + gone.data["summary"]["today"] + gone.data["summary"]["upcoming"], 0)
+
+    def test_bad_input_and_missing_permission_are_refused(self):
+        with tenant_context(self.school):
+            enquiry = self._enquiry("Meera", follow_up=self._days(0))
+        client = self._client_as(self.staff_user)
+        url = f"/api/admissions/enquiries/{enquiry.pk}/follow-up/"
+
+        def post(body, who=client):
+            return who.post(url, body, format="json", HTTP_HOST=self.DOMAIN)
+
+        self.assertEqual(post({"outcome": "later", "note": "x"}).status_code, 400)
+        self.assertEqual(post({"outcome": "contacted", "note": ""}).status_code, 400)
+        self.assertEqual(post({"outcome": "contacted", "note": "x" * 501}).status_code, 400)
+        self.assertEqual(post({"outcome": "contacted", "note": "x", "next_follow_up": "soon"}).status_code, 400)
+        self.assertEqual(post({"outcome": "contacted", "note": "x", "next_follow_up": self._days(-1).isoformat()}).status_code, 400)
+        self.assertEqual(post({"outcome": "contacted", "note": "x", "next_follow_up": self._days(400).isoformat()}).status_code, 400)
+        self.assertEqual(post({"outcome": "contacted", "note": "x"}, self._client_as(self.viewer_user)).status_code, 403)
+        missing = client.post(f"/api/admissions/enquiries/{uuid_module.uuid4()}/follow-up/", {}, format="json", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(missing.status_code, 404)
+        with tenant_context(self.school):
+            enquiry.refresh_from_db()
+            self.assertEqual((enquiry.status, enquiry.notes), ("new", ""))  # nothing changed by the refusals
+
+    def test_the_daily_reminder_tells_each_assigned_person_once_and_only_about_what_is_due(self):
+        from notifications.models import Notification
+
+        from .admissions_followups import remind_followups
+
+        with tenant_context(self.school):
+            self._enquiry("Late", follow_up=self._days(-2), assigned=self.staff_member)
+            self._enquiry("Today", follow_up=self._days(0), assigned=self.staff_member)
+            self._enquiry("Tomorrow", follow_up=self._days(1), assigned=self.staff_member)  # not due yet
+            self._enquiry("Orphan", follow_up=self._days(0))  # nobody assigned
+            self._enquiry("Done", status="closed", follow_up=self._days(-1), assigned=self.staff_member)
+            first = remind_followups()
+            self.assertEqual((first["staff"], first["enquiries"], first["unassigned"]), (1, 3, 1))
+            notice = Notification.objects.get(recipient_user_id=self.staff_user.id, category="admissions")
+            self.assertIn("2 to call", notice.body)
+            self.assertIn("1 overdue", notice.body)
+            self.assertNotIn("Tomorrow", notice.body)
+            self.assertEqual(notice.link, "/dashboard/students/admissions/follow-ups")
+            second = remind_followups()  # the same morning again
+            self.assertEqual((second["staff"], second["already_reminded"]), (0, 1))
+            self.assertEqual(Notification.objects.filter(category="admissions").count(), 1)
