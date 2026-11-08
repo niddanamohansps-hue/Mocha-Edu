@@ -10,6 +10,8 @@ import type {
     HallAttendance,
     HallSaveResult,
     MalpracticeCase,
+    RoomReport,
+    RoomReportRow,
     MalpracticeDecision,
     MarksProgress,
     ModerationOptions,
@@ -325,3 +327,30 @@ export const useStartSupplementary = () =>
         "Supplementary examination started",
         "Could not start the supplementary examination",
     );
+
+export const useRoomReport = (sitting: string | null, room: string | null) =>
+    useQuery({
+        queryKey: [KEY, "room-report", sitting, room],
+        enabled: !!sitting && !!room,
+        queryFn: async () => (await axiosInstance.get<RoomReport>(`${BASE}/room-report/`, { params: { sitting, room } })).data,
+    });
+
+export const useSubmitRoomReport = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (vars: { sitting: string; room: string; scripts_collected: number; incidents: string }) =>
+            (await axiosInstance.post<RoomReport>(`${BASE}/room-report/`, vars)).data,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: [KEY] });
+            toast.success("Room report saved");
+        },
+        onError: (error: unknown) => toast.error(allocationError(error, "Could not save the report")),
+    });
+};
+
+export const useRoomReports = (examination: string | undefined) =>
+    useQuery({
+        queryKey: [KEY, "room-reports", examination],
+        enabled: !!examination,
+        queryFn: async () => (await axiosInstance.get<RoomReportRow[]>(`${BASE}/room-reports/`, { params: { examination } })).data,
+    });

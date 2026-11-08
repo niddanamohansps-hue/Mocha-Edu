@@ -59,6 +59,9 @@ function DutyTable({ rows, withStaff, attendance = false }: { rows: DutyRow[]; w
                             <TableCell className="no-print">
                                 <Button asChild size="sm" variant="outline">
                                     <Link href={`/dashboard/examinations/hall-attendance?sitting=${row.sitting}&room=${row.room_id}`}>Take attendance</Link>
+                                </Button>{" "}
+                                <Button asChild size="sm" variant="outline">
+                                    <Link href={`/dashboard/examinations/room-report?sitting=${row.sitting}&room=${row.room_id}`}>Room report</Link>
                                 </Button>
                             </TableCell>
                         )}

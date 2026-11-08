@@ -216,6 +216,9 @@ export const getMenuItems = (
     if (user?.active_role === "staff" || user?.active_role === "instructor" || can("manage_exam_allocation")) {
         examinationChildren.push({ label: "Exam Duties", href: "/dashboard/examinations/duties" });
     }
+    if (can("manage_exam_allocation")) {
+        examinationChildren.push({ label: "Room Reports", href: "/dashboard/examinations/room-reports" });
+    }
     if (can("report_exam_malpractice") || can("decide_exam_malpractice")) {
         examinationChildren.push({ label: "Malpractice", href: "/dashboard/examinations/malpractice" });
     }
@@ -537,7 +540,7 @@ const CHILD_ORDER: Record<string, string[]> = {
     Examinations: [
         "Examinations", "Grading", "Term Weightage", "Co-scholastic",
         "Question Bank", "Questions to Review", "Question Papers",
-        "Rooms & Invigilators", "Admit Cards", "Exam Duties", "Malpractice",
+        "Rooms & Invigilators", "Admit Cards", "Exam Duties", "Room Reports", "Malpractice",
         "Marks Progress", "Mark Sheets", "Marks Entry", "Moderation", "My Exams", "Results", "Rank List", "Analytics", "Supplementary", "Rechecks",
     ],
     Fees: ["Student Fees / Collect Payment", "Outstanding Report", "My Fees", "Fee Structures", "Payment Gateways"],

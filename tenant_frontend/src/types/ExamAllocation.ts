@@ -299,3 +299,31 @@ export interface SupplementaryData {
     summary: { candidates: number; students: number; cleared: number; not_cleared: number; waiting: number };
     rows: SupplementaryRow[];
 }
+
+export interface RoomReport {
+    seated: number;
+    absent: number;
+    expected: number;
+    submitted: boolean;
+    scripts_collected: number | null;
+    difference: number | null;
+    incidents: string;
+    submitted_by: string;
+}
+
+export interface RoomReportRow {
+    sitting: string;
+    room_id: string;
+    room: string;
+    date: string;
+    start_time: string;
+    end_time: string;
+    seated: number;
+    absent: number;
+    expected: number;
+    submitted: boolean;
+    scripts_collected: number | null;
+    difference: number | null;
+    has_incidents: boolean;
+    incidents: string;
+}
