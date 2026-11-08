@@ -229,3 +229,28 @@ export interface ModerationOptions {
     step: string;
     below?: string;
 }
+
+export type MalpracticeDecision = "dismissed" | "warning" | "marks_cancelled" | "all_papers_cancelled";
+
+export interface MalpracticeCase {
+    id: string;
+    examination: string;
+    examination_name: string;
+    schedule: string;
+    subject: string;
+    class: string;
+    student_id: string;
+    student: string;
+    enrollment_id: string;
+    description: string;
+    evidence_notes: string;
+    reported_by: string;
+    reported_by_user_id: string | null;
+    reported_at: string;
+    status: "reported" | "decided";
+    decision: MalpracticeDecision | "";
+    decision_label: string;
+    decision_notes: string;
+    decided_by: string;
+    decided_at: string | null;
+}

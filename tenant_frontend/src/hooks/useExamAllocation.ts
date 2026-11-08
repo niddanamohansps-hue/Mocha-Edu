@@ -7,6 +7,8 @@ import type {
     ExamAnalytics,
     ExamComparison,
     FamilyExam,
+    MalpracticeCase,
+    MalpracticeDecision,
     MarksProgress,
     ModerationOptions,
     ModerationPreview,
@@ -248,3 +250,37 @@ export const useApplyModeration = () => {
         onError: (error: unknown) => toast.error(allocationError(error, "Could not apply the moderation")),
     });
 };
+
+export const useMalpracticeCases = (status?: string) =>
+    useQuery({
+        queryKey: [KEY, "malpractice", status],
+        queryFn: async () => (await axiosInstance.get<MalpracticeCase[]>(`${BASE}/malpractice/`, { params: { status } })).data,
+    });
+
+export const useReportMalpractice = () =>
+    useAllocationMutation(
+        async (vars: { schedule: string; student: string; description: string; evidence_notes: string }) =>
+            (await axiosInstance.post(`${BASE}/malpractice/`, vars)).data,
+        "The case has been reported",
+        "Could not report the case",
+    );
+
+export const useUpdateMalpractice = () =>
+    useAllocationMutation(
+        async (vars: { id: string; evidence_notes?: string; description?: string }) => {
+            const { id, ...body } = vars;
+            return (await axiosInstance.patch(`${BASE}/malpractice/${id}/`, body)).data;
+        },
+        "Saved",
+        "Could not save the change",
+    );
+
+export const useDecideMalpractice = () =>
+    useAllocationMutation(
+        async (vars: { id: string; decision: MalpracticeDecision; notes: string }) => {
+            const { id, ...body } = vars;
+            return (await axiosInstance.post(`${BASE}/malpractice/${id}/decide/`, body)).data;
+        },
+        "The decision has been recorded",
+        "Could not record the decision",
+    );
