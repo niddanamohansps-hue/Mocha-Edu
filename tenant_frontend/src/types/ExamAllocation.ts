@@ -57,6 +57,8 @@ export interface DutyRow {
     end_time: string;
     room: string;
     role: "chief" | "invigilator" | "relief";
+    sitting: string;
+    room_id: string;
 }
 
 export interface AdmitCardPaper {
@@ -253,4 +255,27 @@ export interface MalpracticeCase {
     decision_notes: string;
     decided_by: string;
     decided_at: string | null;
+}
+
+export interface HallRow {
+    student_id: string;
+    name: string;
+    enrollment_id: string;
+    class: string;
+    subject: string;
+    seat: number;
+    status: "" | "present" | "absent";
+}
+
+export interface HallAttendance {
+    sitting: { id: string; examination: string; date: string; start_time: string; end_time: string };
+    room: { id: string; name: string };
+    rows: HallRow[];
+}
+
+export interface HallSaveResult {
+    saved: number;
+    absent: number;
+    conflicts: { student_id: string; name: string; problem: string }[];
+    attendance: HallAttendance;
 }

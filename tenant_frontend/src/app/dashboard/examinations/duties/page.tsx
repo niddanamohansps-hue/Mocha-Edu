@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -31,7 +32,7 @@ export default function ExamDutiesPage() {
     );
 }
 
-function DutyTable({ rows, withStaff }: { rows: DutyRow[]; withStaff: boolean }) {
+function DutyTable({ rows, withStaff, attendance = false }: { rows: DutyRow[]; withStaff: boolean; attendance?: boolean }) {
     return (
         <Table>
             <TableHeader>
@@ -42,6 +43,7 @@ function DutyTable({ rows, withStaff }: { rows: DutyRow[]; withStaff: boolean })
                     <TableHead>Examination</TableHead>
                     <TableHead>Room</TableHead>
                     <TableHead>Role</TableHead>
+                    {attendance && <TableHead />}
                 </TableRow>
             </TableHeader>
             <TableBody>
@@ -53,6 +55,13 @@ function DutyTable({ rows, withStaff }: { rows: DutyRow[]; withStaff: boolean })
                         <TableCell>{row.examination}</TableCell>
                         <TableCell>{row.room}</TableCell>
                         <TableCell>{row.role === "chief" ? "Chief invigilator" : "Invigilator"}</TableCell>
+                        {attendance && (
+                            <TableCell className="no-print">
+                                <Button asChild size="sm" variant="outline">
+                                    <Link href={`/dashboard/examinations/hall-attendance?sitting=${row.sitting}&room=${row.room_id}`}>Take attendance</Link>
+                                </Button>
+                            </TableCell>
+                        )}
                     </TableRow>
                 ))}
             </TableBody>
@@ -70,7 +79,7 @@ function MyDuties() {
             ) : duties.length === 0 ? (
                 <EmptyState title="No duties" description="You have not been put on any invigilation duty." />
             ) : (
-                <DutyTable rows={duties} withStaff={false} />
+                <DutyTable rows={duties} withStaff={false} attendance />
             )}
         </section>
     );

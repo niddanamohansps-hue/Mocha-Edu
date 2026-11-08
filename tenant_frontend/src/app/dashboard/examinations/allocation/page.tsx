@@ -228,6 +228,11 @@ function SittingDetail({ sittingId, canManage }: { sittingId: string; canManage:
                         <h4 className="font-semibold">
                             {entry.room.name} <span className="text-sm font-normal text-slate-500">- {entry.seats.length} of {entry.room.capacity} seats</span>
                         </h4>
+                        {canManage && (
+                            <Button asChild size="sm" variant="outline">
+                                <Link href={`/dashboard/examinations/hall-attendance?sitting=${sittingId}&room=${entry.room.id}`}>Attendance</Link>
+                            </Button>
+                        )}
                     </div>
                     <div className="space-y-1 text-sm">
                         {entry.invigilators.length === 0 && <p className="text-slate-500">No invigilators yet.</p>}

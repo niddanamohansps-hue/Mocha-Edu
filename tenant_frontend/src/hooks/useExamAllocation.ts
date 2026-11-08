@@ -7,6 +7,8 @@ import type {
     ExamAnalytics,
     ExamComparison,
     FamilyExam,
+    HallAttendance,
+    HallSaveResult,
     MalpracticeCase,
     MalpracticeDecision,
     MarksProgress,
@@ -284,3 +286,24 @@ export const useDecideMalpractice = () =>
         "The decision has been recorded",
         "Could not record the decision",
     );
+
+export const useHallAttendance = (sitting: string | null, room: string | null) =>
+    useQuery({
+        queryKey: [KEY, "hall", sitting, room],
+        enabled: !!sitting && !!room,
+        queryFn: async () => (await axiosInstance.get<HallAttendance>(`${BASE}/hall-attendance/`, { params: { sitting, room } })).data,
+    });
+
+export const useSaveHallAttendance = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (vars: { sitting: string; room: string; records: { student: string; status: "present" | "absent" }[] }) =>
+            (await axiosInstance.post<HallSaveResult>(`${BASE}/hall-attendance/`, vars)).data,
+        onSuccess: (result) => {
+            queryClient.invalidateQueries({ queryKey: [KEY] });
+            queryClient.invalidateQueries({ queryKey: ["examinations"] });
+            toast.success(`Attendance saved: ${result.saved} students, ${result.absent} absent`);
+        },
+        onError: (error: unknown) => toast.error(allocationError(error, "Could not save the attendance")),
+    });
+};
