@@ -177,6 +177,12 @@ def transition_application_status(
             changes={"status": {"old": old_status, "new": new_status}, "reason": reason},
         )
 
+    # Tell the family. A failure to queue the email must never undo the status change itself.
+    try:
+        notify_family_of_status(application, new_status)
+    except Exception:
+        logger.exception("Could not queue the admission update email for %s", application.application_number)
+
     return application
 
 
@@ -537,3 +543,94 @@ def revoke_application_access_token(application: AdmissionApplication, user=None
             except Exception:
                 pass
 
+
+
+# ---- telling the family -----------------------------------------------------------------------------------
+
+# Statuses the family is emailed about as soon as they happen. A rejection is deliberately absent: it is sent only
+# when a person presses the button (send_decision_notice), so staff can speak to the family first if they want to.
+FAMILY_UPDATES = {
+    "documents_pending": (
+        "Documents needed for the admission application",
+        "We need some documents before we can take {student}'s application further. Please open the link below to "
+        "see what is missing and upload it.",
+    ),
+    "approved": (
+        "Good news about the admission application",
+        "We are pleased to tell you that the admission of {student} has been approved. The school will contact you "
+        "shortly about the next steps.",
+    ),
+    "waitlisted": (
+        "Update on the admission application",
+        "Thank you for applying. {student} has been placed on our waiting list. We will contact you if a seat becomes "
+        "available.",
+    ),
+}
+REJECTION_TEXT = (
+    "Update on the admission application",
+    "Thank you for your interest in our school and for the time you gave to the application for {student}. After "
+    "careful consideration we are unable to offer a place on this occasion. We wish {student} every success.",
+)
+
+
+def _family_message(application, subject, body):
+    from notifications.services import queue_email
+
+    from core.links import portal_link
+    from django.db import connection
+
+    to = (application.guardian_email or "").strip()
+    if not to:
+        return False
+    school = getattr(connection.tenant, "name", "") or "The school"
+    student = f"{application.first_name} {application.last_name}".strip()
+    queue_email(
+        to_email=to,
+        subject=f"{subject} - {application.application_number}",
+        body=(
+            f"Dear {application.guardian_first_name} {application.guardian_last_name},\n\n"
+            + body.format(student=student)
+            + f"\n\nApplication number: {application.application_number}\n"
+            f"Follow it here: {portal_link('/admissions/status')}\n\n"
+            f"{school}\n"
+        ),
+    )
+    return True
+
+
+def notify_family_of_status(application, new_status):
+    """Email the guardian about a status that has a message of its own. Returns whether one was queued. Never
+    includes the internal decision reason, scores or notes."""
+    message = FAMILY_UPDATES.get(new_status)
+    if message is None:
+        return False
+    sent = _family_message(application, *message)
+    if sent and new_status in ("approved", "waitlisted"):
+        application.decision_notice_sent_at = timezone.now()
+        application.save(update_fields=["decision_notice_sent_at", "updated_at"])
+    return sent
+
+
+def send_decision_notice(application, user=None, request=None):
+    """Email the guardian the outcome of a rejected application, on the say-so of a person. Once only."""
+    if application.status != "rejected":
+        raise ValidationError("Only a rejected application needs this notice; others are sent automatically.")
+    if application.decision_notice_sent_at:
+        raise ValidationError("The family has already been told.")
+    if not (application.guardian_email or "").strip():
+        raise ValidationError("This family has no email address. Tell them by phone.")
+    _family_message(application, *REJECTION_TEXT)
+    application.decision_notice_sent_at = timezone.now()
+    application.save(update_fields=["decision_notice_sent_at", "updated_at"])
+    AdmissionActivityLog.objects.create(
+        application=application,
+        action="decision_notice_sent",
+        from_status="rejected",
+        to_status="rejected",
+        performed_by=get_staff_member_for_user(user) if user and user.is_authenticated else None,
+        notes="Rejection email sent to the family",
+    )
+    if request:
+        log_action(request, action="CHANGE", model_name="AdmissionApplication", object_id=application.id,
+                   changes={"decision_notice": "sent"})
+    return application

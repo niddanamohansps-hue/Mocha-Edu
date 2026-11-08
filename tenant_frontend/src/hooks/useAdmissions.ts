@@ -315,6 +315,19 @@ export const useMakeAdmissionDecision = () => {
     });
 };
 
+/** Email the family the outcome of a rejected application. Rejections are never emailed automatically. */
+export const useSendDecisionNotice = () => {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (id: string) => (await axiosInstance.post(`/admissions/applications/${id}/decision-notice/`, {})).data as AdmissionApplication,
+        onSuccess: () => {
+            toast.success("The family has been emailed");
+            qc.invalidateQueries({ queryKey: [ADMISSIONS_KEY] });
+        },
+        onError: (err) => toast.error(admissionsErrorMessage(err, "Could not send the email")),
+    });
+};
+
 export const useEnrollApplication = () => {
     const qc = useQueryClient();
     return useMutation({

@@ -1827,3 +1827,95 @@ class AdmissionsFollowUpTests(AdmissionsFixtureMixin, TransactionTestCase):
             second = remind_followups()  # the same morning again
             self.assertEqual((second["staff"], second["already_reminded"]), (0, 1))
             self.assertEqual(Notification.objects.filter(category="admissions").count(), 1)
+
+
+class AdmissionsFamilyNoticeTests(AdmissionsFixtureMixin, TransactionTestCase):
+    """The family is emailed as the application moves, but a rejection only goes out when a person sends it."""
+
+    def _app(self, status="under_review", email="anil@example.com"):
+        return AdmissionApplication.objects.create(
+            application_number=generate_application_number(), first_name="Rohan", last_name="Verma",
+            date_of_birth="2018-01-01", gender="male", guardian_first_name="Anil", guardian_last_name="Verma",
+            guardian_phone="+919999988888", guardian_email=email, academic_year="2026-27", level=self.level_1, status=status,
+        )
+
+    def _mail(self, address="anil@example.com"):
+        from notifications.models import EmailOutboxEvent
+
+        return list(EmailOutboxEvent.objects.filter(to_email=address).order_by("created_at"))
+
+    def _move(self, client, app, status, **extra):
+        return client.post(f"/api/admissions/applications/{app.pk}/status/", {"status": status, **extra}, format="json", HTTP_HOST=self.DOMAIN)
+
+    def test_documents_pending_approved_and_waitlisted_each_email_the_family_once(self):
+        with tenant_context(self.school):
+            first, second, third = self._app(), self._app(), self._app()
+        client = self._client_as(self.owner_user)
+        for app, status in ((first, "documents_pending"), (second, "approved"), (third, "waitlisted")):
+            self.assertEqual(self._move(client, app, status, reason="Strong candidate").status_code, 200, status)
+        with tenant_context(self.school):
+            mails = self._mail()
+            self.assertEqual(len(mails), 3)
+            by_subject = {m.subject.split(" - ")[0]: m.body for m in mails}
+            self.assertIn("Documents needed", " ".join(by_subject))
+            joined = "\n".join(m.body for m in mails)
+            self.assertIn("Rohan Verma", joined)
+            self.assertIn("Dear Anil Verma", joined)
+            self.assertIn("/admissions/status", joined)
+            self.assertNotIn("Strong candidate", joined)  # the internal decision reason is never emailed
+            second.refresh_from_db()
+            third.refresh_from_db()
+            self.assertIsNotNone(second.decision_notice_sent_at)
+            self.assertIsNotNone(third.decision_notice_sent_at)
+
+    def test_a_status_with_no_message_and_a_family_with_no_email_send_nothing(self):
+        with tenant_context(self.school):
+            quiet, no_email = self._app(status="submitted"), self._app(email="")
+        client = self._client_as(self.owner_user)
+        self.assertEqual(self._move(client, quiet, "under_review").status_code, 200)
+        self.assertEqual(self._move(client, no_email, "approved").status_code, 200)  # the change still happens
+        with tenant_context(self.school):
+            self.assertEqual(self._mail(), [])
+            no_email.refresh_from_db()
+            self.assertEqual(no_email.status, "approved")
+
+    def test_a_rejection_is_not_emailed_until_a_person_sends_the_notice_and_only_once(self):
+        with tenant_context(self.school):
+            app = self._app()
+        client = self._client_as(self.owner_user)
+        self.assertEqual(self._move(client, app, "rejected", reason="Below the entrance cut-off").status_code, 200)
+        with tenant_context(self.school):
+            self.assertEqual(self._mail(), [])  # nothing yet
+            app.refresh_from_db()
+            self.assertIsNone(app.decision_notice_sent_at)
+        url = f"/api/admissions/applications/{app.pk}/decision-notice/"
+        sent = client.post(url, {}, format="json", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(sent.status_code, 200, sent.data)
+        self.assertIsNotNone(sent.data["decision_notice_sent_at"])
+        with tenant_context(self.school):
+            mails = self._mail()
+            self.assertEqual(len(mails), 1)
+            self.assertIn("unable to offer a place", mails[0].body)
+            self.assertNotIn("cut-off", mails[0].body)  # the reason stays internal
+            self.assertTrue(AdmissionActivityLog.objects.filter(application=app, action="decision_notice_sent").exists())
+        again = client.post(url, {}, format="json", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(again.status_code, 400)
+        self.assertIn("already been told", again.data["error"])
+
+    def test_the_notice_needs_the_decision_permission_a_rejected_application_and_an_email_address(self):
+        with tenant_context(self.school):
+            rejected = self._app(status="rejected")
+            approved = self._app(status="approved")
+            no_email = self._app(status="rejected", email="")
+        owner = self._client_as(self.owner_user)
+        url = lambda a: f"/api/admissions/applications/{a.pk}/decision-notice/"
+        self.assertEqual(self._client_as(self.viewer_user).post(url(rejected), {}, format="json", HTTP_HOST=self.DOMAIN).status_code, 403)
+        wrong = owner.post(url(approved), {}, format="json", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(wrong.status_code, 400)
+        self.assertIn("rejected", wrong.data["error"])
+        nobody = owner.post(url(no_email), {}, format="json", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(nobody.status_code, 400)
+        self.assertIn("no email", nobody.data["error"])
+        with tenant_context(self.school):
+            rejected.refresh_from_db()
+            self.assertIsNone(rejected.decision_notice_sent_at)  # refusals leave it unsent

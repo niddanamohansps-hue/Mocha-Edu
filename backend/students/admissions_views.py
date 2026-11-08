@@ -11,6 +11,7 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django_tenants.utils import get_public_schema_name
 from rest_framework import status
+from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -462,6 +463,22 @@ class AdmissionApplicationDecisionView(APIView):
 
         detail_serializer = AdmissionApplicationDetailSerializer(_detail(updated_app.pk))
         return Response(detail_serializer.data, status=status.HTTP_200_OK)
+
+
+class AdmissionDecisionNoticeView(APIView):
+    """Email the family the outcome of a rejected application. Rejections are never sent automatically."""
+
+    permission_classes = [IsAuthenticated, HasPermission("make_admission_decisions")]
+
+    def post(self, request, pk):
+        from .admissions_services import send_decision_notice
+
+        application = get_object_or_404(AdmissionApplication, pk=pk)
+        try:
+            send_decision_notice(application, user=request.user, request=request)
+        except DRFValidationError as exc:
+            return Response({"error": " ".join(str(item) for item in exc.detail)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(AdmissionApplicationDetailSerializer(_detail(application.pk)).data)
 
 
 class AdmissionApplicationEnrollView(APIView):

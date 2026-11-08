@@ -28,6 +28,7 @@ import {
     useVerifyAdmissionDocument,
     useRejectAdmissionDocument,
     useScheduleInterview,
+    useSendDecisionNotice,
     useUpdateInterview,
 } from "@/hooks/useAdmissions";
 import { useStaffMembers } from "@/hooks/useStaff";
@@ -123,6 +124,7 @@ export default function ApplicationDetailDrawer({
 
     // Modals
     const [decisionOpen, setDecisionOpen] = useState(false);
+    const sendNotice = useSendDecisionNotice();
     const [enrollOpen, setEnrollOpen] = useState(false);
 
     // Document upload state
@@ -378,6 +380,22 @@ export default function ApplicationDetailDrawer({
                                     <p className="text-xs text-red-700 dark:text-red-300 mt-1">
                                         {application.decision_reason}
                                     </p>
+                                    <p className="text-xs text-red-800 dark:text-red-300 mt-2">
+                                        {application.decision_notice_sent_at
+                                            ? `The family was emailed on ${new Date(application.decision_notice_sent_at).toLocaleDateString()}.`
+                                            : "The family has not been told yet. You may want to call them first."}
+                                    </p>
+                                    {canDecide && !application.decision_notice_sent_at && (
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="mt-2"
+                                            disabled={sendNotice.isPending}
+                                            onClick={() => sendNotice.mutate(application.id)}
+                                        >
+                                            {sendNotice.isPending ? "Sending..." : "Send rejection email"}
+                                        </Button>
+                                    )}
                                 </div>
                             </div>
                         )}
