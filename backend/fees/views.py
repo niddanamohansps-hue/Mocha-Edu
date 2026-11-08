@@ -452,6 +452,36 @@ class OutstandingReportView(APIView):
         return Response({"count": len(rows), "total_outstanding_amount": total_outstanding_amount, "results": rows})
 
 
+class DuesByStudentView(APIView):
+    """One row per student who owes fees, aged by their oldest unpaid fee, with the guardian's phone number."""
+
+    permission_classes = [IsAuthenticated, HasPermission("view_financial_reports")]
+
+    def get(self, request):
+        import uuid
+
+        from .dues import BANDS, SORTS, dues_by_student
+
+        params = request.query_params
+        band = params.get("band") or None
+        sort = params.get("sort") or "amount"
+        if band is not None and band not in BANDS:
+            return Response({"band": [f"Choose one of: {', '.join(BANDS)}."]}, status=status.HTTP_400_BAD_REQUEST)
+        if sort not in SORTS:
+            return Response({"sort": [f"Choose one of: {', '.join(SORTS)}."]}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            level = uuid.UUID(params["level"]) if params.get("level") else None
+            section = uuid.UUID(params["section"]) if params.get("section") else None
+            page = max(int(params.get("page", 1)), 1)
+            page_size = min(max(int(params.get("page_size", 25)), 1), 100)
+        except (ValueError, TypeError):
+            return Response({"error": "That filter is not valid."}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(dues_by_student(
+            academic_year=params.get("academic_year") or None, level=level, section=section, band=band,
+            search=params.get("search", ""), sort=sort, page=page, page_size=page_size,
+        ))
+
+
 class OnlinePaymentInitiateView(APIView):
     """
     POST /api/fees/online/initiate/

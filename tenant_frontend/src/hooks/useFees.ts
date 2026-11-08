@@ -363,3 +363,24 @@ export const usePayableGateways = (enabled = true) =>
         queryFn: async () => (await axiosInstance.get("/fees/online/gateways/")).data as PayableGateway[],
         enabled,
     });
+
+
+export interface DuesFilters {
+    academic_year?: string;
+    level?: string;
+    section?: string;
+    band?: string;
+    search?: string;
+    sort?: "amount" | "age" | "name";
+    page?: number;
+}
+
+export const useDues = (filters: DuesFilters) =>
+    useQuery({
+        queryKey: ["fees", "dues", filters],
+        queryFn: async () => {
+            const params = Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== undefined && v !== ""));
+            return (await axiosInstance.get<import("@/types/FeeDues").DuesResponse>("/fees/reports/dues/", { params })).data;
+        },
+        placeholderData: (previous) => previous,
+    });
