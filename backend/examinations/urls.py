@@ -8,6 +8,7 @@ from .allocation_views import (
     DutyRosterView,
     ExamInvigilationViewSet,
     ExamSittingViewSet,
+    MalpracticeViewSet,
     MarksProgressView,
     MyAdmitCardView,
     MyDutiesView,
@@ -48,6 +49,7 @@ router.register(r"rechecks", RecheckViewSet, basename="exam-recheck")
 # A prefix of its own: "examinations/<anything>/" would be read as an examination id.
 router.register(r"exam-sittings", ExamSittingViewSet, basename="exam-sitting")
 router.register(r"exam-invigilations", ExamInvigilationViewSet, basename="exam-invigilation")
+router.register(r"malpractice", MalpracticeViewSet, basename="exam-malpractice")
 
 urlpatterns = [
     path(

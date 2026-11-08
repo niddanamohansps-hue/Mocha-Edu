@@ -410,6 +410,18 @@ SYSTEM_PERMISSIONS = [
         "description": "Adjust a whole paper's marks (add or scale) before results are published, with a reason on record",
     },
     {
+        "codename": "report_exam_malpractice",
+        "name": "Report Exam Malpractice",
+        "module": "Examinations",
+        "description": "Report a student for cheating in an exam and add evidence notes; sees only the cases they reported",
+    },
+    {
+        "codename": "decide_exam_malpractice",
+        "name": "Decide Exam Malpractice",
+        "module": "Examinations",
+        "description": "See every malpractice case and decide it (dismiss, warn, or cancel the student's marks)",
+    },
+    {
         "codename": "enter_marks",
         "name": "Enter Marks",
         "module": "Examinations",

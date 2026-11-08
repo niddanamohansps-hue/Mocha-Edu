@@ -8,6 +8,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from accounts.tenant_access import HasAnyPermission
 from roles.permissions import HasPermission
 from staff.models import StaffMember
 
@@ -317,3 +318,79 @@ class ModerationApplyView(_ModerationView):
         except ModerationError as exc:
             raise _fail(exc)
         return Response(result)
+
+
+class MalpracticeViewSet(viewsets.ViewSet):
+    """Malpractice cases. Reporters see and add to the cases they reported; deciders see all and decide."""
+
+    def get_permissions(self):
+        if self.action == "decide":
+            return [IsAuthenticated(), HasPermission("decide_exam_malpractice")]
+        return [IsAuthenticated(), HasAnyPermission("report_exam_malpractice", "decide_exam_malpractice")]
+
+    def _is_decider(self, request):
+        return HasPermission("decide_exam_malpractice")().has_permission(request, self)
+
+    def _queryset(self, request):
+        from .models import MalpracticeCase
+
+        qs = MalpracticeCase.objects.select_related(
+            "examination", "schedule__subject", "schedule__section__level", "student__profile"
+        )
+        return qs if self._is_decider(request) else qs.filter(reported_by_user_id=request.user.id)
+
+    def list(self, request):
+        from .malpractice import case_data
+
+        qs = self._queryset(request)
+        for key in ("examination", "status"):
+            if request.query_params.get(key):
+                qs = qs.filter(**{key: request.query_params[key]})
+        return Response([case_data(c) for c in qs])
+
+    def retrieve(self, request, pk=None):
+        from .malpractice import case_data
+
+        return Response(case_data(get_object_or_404(self._queryset(request), pk=pk)))
+
+    def create(self, request):
+        from students.models import Student
+
+        from .malpractice import MalpracticeError, case_data, report_case
+        from .models import ExamSchedule
+
+        data = request.data
+        schedule = get_object_or_404(ExamSchedule.objects.select_related("examination", "subject", "section__level"), pk=data.get("schedule"))
+        student = get_object_or_404(Student.objects.select_related("profile"), pk=data.get("student"))
+        try:
+            case = report_case(
+                schedule, student, description=data.get("description"), evidence_notes=data.get("evidence_notes", ""),
+                user=request.user, request=request,
+            )
+        except MalpracticeError as exc:
+            raise _fail(exc)
+        return Response(case_data(self._queryset(request).get(pk=case.pk)), status=201)
+
+    def partial_update(self, request, pk=None):
+        from .malpractice import MalpracticeError, case_data, update_case
+
+        case = get_object_or_404(self._queryset(request), pk=pk)
+        try:
+            update_case(
+                case, description=request.data.get("description"), evidence_notes=request.data.get("evidence_notes"),
+                user=request.user, is_decider=self._is_decider(request), request=request,
+            )
+        except MalpracticeError as exc:
+            raise _fail(exc)
+        return Response(case_data(self._queryset(request).get(pk=case.pk)))
+
+    @action(detail=True, methods=["post"], url_path="decide")
+    def decide(self, request, pk=None):
+        from .malpractice import MalpracticeError, case_data, decide_case
+
+        case = get_object_or_404(self._queryset(request), pk=pk)
+        try:
+            decide_case(case, decision=request.data.get("decision"), notes=request.data.get("notes"), user=request.user, request=request)
+        except MalpracticeError as exc:
+            raise _fail(exc)
+        return Response(case_data(self._queryset(request).get(pk=case.pk)))

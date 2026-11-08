@@ -1116,3 +1116,182 @@ class ModerationTests(AllocationBase):
             self.assertEqual((applied.status_code, applied.data["changed"]), (200, 4))
             bad = post(ModerationApplyView, self.owner, {**body, "method": "nope"})
             self.assertEqual(bad.status_code, 400)
+
+
+class MalpracticeTests(AllocationBase):
+    """Cases about class A's Math paper. A reporter holds report_exam_malpractice, the head decide_exam_malpractice."""
+
+    def setUp(self):
+        super().setUp()
+        with tenant_context(self.school):
+            self.reporter = self._user_with("reporter", ["report_exam_malpractice"])
+            self.other_reporter = self._user_with("reporter2", ["report_exam_malpractice"])
+            self.head = self._user_with("head", ["decide_exam_malpractice"])
+            self.kid = self.students_a[0]
+
+    def _user_with(self, label, codenames):
+        from roles.models import Permission
+
+        user = User.objects.create_user(username=f"{label}_{uuid.uuid4().hex[:5]}@s.com", password="Password123!")
+        Profile.objects.create(user_id=user.id, first_name=label.title(), last_name="User")
+        slug = f"{label}-{uuid.uuid4().hex[:6]}"
+        role = Role.objects.create(name=slug, slug=slug, is_system_role=False)
+        role.permissions.set(Permission.objects.filter(codename__in=codenames))
+        UserRole.objects.create(user=user, role=role)
+        return user
+
+    def _api(self, mapping, method, user, data=None, **kwargs):
+        from .allocation_views import MalpracticeViewSet
+
+        factory_method = getattr(self.factory, method)
+        request = factory_method("/x/", data, format="json") if method != "get" else self.factory.get("/x/", data or {})
+        request.tenant = self.school
+        force_authenticate(request, user=user)
+        return MalpracticeViewSet.as_view(mapping)(request, **kwargs)
+
+    def _report(self, user=None, student=None, **extra):
+        body = {
+            "schedule": str(self.paper_a.pk), "student": str((student or self.kid).pk),
+            "description": "Passed notes to the next bench during the paper.", "evidence_notes": "Note found under the desk.",
+        }
+        body.update(extra)
+        return self._api({"post": "create"}, "post", user or self.reporter, body)
+
+    def _case_id(self, **extra):
+        response = self._report(**extra)
+        self.assertEqual(response.status_code, 201, response.data)
+        return str(response.data["id"])
+
+    def _decide(self, case_id, decision, notes="The invigilator's report and the notes were reviewed.", user=None):
+        return self._api({"post": "decide"}, "post", user or self.head, {"decision": decision, "notes": notes}, pk=case_id)
+
+    def _mark(self, student=None):
+        from .models import ExamMark
+
+        return ExamMark.objects.filter(exam_schedule=self.paper_a, student=student or self.kid).first()
+
+    def test_reporting_creates_a_case_without_touching_the_marks_and_notifies_the_deciders(self):
+        from .models import ExamMark
+
+        with tenant_context(self.school):
+            ExamMark.objects.create(exam_schedule=self.paper_a, student=self.kid, marks_obtained=Decimal("60"), attendance="present")
+            response = self._report()
+            self.assertEqual(response.status_code, 201, response.data)
+            self.assertEqual((response.data["status"], response.data["subject"], response.data["enrollment_id"]), ("reported", "Math", "ENR-A1"))
+            self.assertEqual(response.data["reported_by"], self.reporter.get_username())
+            self.assertEqual((self._mark().marks_obtained, self._mark().attendance), (Decimal("60"), "present"))
+            self.assertTrue(Notification.objects.filter(recipient_user_id=self.head.id, title__startswith="Malpractice reported").exists())
+            self.assertTrue(Notification.objects.filter(recipient_user_id=self.owner.id).exists())
+            self.assertFalse(Notification.objects.filter(recipient_user_id=self.reporter.id).exists())  # not told about their own report
+
+    def test_a_report_must_be_about_a_real_student_of_that_paper_with_a_description_once_only(self):
+        with tenant_context(self.school):
+            self.assertEqual(self._report(student=self.students_b[0]).status_code, 400)  # not in class A
+            self.assertEqual(self._report(description="short").status_code, 400)
+            self.assertEqual(self._report().status_code, 201)
+            self.assertEqual(self._report(user=self.other_reporter).status_code, 400)  # already reported
+
+    def test_nothing_can_be_reported_once_results_are_published(self):
+        with tenant_context(self.school):
+            Examination.objects.filter(pk=self.exam.pk).update(is_published=True)
+            self.assertEqual(self._report().status_code, 400)
+
+    def test_reporters_see_only_their_own_cases_deciders_see_all_and_others_none(self):
+        with tenant_context(self.school):
+            case_id = self._case_id()
+            other_id = self._case_id(user=self.other_reporter, student=self.students_a[1])
+            ids = lambda user: {str(c["id"]) for c in self._api({"get": "list"}, "get", user).data}
+            self.assertEqual(ids(self.reporter), {case_id})
+            self.assertEqual(ids(self.other_reporter), {other_id})
+            self.assertEqual(ids(self.head), {case_id, other_id})
+            self.assertEqual(self._api({"get": "retrieve"}, "get", self.reporter, pk=other_id).status_code, 404)
+            nobody = self._user_with("nobody", [])
+            self.assertEqual(self._api({"get": "list"}, "get", nobody).status_code, 403)
+
+    def test_evidence_can_be_added_by_the_reporter_or_a_decider_until_it_is_decided(self):
+        with tenant_context(self.school):
+            case_id = self._case_id()
+            update = lambda user, data: self._api({"patch": "partial_update"}, "patch", user, data, pk=case_id)
+            self.assertEqual(update(self.reporter, {"evidence_notes": "A second note was found."}).status_code, 200)
+            self.assertEqual(update(self.head, {"evidence_notes": "Witness statement attached."}).data["evidence_notes"], "Witness statement attached.")
+            self.assertEqual(update(self.other_reporter, {"evidence_notes": "x"}).status_code, 404)  # cannot even see it
+            self.assertEqual(update(self.reporter, {}).status_code, 400)
+            self._decide(case_id, "dismissed")
+            self.assertEqual(update(self.reporter, {"evidence_notes": "Too late."}).status_code, 400)
+
+    def test_only_a_decider_can_decide_and_a_decision_needs_reasons_and_is_final(self):
+        with tenant_context(self.school):
+            case_id = self._case_id()
+            self.assertEqual(self._decide(case_id, "dismissed", user=self.reporter).status_code, 403)
+            self.assertEqual(self._decide(case_id, "invented").status_code, 400)
+            self.assertEqual(self._decide(case_id, "dismissed", notes="no").status_code, 400)
+            done = self._decide(case_id, "dismissed")
+            self.assertEqual((done.status_code, done.data["status"], done.data["decided_by"]), (200, "decided", self.head.get_username()))
+            self.assertEqual(self._decide(case_id, "warning").status_code, 400)  # already decided
+
+    def test_dismissing_or_warning_leaves_the_marks_alone(self):
+        from .models import ExamMark
+
+        with tenant_context(self.school):
+            ExamMark.objects.create(exam_schedule=self.paper_a, student=self.kid, marks_obtained=Decimal("60"), attendance="present")
+            self._decide(self._case_id(), "warning")
+            self.assertEqual((self._mark().marks_obtained, self._mark().attendance), (Decimal("60"), "present"))
+
+    def test_cancelling_this_papers_marks_records_the_student_as_malpractice_with_history(self):
+        from .models import ExamMark, ExamMarkChange
+
+        with tenant_context(self.school):
+            ExamMark.objects.create(exam_schedule=self.paper_a, student=self.kid, marks_obtained=Decimal("60"), attendance="present")
+            self._decide(self._case_id(), "marks_cancelled")
+            mark = self._mark()
+            self.assertEqual((mark.attendance, mark.marks_obtained), ("malpractice", None))
+            change = ExamMarkChange.objects.get(mark=mark, new_attendance="malpractice")
+            self.assertEqual((change.old_marks, change.old_attendance), (Decimal("60"), "present"))
+            self.assertIn("Malpractice case decided", change.reason)
+
+    def test_cancelling_works_even_if_no_marks_had_been_entered_yet(self):
+        with tenant_context(self.school):
+            self.assertIsNone(self._mark())
+            self._decide(self._case_id(), "marks_cancelled")
+            self.assertEqual(self._mark().attendance, "malpractice")
+
+    def test_cancelling_all_papers_covers_every_paper_of_the_class_in_that_examination(self):
+        from .models import ExamMark
+
+        with tenant_context(self.school):
+            second = self._paper(self.english, self.section_a, DAY2)
+            ExamMark.objects.create(exam_schedule=second, student=self.kid, marks_obtained=Decimal("70"), attendance="present")
+            ExamMark.objects.create(exam_schedule=self.paper_a, student=self.kid, marks_obtained=Decimal("60"), attendance="present")
+            ExamMark.objects.create(exam_schedule=self.paper_a, student=self.students_a[1], marks_obtained=Decimal("55"), attendance="present")
+            self._decide(self._case_id(), "all_papers_cancelled")
+            self.assertEqual(ExamMark.objects.get(exam_schedule=second, student=self.kid).attendance, "malpractice")
+            self.assertEqual(self._mark().attendance, "malpractice")
+            self.assertEqual(self._mark(self.students_a[1]).attendance, "present")  # classmates untouched
+
+    def test_marks_cannot_be_cancelled_after_publication(self):
+        with tenant_context(self.school):
+            case_id = self._case_id()
+            Examination.objects.filter(pk=self.exam.pk).update(is_published=True)
+            refused = self._decide(case_id, "marks_cancelled")
+            self.assertEqual(refused.status_code, 400)
+            self.assertIn("published", str(refused.data))
+            self.assertEqual(self._decide(case_id, "dismissed").status_code, 200)  # a dismissal changes no marks
+
+    def test_results_cannot_be_published_while_a_case_is_undecided(self):
+        from rest_framework import serializers
+
+        from .models import ExamMark
+        from .services import publish_examination
+
+        with tenant_context(self.school):
+            ExamMark.objects.create(exam_schedule=self.paper_a, student=self.kid, marks_obtained=Decimal("60"), attendance="present")
+            case_id = self._case_id()
+            with self.assertRaises(serializers.ValidationError) as caught:
+                publish_examination(self.exam)
+            self.assertIn("1 malpractice case(s) are still undecided", str(caught.exception.detail))
+            self.exam.refresh_from_db()
+            self.assertFalse(self.exam.is_published)
+            self._decide(case_id, "dismissed")
+            from .malpractice import undecided_count
+
+            self.assertEqual(undecided_count(self.exam), 0)

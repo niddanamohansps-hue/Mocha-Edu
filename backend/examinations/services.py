@@ -681,6 +681,14 @@ def publish_examination(examination):
     if examination.is_published:
         raise serializers.ValidationError({"non_field_errors": ["This examination is already published."]})
 
+    from .malpractice import undecided_count
+
+    open_cases = undecided_count(examination)
+    if open_cases:
+        raise serializers.ValidationError(
+            {"non_field_errors": [f"{open_cases} malpractice case(s) are still undecided. Decide them before publishing."]}
+        )
+
     student_ids = (
         ExamMark.objects.filter(exam_schedule__examination=examination)
         .values_list("student_id", flat=True)

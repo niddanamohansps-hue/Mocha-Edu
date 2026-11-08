@@ -39,6 +39,7 @@ SYSTEM_ROLES = [
             "manage_ptm",
             "record_ptm_feedback",
             "record_interview_feedback",
+            "report_exam_malpractice",
         ],
     },
     {
@@ -57,6 +58,7 @@ SYSTEM_ROLES = [
             "view_ptm",
             "record_ptm_feedback",
             "record_interview_feedback",
+            "report_exam_malpractice",
         ],
     },
     {

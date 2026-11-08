@@ -612,3 +612,44 @@ class ExamInvigilation(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["sitting", "staff"], name="uniq_exam_duty_staff_per_sitting"),
         ]
+
+
+class MalpracticeCase(models.Model):
+    """A report that a student cheated, and what the school decided. One case per student per paper. Reporting does
+    not change the student's marks: they change only when the decision cancels them."""
+
+    class Status(models.TextChoices):
+        REPORTED = "reported", "Reported"
+        DECIDED = "decided", "Decided"
+
+    class Decision(models.TextChoices):
+        DISMISSED = "dismissed", "Dismissed, no action"
+        WARNING = "warning", "Warning, marks stand"
+        MARKS_CANCELLED = "marks_cancelled", "This paper's marks cancelled"
+        ALL_PAPERS_CANCELLED = "all_papers_cancelled", "All papers in this examination cancelled"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    examination = models.ForeignKey(Examination, on_delete=models.CASCADE, related_name="malpractice_cases")
+    schedule = models.ForeignKey(ExamSchedule, on_delete=models.CASCADE, related_name="malpractice_cases")
+    student = models.ForeignKey("students.Student", on_delete=models.CASCADE, related_name="malpractice_cases")
+
+    description = models.TextField(help_text="What happened")
+    evidence_notes = models.TextField(blank=True, help_text="What was found: items, witnesses, answer-sheet notes")
+    reported_by_user_id = models.UUIDField(null=True, blank=True)
+    reported_by_name = models.CharField(max_length=150, blank=True)
+
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.REPORTED, db_index=True)
+    decision = models.CharField(max_length=20, choices=Decision.choices, blank=True)
+    decision_notes = models.TextField(blank=True)
+    decided_by_user_id = models.UUIDField(null=True, blank=True)
+    decided_by_name = models.CharField(max_length=150, blank=True)
+    decided_at = models.DateTimeField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["schedule", "student"], name="uniq_malpractice_case_per_paper"),
+        ]
