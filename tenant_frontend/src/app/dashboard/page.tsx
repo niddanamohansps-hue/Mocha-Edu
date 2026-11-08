@@ -38,7 +38,7 @@ export default function DashboardOverview() {
     const { can, isOwner } = usePermissions();
     const canViewSummary = isOwner || can("view_dashboard");
     const canManageLeaves = isOwner || can("manage_staff_leaves");
-    const canManageExpenses = isOwner || can("view_expense") || can("add_expense");
+    const canManageExpenses = isOwner || can("view_expenses") || can("record_expenses");
 
     const { data: summary, isLoading, isError, refetch } = useDashboardSummary();
 

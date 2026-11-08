@@ -34,7 +34,7 @@ export function QuickActionMenu() {
             icon: CreditCard,
             color: "text-emerald-500 bg-emerald-50 dark:bg-emerald-950/50",
             href: "/dashboard/fees/collect",
-            visible: isOwner || can("add_paymentallocation") || can("view_fee"),
+            visible: isOwner || can("collect_payments") || can("view_fees"),
         },
         {
             label: "Mark Attendance",
@@ -42,7 +42,7 @@ export function QuickActionMenu() {
             icon: CheckSquare,
             color: "text-indigo-500 bg-indigo-50 dark:bg-indigo-950/50",
             href: "/dashboard/attendance/mark",
-            visible: isOwner || can("add_studentattendance") || can("change_studentattendance"),
+            visible: isOwner || can("mark_attendance") || can("change_attendance"),
         },
         {
             label: "New Student Admission",
@@ -74,7 +74,7 @@ export function QuickActionMenu() {
             icon: Receipt,
             color: "text-rose-500 bg-rose-50 dark:bg-rose-950/50",
             href: "/dashboard/expenses",
-            visible: isOwner || can("add_expense") || can("view_expense"),
+            visible: isOwner || can("record_expenses") || can("view_expenses"),
         },
         {
             label: "Broadcast Notice",
@@ -82,7 +82,7 @@ export function QuickActionMenu() {
             icon: Megaphone,
             color: "text-purple-500 bg-purple-50 dark:bg-purple-950/50",
             href: "/dashboard/announcements",
-            visible: isOwner || can("add_announcement"),
+            visible: isOwner || can("manage_announcements"),
         },
     ].filter((a) => a.visible);
 
