@@ -490,6 +490,8 @@ class AdmissionApplication(models.Model):
     # When the family was last emailed about the decision. A rejection is only ever emailed by a person pressing the
     # button, so this is also how the screen tells staff that it has not been sent yet.
     decision_notice_sent_at = models.DateTimeField(null=True, blank=True)
+    # When the family was last nudged to send missing documents.
+    documents_reminded_at = models.DateTimeField(null=True, blank=True)
     decision_reason = models.TextField(blank=True, default="")
     decision_by = models.ForeignKey(
         "staff.StaffMember",

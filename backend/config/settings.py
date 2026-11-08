@@ -521,6 +521,11 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(hour=2, minute=30),
     },
     # Staff who have admission enquiries to call today or late, once a day (03:00 UTC = 08:30 in India).
+    # Families who still owe admission documents, once a day (04:00 UTC = 09:30 in India); each is nudged weekly at most.
+    "remind-missing-admission-documents": {
+        "task": "students.admissions_tasks.remind_missing_admission_documents",
+        "schedule": crontab(hour=4, minute=0),
+    },
     "remind-admission-followups": {
         "task": "students.admissions_tasks.remind_admission_followups",
         "schedule": crontab(hour=3, minute=0),

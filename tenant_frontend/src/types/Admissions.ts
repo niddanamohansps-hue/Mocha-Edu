@@ -172,6 +172,7 @@ export interface AdmissionApplication {
     assigned_reviewer_name?: string | null;
     decision_date?: string | null;
     decision_notice_sent_at?: string | null;
+    documents_reminded_at?: string | null;
     decision_reason?: string;
     decision_by?: string | null;
     decision_by_name?: string | null;

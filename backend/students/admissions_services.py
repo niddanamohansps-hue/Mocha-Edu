@@ -12,6 +12,7 @@ from academics.models import AcademicLevel, Section, AcademicYear
 from profiles.models import Profile
 from families.models import Parent, StudentParentRelation
 from .models import (
+    DOCUMENT_TYPE_CHOICES,
     Student,
     StudentLevel,
     AcademicHistory,
@@ -634,3 +635,80 @@ def send_decision_notice(application, user=None, request=None):
         log_action(request, action="CHANGE", model_name="AdmissionApplication", object_id=application.id,
                    changes={"decision_notice": "sent"})
     return application
+
+
+# ---- chasing missing documents ----------------------------------------------------------------------------
+
+REMINDER_GAP_DAYS = 7  # the first nudge comes this long after the family was asked, then once a week
+
+
+def documents_family_must_send(application):
+    """What the family still has to do about documents, as short lines for an email. Empty when the ball is with the
+    school (everything sent is simply waiting to be checked), in which case nobody should be nagged.
+
+    The school has no fixed list of required documents, so "missing" means only what we can see: nothing uploaded at
+    all, a document that was rejected and has not been replaced by one of the same type, or a file that failed the
+    virus scan."""
+    docs = list(application.documents.all())
+    if not docs:
+        return ["No documents have been received yet."]
+    labels = dict(DOCUMENT_TYPE_CHOICES)
+    lines = []
+    for doc in docs:
+        kind = labels.get(doc.document_type, doc.document_type)
+        if doc.scan_status in ("infected", "error"):
+            lines.append(f"{kind}: the file could not be accepted. Please upload it again.")
+            continue
+        if doc.verification_status != "rejected":
+            continue
+        replaced = any(
+            other.pk != doc.pk
+            and other.document_type == doc.document_type
+            and other.verification_status != "rejected"
+            and other.scan_status not in ("infected", "error")
+            and other.uploaded_at > doc.uploaded_at
+            for other in docs
+        )
+        if not replaced:
+            lines.append(f"{kind}: please upload a clearer or corrected copy.")
+    return list(dict.fromkeys(lines))  # one line per problem, in order
+
+
+def _entered_documents_pending(application):
+    """When the application last became 'documents pending', from its history; the last change otherwise."""
+    log = (
+        AdmissionActivityLog.objects.filter(application=application, to_status="documents_pending")
+        .order_by("-created_at")
+        .first()
+    )
+    return log.created_at if log else application.updated_at
+
+
+def remind_missing_documents(now=None):
+    """The daily job body for one school: email the guardian of each application still at 'documents pending' that
+    needs something from them, at most once a week. Returns counts."""
+    now = now or timezone.now()
+    cutoff = now - datetime.timedelta(days=REMINDER_GAP_DAYS)
+    summary = {"reminded": 0, "waiting_on_school": 0, "too_soon": 0, "no_email": 0}
+    for application in AdmissionApplication.objects.filter(status="documents_pending").prefetch_related("documents"):
+        last = max(filter(None, [application.documents_reminded_at, _entered_documents_pending(application)]))
+        if last > cutoff:
+            summary["too_soon"] += 1
+            continue
+        lines = documents_family_must_send(application)
+        if not lines:
+            summary["waiting_on_school"] += 1
+            continue
+        if not (application.guardian_email or "").strip():
+            summary["no_email"] += 1
+            continue
+        body = (
+            "This is a reminder that we are still waiting for the following before we can take "
+            "{student}'s application further:\n\n" + "\n".join(f"  - {line}" for line in lines)
+            + "\n\nPlease open the link below to upload them."
+        )
+        _family_message(application, "Reminder: documents needed for the admission application", body)
+        application.documents_reminded_at = now
+        application.save(update_fields=["documents_reminded_at", "updated_at"])
+        summary["reminded"] += 1
+    return summary

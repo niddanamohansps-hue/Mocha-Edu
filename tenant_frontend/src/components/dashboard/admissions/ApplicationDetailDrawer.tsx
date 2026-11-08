@@ -400,6 +400,14 @@ export default function ApplicationDetailDrawer({
                             </div>
                         )}
 
+                        {application.status === "documents_pending" && (
+                            <p className="text-xs text-slate-500">
+                                {application.documents_reminded_at
+                                    ? `The family was last reminded about documents on ${new Date(application.documents_reminded_at).toLocaleDateString()}.`
+                                    : "The family has not been sent a document reminder yet. One goes out a week after they were asked, if something is still theirs to send."}
+                            </p>
+                        )}
+
                         {/* Tabs */}
                         <Tabs defaultValue="overview" className="w-full">
                             <TabsList className="bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl grid grid-cols-2 sm:grid-cols-4 w-full h-auto">

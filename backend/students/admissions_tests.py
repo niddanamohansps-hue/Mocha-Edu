@@ -1919,3 +1919,119 @@ class AdmissionsFamilyNoticeTests(AdmissionsFixtureMixin, TransactionTestCase):
         with tenant_context(self.school):
             rejected.refresh_from_db()
             self.assertIsNone(rejected.decision_notice_sent_at)  # refusals leave it unsent
+
+
+class AdmissionsDocumentNudgeTests(AdmissionsFixtureMixin, TransactionTestCase):
+    """Families are nudged about documents only when something is genuinely theirs to send, at most weekly."""
+
+    def _app(self, email="anil@example.com", asked_days_ago=10, status="documents_pending"):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        app = AdmissionApplication.objects.create(
+            application_number=generate_application_number(), first_name="Rohan", last_name="Verma",
+            date_of_birth="2018-01-01", gender="male", guardian_first_name="Anil", guardian_last_name="Verma",
+            guardian_phone="+919999988888", guardian_email=email, academic_year="2026-27", level=self.level_1, status=status,
+        )
+        log = AdmissionActivityLog.objects.create(
+            application=app, action="status_changed", from_status="under_review", to_status="documents_pending"
+        )
+        AdmissionActivityLog.objects.filter(pk=log.pk).update(created_at=timezone.now() - timedelta(days=asked_days_ago))
+        return app
+
+    def _doc(self, app, kind="birth_certificate", verification="pending", scan="clean", days_ago=0):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        doc = AdmissionDocument.objects.create(
+            application=app, document_type=kind, title=kind, file="admission_documents/x.pdf",
+            verification_status=verification, scan_status=scan,
+        )
+        AdmissionDocument.objects.filter(pk=doc.pk).update(uploaded_at=timezone.now() - timedelta(days=days_ago))
+        return doc
+
+    def _mail(self):
+        from notifications.models import EmailOutboxEvent
+
+        return list(EmailOutboxEvent.objects.filter(subject__startswith="Reminder: documents needed").order_by("created_at"))
+
+    def test_a_family_that_has_sent_nothing_is_nudged_after_a_week_and_then_weekly(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from .admissions_services import remind_missing_documents
+
+        with tenant_context(self.school):
+            app = self._app(asked_days_ago=10)
+            self.assertEqual(remind_missing_documents()["reminded"], 1)
+            mails = self._mail()
+            self.assertEqual(len(mails), 1)
+            self.assertIn("No documents have been received yet", mails[0].body)
+            self.assertIn("Rohan Verma", mails[0].body)
+            self.assertIn("/admissions/status", mails[0].body)
+            app.refresh_from_db()
+            self.assertIsNotNone(app.documents_reminded_at)
+            again = remind_missing_documents()  # the same day: too soon
+            self.assertEqual((again["reminded"], again["too_soon"]), (0, 1))
+            later = remind_missing_documents(now=timezone.now() + timedelta(days=8))
+            self.assertEqual(later["reminded"], 1)
+            self.assertEqual(len(self._mail()), 2)
+
+    def test_a_recently_asked_family_is_given_time_before_the_first_nudge(self):
+        from .admissions_services import remind_missing_documents
+
+        with tenant_context(self.school):
+            self._app(asked_days_ago=2)
+            self.assertEqual(remind_missing_documents()["too_soon"], 1)
+            self.assertEqual(self._mail(), [])
+
+    def test_a_rejected_or_failed_file_is_listed_but_only_until_it_is_replaced(self):
+        from .admissions_services import documents_family_must_send
+
+        with tenant_context(self.school):
+            app = self._app()
+            self._doc(app, "birth_certificate", verification="rejected", days_ago=5)
+            self._doc(app, "address_proof", scan="infected", days_ago=4)
+            self._doc(app, "photo", verification="verified", days_ago=3)
+            lines = documents_family_must_send(app)
+            self.assertEqual(len(lines), 2)
+            self.assertTrue(any("Birth Certificate" in line for line in lines))
+            self.assertTrue(any("Address Proof" in line for line in lines))
+            self.assertFalse(any("Photograph" in line for line in lines))
+            self._doc(app, "birth_certificate", verification="pending", days_ago=1)  # a fresh copy came in
+            again = documents_family_must_send(app)
+            self.assertEqual(len(again), 1)
+            self.assertIn("Address Proof", again[0])
+
+    def test_nobody_is_nagged_when_everything_sent_is_just_waiting_for_the_school(self):
+        from .admissions_services import remind_missing_documents
+
+        with tenant_context(self.school):
+            app = self._app(asked_days_ago=20)
+            self._doc(app, "birth_certificate", verification="pending")
+            self._doc(app, "photo", verification="verified")
+            result = remind_missing_documents()
+            self.assertEqual((result["reminded"], result["waiting_on_school"]), (0, 1))
+            self.assertEqual(self._mail(), [])
+
+    def test_only_applications_at_documents_pending_with_an_email_are_nudged(self):
+        from .admissions_services import remind_missing_documents
+
+        with tenant_context(self.school):
+            self._app(status="approved", asked_days_ago=30)
+            self._app(email="", asked_days_ago=30)
+            result = remind_missing_documents()
+            self.assertEqual((result["reminded"], result["no_email"]), (0, 1))
+            self.assertEqual(self._mail(), [])
+
+    def test_the_daily_task_runs_across_schools_and_reports_how_many_were_nudged(self):
+        from .admissions_tasks import remind_missing_admission_documents
+
+        with tenant_context(self.school):
+            self._app(asked_days_ago=12)
+        self.assertGreaterEqual(remind_missing_admission_documents(), 1)
+        with tenant_context(self.school):
+            self.assertEqual(len(self._mail()), 1)

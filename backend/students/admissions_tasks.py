@@ -125,3 +125,17 @@ def remind_admission_followups():
         with schema_context(tenant.schema_name):
             reminded += remind_followups()["staff"]
     return reminded
+
+
+@shared_task
+def remind_missing_admission_documents():
+    """Daily, in every school: nudge families whose application is waiting on documents they have to send."""
+    from django_tenants.utils import get_tenant_model
+
+    from .admissions_services import remind_missing_documents
+
+    reminded = 0
+    for tenant in get_tenant_model().objects.exclude(schema_name="public"):
+        with schema_context(tenant.schema_name):
+            reminded += remind_missing_documents()["reminded"]
+    return reminded

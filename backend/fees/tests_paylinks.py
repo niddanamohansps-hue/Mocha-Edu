@@ -57,6 +57,19 @@ class TokenTests(PayLinkBase):
             self.assertIsNone(paylinks.student_from_token(other))
 
 
+class ScheduledJobLinkTests(PayLinkBase):
+    def test_a_link_built_inside_schema_context_still_carries_the_schools_own_domain(self):
+        """Scheduled jobs enter a school with schema_context(), which leaves a bare placeholder as the tenant."""
+        from django_tenants.utils import schema_context
+
+        with tenant_context(self.school):
+            expected = paylinks.pay_url(self.student)
+        with schema_context(self.school.schema_name):
+            built = paylinks.pay_url(self.student)
+        self.assertEqual(built.split("/pay/")[0], expected.split("/pay/")[0])
+        self.assertTrue(built.startswith("http"), built)
+
+
 class DetailTests(PayLinkBase):
     def test_the_page_lists_only_what_is_still_owed_for_that_student(self):
         transport = self._transport_fee()

@@ -11,6 +11,12 @@ def portal_link(path):
     from django.db import connection
 
     tenant = connection.tenant
+    if tenant is not None and not hasattr(tenant, "domains"):
+        # Scheduled jobs enter a school with schema_context(), which leaves a bare placeholder as the tenant. Look the
+        # real school up by its schema so the link still carries its own domain.
+        from django_tenants.utils import get_tenant_model
+
+        tenant = get_tenant_model().objects.filter(schema_name=tenant.schema_name).first()
     domain = tenant.domains.filter(is_primary=True).first() if tenant else None
     if domain is None and tenant is not None:
         domain = tenant.domains.first()
