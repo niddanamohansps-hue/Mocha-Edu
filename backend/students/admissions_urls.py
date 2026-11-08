@@ -11,6 +11,8 @@ from .admissions_views import (
     AdmissionApplicationDecisionView,
     AdmissionApplicationEnrollView,
     AdmissionDecisionNoticeView,
+    AdmissionReportView,
+    AdmissionSeatsView,
     AdmissionDocumentUploadView,
     AdmissionDocumentVerifyView,
     AdmissionDocumentRejectView,
@@ -42,6 +44,8 @@ urlpatterns = [
 
     # Staff Admissions Pipeline Endpoints (RBAC Protected)
     path("dashboard/", AdmissionDashboardStatsView.as_view(), name="admissions-dashboard-stats"),
+    path("seats/", AdmissionSeatsView.as_view(), name="admissions-seats"),
+    path("report/", AdmissionReportView.as_view(), name="admissions-report"),
     path("enquiries/", AdmissionEnquiryListView.as_view(), name="admissions-enquiry-list"),
     path("enquiries/follow-ups/", FollowUpDeskView.as_view(), name="admissions-followup-desk"),
     path("enquiries/<uuid:pk>/follow-up/", FollowUpRecordView.as_view(), name="admissions-followup-record"),

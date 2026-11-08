@@ -292,16 +292,19 @@ export const useMakeAdmissionDecision = () => {
             decision,
             reason,
             notes,
+            confirm_over_limit,
         }: {
             id: string;
             decision: "approved" | "rejected" | "waitlisted";
             reason?: string;
             notes?: string;
+            confirm_over_limit?: boolean;
         }) => {
             const res = await axiosInstance.post(`/admissions/applications/${id}/decide/`, {
                 decision,
                 reason,
                 notes,
+                confirm_over_limit,
             });
             return res.data as AdmissionApplication;
         },
@@ -310,10 +313,19 @@ export const useMakeAdmissionDecision = () => {
             qc.invalidateQueries({ queryKey: [ADMISSIONS_KEY] });
         },
         onError: (err) => {
+            // A full class is not an error to shout about: the dialog asks "approve anyway?" instead.
+            if (seatLimitMessage(err)) return;
             toast.error(admissionsErrorMessage(err, "Failed to record decision"));
         },
     });
 };
+
+/** The "class is full" message from a refused approval, or null for any other error. */
+export function seatLimitMessage(error: unknown): string | null {
+    const data = (error as { response?: { data?: { seat_limit?: unknown } } })?.response?.data;
+    const value = data?.seat_limit;
+    return Array.isArray(value) && value.length ? String(value[0]) : null;
+}
 
 /** Email the family the outcome of a rejected application. Rejections are never emailed automatically. */
 export const useSendDecisionNotice = () => {
@@ -636,3 +648,51 @@ export const useRecordFollowUp = () => {
         onError: (err) => toast.error(admissionsErrorMessage(err, "Could not save the follow-up")),
     });
 };
+
+
+export interface SeatRow {
+    level: string;
+    level_name: string;
+    seats: number | null;
+    taken: number;
+    free: number | null;
+    over_by: number;
+    waitlisted: number;
+    in_progress: number;
+}
+
+export interface AdmissionsReport {
+    academic_year: string;
+    totals: { enquiries: number; applications: number; enrolled: number };
+    by_source: { source: string; label: string; enquiries: number; applied: number; lost: number; enrolled: number }[];
+    by_level: { level: string; level_name: string; enquiries: number; applications: number; approved: number; enrolled: number }[];
+    average_days_to_enrol: number | null;
+    enrolled_with_enquiry: number;
+}
+
+export const useSeats = (academicYear: string) =>
+    useQuery({
+        queryKey: [ADMISSIONS_KEY, "seats", academicYear],
+        enabled: !!academicYear,
+        queryFn: async () => (await axiosInstance.get<SeatRow[]>("/admissions/seats/", { params: { academic_year: academicYear } })).data,
+    });
+
+export const useSetSeatLimit = () => {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (vars: { academic_year: string; level: string; seats: number }) =>
+            (await axiosInstance.put<SeatRow[]>("/admissions/seats/", vars)).data,
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: [ADMISSIONS_KEY, "seats"] });
+            toast.success("Seats saved");
+        },
+        onError: (err) => toast.error(admissionsErrorMessage(err, "Could not save the seats")),
+    });
+};
+
+export const useAdmissionsReport = (academicYear: string) =>
+    useQuery({
+        queryKey: [ADMISSIONS_KEY, "report", academicYear],
+        enabled: !!academicYear,
+        queryFn: async () => (await axiosInstance.get<AdmissionsReport>("/admissions/report/", { params: { academic_year: academicYear } })).data,
+    });

@@ -2035,3 +2035,127 @@ class AdmissionsDocumentNudgeTests(AdmissionsFixtureMixin, TransactionTestCase):
         self.assertGreaterEqual(remind_missing_admission_documents(), 1)
         with tenant_context(self.school):
             self.assertEqual(len(self._mail()), 1)
+
+
+class AdmissionsSeatsAndReportTests(AdmissionsFixtureMixin, TransactionTestCase):
+    """Seat limits per class, the approval guard, and the enquiry-to-enrolment report."""
+
+    def _app(self, status="under_review", level=None, year="2026-27", enquiry=None):
+        return AdmissionApplication.objects.create(
+            application_number=generate_application_number(), first_name="Kid", last_name=uuid_module.uuid4().hex[:5],
+            date_of_birth="2018-01-01", gender="male", guardian_first_name="Anil", guardian_last_name="Verma",
+            guardian_phone="+919999988888", guardian_email="", academic_year=year, level=level or self.level_1,
+            status=status, enquiry=enquiry,
+        )
+
+    def _set(self, client, seats, level=None, year="2026-27"):
+        return client.put(
+            "/api/admissions/seats/", {"academic_year": year, "level": str((level or self.level_1).pk), "seats": seats},
+            format="json", HTTP_HOST=self.DOMAIN,
+        )
+
+    def test_setting_a_limit_is_for_people_who_manage_applications_and_validates_the_numbers(self):
+        staff = self._client_as(self.staff_user)
+        self.assertEqual(self._set(self._client_as(self.viewer_user), 5).status_code, 403)
+        ok = self._set(staff, 2)
+        self.assertEqual(ok.status_code, 200, ok.data)
+        row = next(r for r in ok.data if r["level_name"] == "Grade 1")
+        self.assertEqual((row["seats"], row["taken"], row["free"]), (2, 0, 2))
+        self.assertIsNone(next(r for r in ok.data if r["level_name"] == "Grade 2")["seats"])  # no limit set
+        for bad in ("many", -1, 99999):
+            self.assertEqual(self._set(staff, bad).status_code, 400, bad)
+        self.assertEqual(
+            staff.put("/api/admissions/seats/", {"academic_year": "", "level": str(self.level_1.pk), "seats": 3}, format="json", HTTP_HOST=self.DOMAIN).status_code, 400
+        )
+        self.assertEqual(
+            staff.put("/api/admissions/seats/", {"academic_year": "2026-27", "level": str(uuid_module.uuid4()), "seats": 3}, format="json", HTTP_HOST=self.DOMAIN).status_code, 400
+        )
+        self.assertEqual(self._set(staff, 4).status_code, 200)  # changing replaces, not duplicates
+        with tenant_context(self.school):
+            from .models import AdmissionSeatLimit
+
+            self.assertEqual(AdmissionSeatLimit.objects.count(), 1)
+
+    def test_the_overview_counts_seat_holders_the_waiting_list_and_open_applications(self):
+        with tenant_context(self.school):
+            for status in ("approved", "offer_accepted", "enrolled", "waitlisted", "under_review", "documents_pending", "rejected", "withdrawn"):
+                self._app(status=status)
+            self._app(status="approved", level=self.level_2)
+            self._app(status="approved", year="2025-26")  # another year: not counted
+        staff = self._client_as(self.staff_user)
+        self._set(staff, 2)
+        got = staff.get("/api/admissions/seats/?academic_year=2026-27", HTTP_HOST=self.DOMAIN)
+        row = next(r for r in got.data if r["level_name"] == "Grade 1")
+        self.assertEqual((row["taken"], row["over_by"], row["free"]), (3, 1, 0))
+        self.assertEqual((row["waitlisted"], row["in_progress"]), (1, 2))
+        self.assertEqual(next(r for r in got.data if r["level_name"] == "Grade 2")["taken"], 1)
+        self.assertEqual(staff.get("/api/admissions/seats/", HTTP_HOST=self.DOMAIN).status_code, 400)
+
+    def test_approving_into_a_full_class_is_refused_until_the_person_confirms(self):
+        with tenant_context(self.school):
+            self._app(status="approved")
+            self._app(status="enrolled")
+            waiting = self._app(status="under_review")
+            other_class = self._app(status="under_review", level=self.level_2)
+        client = self._client_as(self.owner_user)
+        self._set(client, 2)
+        url = f"/api/admissions/applications/{waiting.pk}/decide/"
+        blocked = client.post(url, {"decision": "approved"}, format="json", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(blocked.status_code, 400)
+        self.assertIn("seat_limit", blocked.data)
+        self.assertIn("2 of 2 seats", blocked.data["seat_limit"][0])
+        with tenant_context(self.school):
+            waiting.refresh_from_db()
+            self.assertEqual(waiting.status, "under_review")  # nothing changed
+        # waitlisting and rejecting are never blocked by seats
+        self.assertEqual(client.post(url, {"decision": "waitlisted"}, format="json", HTTP_HOST=self.DOMAIN).status_code, 200)
+        again = f"/api/admissions/applications/{waiting.pk}/status/"
+        self.assertEqual(client.post(again, {"status": "approved"}, format="json", HTTP_HOST=self.DOMAIN).status_code, 400)
+        forced = client.post(again, {"status": "approved", "confirm_over_limit": True}, format="json", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(forced.status_code, 200, forced.data)
+        # a class without a limit is never refused
+        free = client.post(f"/api/admissions/applications/{other_class.pk}/decide/", {"decision": "approved"}, format="json", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(free.status_code, 200)
+
+    def test_re_approving_does_not_count_the_application_against_itself(self):
+        with tenant_context(self.school):
+            holder = self._app(status="under_review")
+        client = self._client_as(self.owner_user)
+        self._set(client, 1)
+        self.assertEqual(client.post(f"/api/admissions/applications/{holder.pk}/decide/", {"decision": "approved"}, format="json", HTTP_HOST=self.DOMAIN).status_code, 200)
+        with tenant_context(self.school):
+            from .admissions_services import check_seat_available
+
+            holder.refresh_from_db()
+            check_seat_available(holder)  # one seat, held by this very application: still fine
+
+    def test_the_report_shows_sources_the_funnel_by_class_and_the_average_time_to_enrol(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        with tenant_context(self.school):
+            def enquiry(source, status="new", level=None):
+                return AdmissionEnquiry.objects.create(
+                    enquiry_number=f"ENQ-R-{uuid_module.uuid4().hex[:6].upper()}", student_name="Child", guardian_name="P",
+                    guardian_phone="+91", academic_year="2026-27", source=source, status=status, preferred_level=level or self.level_1,
+                )
+
+            enquiry("website"); enquiry("website", "closed"); enquiry("walk_in")
+            converted = enquiry("referral", "converted")
+            AdmissionEnquiry.objects.filter(pk=converted.pk).update(created_at=timezone.now() - timedelta(days=20))
+            app = self._app(status="enrolled", enquiry=converted)
+            AdmissionApplication.objects.filter(pk=app.pk).update(enrolled_at=timezone.now())
+            self._app(status="approved")
+            self._app(status="enrolled")  # never an enquiry: left out of the timing average
+        got = self._client_as(self.viewer_user).get("/api/admissions/report/?academic_year=2026-27", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(got.status_code, 200, got.data)
+        self.assertEqual(got.data["totals"], {"enquiries": 4, "applications": 3, "enrolled": 2})
+        sources = {r["source"]: r for r in got.data["by_source"]}
+        self.assertEqual((sources["website"]["enquiries"], sources["website"]["lost"]), (2, 1))
+        self.assertEqual((sources["referral"]["applied"], sources["referral"]["enrolled"]), (1, 1))
+        grade1 = next(r for r in got.data["by_level"] if r["level_name"] == "Grade 1")
+        self.assertEqual((grade1["enquiries"], grade1["applications"], grade1["approved"], grade1["enrolled"]), (4, 3, 1, 2))
+        self.assertAlmostEqual(got.data["average_days_to_enrol"], 20.0, delta=0.2)
+        self.assertEqual(got.data["enrolled_with_enquiry"], 1)
+        self.assertEqual(self._client_as(self.staff_user).get("/api/admissions/report/", HTTP_HOST=self.DOMAIN).status_code, 400)

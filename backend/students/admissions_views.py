@@ -393,6 +393,7 @@ class AdmissionApplicationStatusView(APIView):
             notes=notes,
             reason=reason,
             request=request,
+            confirm_over_limit=serializer.validated_data.get("confirm_over_limit", False),
         )
 
         detail_serializer = AdmissionApplicationDetailSerializer(_detail(updated_app.pk))
@@ -459,10 +460,48 @@ class AdmissionApplicationDecisionView(APIView):
             notes=notes,
             reason=reason,
             request=request,
+            confirm_over_limit=serializer.validated_data.get("confirm_over_limit", False),
         )
 
         detail_serializer = AdmissionApplicationDetailSerializer(_detail(updated_app.pk))
         return Response(detail_serializer.data, status=status.HTTP_200_OK)
+
+
+class AdmissionSeatsView(APIView):
+    """Seats per class for a year: the limit, how many are taken, the waiting list. Setting a limit needs
+    manage_admission_applications."""
+
+    def get_permissions(self):
+        code = "view_admissions" if self.request.method == "GET" else "manage_admission_applications"
+        return [IsAuthenticated(), HasPermission(code)]
+
+    def get(self, request):
+        from .admissions_services import seats_overview
+
+        year = (request.query_params.get("academic_year") or "").strip()
+        if not year:
+            return Response({"academic_year": ["Choose the academic year."]}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(seats_overview(year))
+
+    def put(self, request):
+        from .admissions_services import seats_overview, set_seat_limit
+
+        set_seat_limit(request.data.get("academic_year"), request.data.get("level"), request.data.get("seats"), request)
+        return Response(seats_overview(request.data.get("academic_year").strip()))
+
+
+class AdmissionReportView(APIView):
+    """Enquiry sources, the funnel by class, and how long enrolment takes."""
+
+    permission_classes = [IsAuthenticated, HasPermission("view_admissions")]
+
+    def get(self, request):
+        from .admissions_services import admissions_report
+
+        year = (request.query_params.get("academic_year") or "").strip()
+        if not year:
+            return Response({"academic_year": ["Choose the academic year."]}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(admissions_report(year))
 
 
 class AdmissionDecisionNoticeView(APIView):

@@ -47,6 +47,7 @@ export const getMenuItems = (
     }
     if (can("view_admissions")) {
         studentChildren.push({ label: "Admission Follow-ups", href: "/dashboard/students/admissions/follow-ups" });
+        studentChildren.push({ label: "Seats & Admissions Report", href: "/dashboard/students/admissions/seats" });
     }
     if (can("manage_student_promotion")) {
         studentChildren.push({ label: "Promotion & Transfer", href: "/dashboard/students/promotion" });
@@ -537,7 +538,7 @@ const MENU_ORDER: { group: string; labels: string[] }[] = [
  * listed ones, so a new link never disappears or reshuffles the rest.
  */
 const CHILD_ORDER: Record<string, string[]> = {
-    "Student Management": ["Student Directory", "Admissions", "Admission Follow-ups", "Parents & Guardians", "Promotion & Transfer"],
+    "Student Management": ["Student Directory", "Admissions", "Admission Follow-ups", "Seats & Admissions Report", "Parents & Guardians", "Promotion & Transfer"],
     Staff: ["Staff Directory", "Faculty Directory", "Recruitment", "My Interviews", "Joining Documents", "Leave Management"],
     Academics: ["Academic Structure", "Academic Calendar", "Homework"],
     "Course Content": ["Study Materials", "Manage Content", "Assignments", "Grade Submissions"],

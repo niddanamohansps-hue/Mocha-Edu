@@ -678,3 +678,19 @@ class AdmissionActivityLog(models.Model):
     def __str__(self):
         return f"{self.application.application_number} - {self.action} at {self.created_at}"
 
+
+
+class AdmissionSeatLimit(models.Model):
+    """How many students the school will admit to one class for one academic year."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    academic_year = models.CharField(max_length=20)
+    level = models.ForeignKey("academics.AcademicLevel", on_delete=models.CASCADE, related_name="admission_seat_limits")
+    seats = models.PositiveIntegerField()
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["academic_year", "level__order", "level__name"]
+        constraints = [
+            models.UniqueConstraint(fields=["academic_year", "level"], name="uniq_admission_seat_limit"),
+        ]

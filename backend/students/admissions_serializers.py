@@ -429,10 +429,12 @@ class AdmissionStatusTransitionSerializer(serializers.Serializer):
     status = serializers.CharField(max_length=30)
     notes = serializers.CharField(required=False, allow_blank=True, default="")
     reason = serializers.CharField(required=False, allow_blank=True, default="")
+    confirm_over_limit = serializers.BooleanField(required=False, default=False)
 
 
 class AdmissionDecisionSerializer(serializers.Serializer):
     decision = serializers.ChoiceField(choices=["approved", "rejected", "waitlisted"])
+    confirm_over_limit = serializers.BooleanField(required=False, default=False)
     reason = serializers.CharField(required=False, allow_blank=True, default="")
     notes = serializers.CharField(required=False, allow_blank=True, default="")
 

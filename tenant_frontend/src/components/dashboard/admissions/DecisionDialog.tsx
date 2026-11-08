@@ -18,7 +18,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { useMakeAdmissionDecision } from "@/hooks/useAdmissions";
+import { seatLimitMessage, useMakeAdmissionDecision } from "@/hooks/useAdmissions";
 import { AdmissionApplication } from "@/types/Admissions";
 import { Loader2, CheckCircle2, XCircle, Clock } from "lucide-react";
 
@@ -37,7 +37,9 @@ export default function DecisionDialog({
     const [reason, setReason] = useState("");
     const [notes, setNotes] = useState("");
 
+    const [overLimit, setOverLimit] = useState(false);
     const decisionMutation = useMakeAdmissionDecision();
+    const classFull = decision === "approved" ? seatLimitMessage(decisionMutation.error) : null;
 
     if (!application) return null;
 
@@ -46,6 +48,7 @@ export default function DecisionDialog({
         if (decision === "rejected" && !reason.trim()) {
             return;
         }
+        if (classFull && !overLimit) return;
 
         decisionMutation.mutate(
             {
@@ -53,12 +56,14 @@ export default function DecisionDialog({
                 decision,
                 reason: reason.trim(),
                 notes: notes.trim(),
+                confirm_over_limit: overLimit,
             },
             {
                 onSuccess: () => {
                     onOpenChange(false);
                     setReason("");
                     setNotes("");
+                    setOverLimit(false);
                 },
             }
         );
@@ -143,6 +148,16 @@ export default function DecisionDialog({
                         />
                     </div>
 
+                    {classFull && (
+                        <label className="flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+                            <input type="checkbox" className="mt-1" checked={overLimit} onChange={(e) => setOverLimit(e.target.checked)} />
+                            <span>
+                                {classFull}
+                                <span className="block text-xs">Tick to approve this child anyway.</span>
+                            </span>
+                        </label>
+                    )}
+
                     <DialogFooter className="gap-2 sm:gap-0 pt-4 border-t">
                         <Button
                             type="button"
@@ -154,7 +169,7 @@ export default function DecisionDialog({
                         </Button>
                         <Button
                             type="submit"
-                            disabled={decisionMutation.isPending || (decision === "rejected" && !reason.trim())}
+                            disabled={decisionMutation.isPending || (decision === "rejected" && !reason.trim()) || (!!classFull && !overLimit)}
                             className={
                                 decision === "approved"
                                     ? "bg-emerald-600 hover:bg-emerald-700 text-white"

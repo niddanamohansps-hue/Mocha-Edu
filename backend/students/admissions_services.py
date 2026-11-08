@@ -12,6 +12,7 @@ from academics.models import AcademicLevel, Section, AcademicYear
 from profiles.models import Profile
 from families.models import Parent, StudentParentRelation
 from .models import (
+    ENQUIRY_SOURCE_CHOICES,
     DOCUMENT_TYPE_CHOICES,
     Student,
     StudentLevel,
@@ -124,9 +125,11 @@ def transition_application_status(
     notes: str = "",
     reason: str = "",
     request=None,
+    confirm_over_limit: bool = False,
 ) -> AdmissionApplication:
     """
     Validates and executes an application status transition, logging history and audit.
+    Approving into a class that is already full is refused unless ``confirm_over_limit`` is set.
     """
     current_status = application.status
     if current_status == new_status:
@@ -137,6 +140,9 @@ def transition_application_status(
         raise ValidationError(
             f"Cannot transition application from '{current_status}' to '{new_status}'. Allowed targets: {allowed_targets}"
         )
+
+    if new_status == "approved":
+        check_seat_available(application, confirm_over_limit)
 
     staff_member = get_staff_member_for_user(user) if user and user.is_authenticated else None
 
@@ -712,3 +718,130 @@ def remind_missing_documents(now=None):
         application.save(update_fields=["documents_reminded_at", "updated_at"])
         summary["reminded"] += 1
     return summary
+
+
+# ---- seats and reports ------------------------------------------------------------------------------------
+
+SEAT_HOLDING = ("approved", "offer_accepted", "enrolled")
+
+
+def seats_taken(academic_year, level_id, exclude_application_id=None):
+    """Applications that already hold a seat in this class and year."""
+    qs = AdmissionApplication.objects.filter(academic_year=academic_year, level_id=level_id, status__in=SEAT_HOLDING)
+    if exclude_application_id is not None:
+        qs = qs.exclude(pk=exclude_application_id)
+    return qs.count()
+
+
+def check_seat_available(application, confirm_over_limit=False):
+    """Refuse to approve past the class limit unless the person has said they mean to. A class with no limit set is
+    never refused. The error carries the numbers so the screen can ask 'approve anyway?'."""
+    from .models import AdmissionSeatLimit
+
+    limit = AdmissionSeatLimit.objects.filter(academic_year=application.academic_year, level_id=application.level_id).first()
+    if limit is None or confirm_over_limit:
+        return
+    taken = seats_taken(application.academic_year, application.level_id, exclude_application_id=application.pk)
+    if taken >= limit.seats:
+        raise ValidationError({
+            "seat_limit": [
+                f"{application.level.name} already has {taken} of {limit.seats} seats taken for {application.academic_year}. "
+                "Confirm to approve past the limit."
+            ]
+        })
+
+
+def seats_overview(academic_year):
+    """One row for every class of the school: its limit (if any), seats taken, waitlist and open applications."""
+    from .models import AdmissionSeatLimit
+
+    limits = {l.level_id: l.seats for l in AdmissionSeatLimit.objects.filter(academic_year=academic_year)}
+    apps = AdmissionApplication.objects.filter(academic_year=academic_year)
+    rows = []
+    for level in AcademicLevel.objects.order_by("order", "name"):
+        mine = apps.filter(level=level)
+        taken = mine.filter(status__in=SEAT_HOLDING).count()
+        seats = limits.get(level.id)
+        rows.append({
+            "level": level.id,
+            "level_name": level.name,
+            "seats": seats,
+            "taken": taken,
+            "free": None if seats is None else max(seats - taken, 0),
+            "over_by": 0 if seats is None else max(taken - seats, 0),
+            "waitlisted": mine.filter(status="waitlisted").count(),
+            "in_progress": mine.exclude(status__in=SEAT_HOLDING + ("waitlisted", "rejected", "withdrawn", "draft")).count(),
+        })
+    return rows
+
+
+def set_seat_limit(academic_year, level_id, seats, request=None):
+    from .models import AdmissionSeatLimit
+
+    academic_year = (academic_year or "").strip()
+    if not academic_year:
+        raise ValidationError({"academic_year": ["Choose the academic year."]})
+    try:
+        seats = int(seats)
+    except (TypeError, ValueError):
+        raise ValidationError({"seats": ["Enter the number of seats."]})
+    if not 0 <= seats <= 5000:
+        raise ValidationError({"seats": ["Seats must be between 0 and 5000."]})
+    level = AcademicLevel.objects.filter(pk=level_id).first()
+    if level is None:
+        raise ValidationError({"level": ["Choose a class."]})
+    limit, _ = AdmissionSeatLimit.objects.update_or_create(academic_year=academic_year, level=level, defaults={"seats": seats})
+    if request:
+        log_action(request, action="CHANGE", model_name="AdmissionSeatLimit", object_id=limit.id,
+                   changes={"academic_year": academic_year, "level": level.name, "seats": seats})
+    return limit
+
+
+def admissions_report(academic_year):
+    """Where enquiries come from and how far they get, by source and by class, and how long it takes from the first
+    enquiry to enrolment (only for applications that began as an enquiry)."""
+    from django.db.models import Avg, Count, ExpressionWrapper, F, DurationField, Q
+
+    enquiries = AdmissionEnquiry.objects.filter(academic_year=academic_year)
+    apps = AdmissionApplication.objects.filter(academic_year=academic_year)
+    labels = dict(ENQUIRY_SOURCE_CHOICES)
+
+    by_source = []
+    for row in enquiries.values("source").annotate(
+        total=Count("id"), converted=Count("id", filter=Q(status="converted")), lost=Count("id", filter=Q(status="closed"))
+    ).order_by("-total"):
+        enrolled = apps.filter(enquiry__source=row["source"], status="enrolled").count()
+        by_source.append({
+            "source": row["source"], "label": labels.get(row["source"], row["source"]), "enquiries": row["total"],
+            "applied": row["converted"], "lost": row["lost"], "enrolled": enrolled,
+        })
+
+    by_level = []
+    for level in AcademicLevel.objects.order_by("order", "name"):
+        enq = enquiries.filter(preferred_level=level).count()
+        mine = apps.filter(level=level)
+        total = mine.count()
+        if enq or total:
+            by_level.append({
+                "level": level.id, "level_name": level.name, "enquiries": enq, "applications": total,
+                "approved": mine.filter(status__in=("approved", "offer_accepted")).count(),
+                "enrolled": mine.filter(status="enrolled").count(),
+            })
+
+    spans = apps.filter(status="enrolled", enrolled_at__isnull=False, enquiry__isnull=False).annotate(
+        span=ExpressionWrapper(F("enrolled_at") - F("enquiry__created_at"), output_field=DurationField())
+    ).aggregate(avg=Avg("span"), n=Count("id"))
+    avg_days = round(spans["avg"].total_seconds() / 86400, 1) if spans["avg"] is not None else None
+
+    return {
+        "academic_year": academic_year,
+        "totals": {
+            "enquiries": enquiries.count(),
+            "applications": apps.count(),
+            "enrolled": apps.filter(status="enrolled").count(),
+        },
+        "by_source": by_source,
+        "by_level": by_level,
+        "average_days_to_enrol": avg_days,
+        "enrolled_with_enquiry": spans["n"],
+    }
