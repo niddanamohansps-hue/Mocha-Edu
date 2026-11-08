@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useRecordCall, useStudentCalls } from "@/hooks/useFees";
 import type { DueRow, PromiseInfo } from "@/types/FeeDues";
 
-export const money = (value: string) => Number(value).toLocaleString("en-IN", { maximumFractionDigits: 2 });
+export const money = (value: string) => Number(value).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const selectClass = "h-10 rounded-md border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950";
 
 export function PromiseBadge({ promise }: { promise: PromiseInfo | null }) {

@@ -22,7 +22,7 @@ const BANDS: { value: DueBand; label: string }[] = [
     { value: "90+", label: "Over 90 days" },
 ];
 
-const money = (value: string) => Number(value).toLocaleString("en-IN", { maximumFractionDigits: 2 });
+const money = (value: string) => Number(value).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const selectClass = "h-10 rounded-md border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950";
 
 export default function DuesPage() {
@@ -108,12 +108,12 @@ function Content({ canCall }: { canCall: boolean }) {
                         <table className="w-full text-sm">
                             <thead className="border-b border-slate-200 text-left text-xs uppercase text-slate-500 dark:border-slate-800">
                                 <tr>
-                                    <th className="px-4 py-2">Student</th>
-                                    <th className="px-4 py-2 text-right">Outstanding</th>
-                                    <th className="px-4 py-2">Oldest due</th>
-                                    <th className="px-4 py-2">Parent or guardian</th>
-                                    <th className="px-4 py-2">Last call</th>
-                                    {canCall && <th className="px-4 py-2" />}
+                                    <th className="whitespace-nowrap px-4 py-2">Student</th>
+                                    <th className="whitespace-nowrap px-4 py-2 text-right">Outstanding</th>
+                                    <th className="whitespace-nowrap px-4 py-2">Oldest due</th>
+                                    <th className="whitespace-nowrap px-4 py-2">Parent or guardian</th>
+                                    <th className="whitespace-nowrap px-4 py-2">Last call</th>
+                                    {canCall && <th className="whitespace-nowrap px-4 py-2" />}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">

@@ -9,7 +9,7 @@ import { useAcademicYear } from "@/providers/AcademicYearProvider";
 import { usePermissions } from "@/providers/PermissionProvider";
 import type { CollectionLine } from "@/types/FeeDues";
 
-const money = (value: string) => Number(value).toLocaleString("en-IN", { maximumFractionDigits: 2 });
+const money = (value: string) => Number(value).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const monthName = (key: string) =>
     key === "undated" ? "No due date" : new Date(`${key}-01T00:00:00`).toLocaleDateString("en-IN", { month: "long", year: "numeric" });
 
