@@ -445,6 +445,8 @@ def duty_rows(queryset):
                 "end_time": duty.sitting.end_time,
                 "room": duty.room.name,
                 "role": duty.role,
+                "sitting": duty.sitting_id,
+                "room_id": duty.room_id,
             }
         )
     return rows

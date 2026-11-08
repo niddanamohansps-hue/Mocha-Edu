@@ -1295,3 +1295,117 @@ class MalpracticeTests(AllocationBase):
             from .malpractice import undecided_count
 
             self.assertEqual(undecided_count(self.exam), 0)
+
+
+class HallAttendanceTests(AllocationBase):
+    """Class A and B sit together in the Hall at the first sitting; one teacher is on duty there."""
+
+    def setUp(self):
+        super().setUp()
+        from .models import ExamMark
+
+        with tenant_context(self.school):
+            allocation.allocate_rooms(self.sitting1)  # all seven students in the Hall
+            self.invigilator = self._teacher("T9", login=True)
+            ExamInvigilation.objects.create(sitting=self.sitting1, room=self.room_big, staff=self.invigilator)
+            self.stranger = self._teacher("T8", login=True)  # a teacher with no duty in this room
+            self.kid = self.students_a[0]
+            self.ExamMark = ExamMark
+
+    def _call(self, method, user, data):
+        from .allocation_views import HallAttendanceView
+
+        request = self.factory.get("/x/", data) if method == "get" else self.factory.post("/x/", data, format="json")
+        request.tenant = self.school
+        force_authenticate(request, user=user)
+        return HallAttendanceView.as_view()(request)
+
+    def _body(self, *pairs):
+        return {
+            "sitting": str(self.sitting1.pk), "room": str(self.room_big.pk),
+            "records": [{"student": str(s.pk), "status": status} for s, status in pairs],
+        }
+
+    def _mark(self, student=None):
+        return self.ExamMark.objects.filter(exam_schedule=self.paper_a, student=student or self.kid).first()
+
+    def test_the_list_shows_the_seated_students_in_seat_order_with_any_status(self):
+        with tenant_context(self.school):
+            response = self._call("get", self.invigilator.login_user, {"sitting": str(self.sitting1.pk), "room": str(self.room_big.pk)})
+            self.assertEqual(response.status_code, 200, response.data)
+            rows = response.data["rows"]
+            self.assertEqual([r["seat"] for r in rows], list(range(1, 8)))
+            self.assertTrue(all(r["status"] == "" for r in rows))
+            self.assertEqual(response.data["room"]["name"], "Hall")
+
+    def test_marking_someone_absent_puts_them_on_the_marks_sheet_and_present_leaves_it_alone(self):
+        with tenant_context(self.school):
+            other = self.students_a[1]
+            response = self._call("post", self.invigilator.login_user, self._body((self.kid, "absent"), (other, "present")))
+            self.assertEqual(response.status_code, 200, response.data)
+            self.assertEqual((response.data["saved"], response.data["absent"], response.data["conflicts"]), (2, 1, []))
+            self.assertEqual((self._mark().attendance, self._mark().marks_obtained), ("absent", None))
+            self.assertIsNone(self._mark(other))  # a present student gets no marks row; the teacher enters the score
+            statuses = {r["student_id"]: r["status"] for r in response.data["attendance"]["rows"]}
+            self.assertEqual((statuses[self.kid.pk], statuses[other.pk]), ("absent", "present"))
+            change = self.ExamMark.objects.get(pk=self._mark().pk).changes.get()
+            self.assertEqual(change.reason, "Marked absent in the exam hall")
+
+    def test_a_student_who_already_has_a_score_or_a_status_is_reported_not_overwritten(self):
+        with tenant_context(self.school):
+            self.ExamMark.objects.create(exam_schedule=self.paper_a, student=self.kid, marks_obtained=Decimal("60"), attendance="present")
+            medical = self.students_a[1]
+            self.ExamMark.objects.create(exam_schedule=self.paper_a, student=medical, marks_obtained=None, attendance="medical")
+            response = self._call("post", self.invigilator.login_user, self._body((self.kid, "absent"), (medical, "absent")))
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(len(response.data["conflicts"]), 2)
+            self.assertEqual((self._mark().marks_obtained, self._mark().attendance), (Decimal("60"), "present"))
+            self.assertEqual(self._mark(medical).attendance, "medical")
+
+    def test_a_locked_paper_is_not_changed(self):
+        with tenant_context(self.school):
+            ExamSchedule.objects.filter(pk=self.paper_a.pk).update(is_locked=True)
+            response = self._call("post", self.invigilator.login_user, self._body((self.kid, "absent")))
+            self.assertEqual(len(response.data["conflicts"]), 1)
+            self.assertIn("locked", response.data["conflicts"][0]["problem"])
+            self.assertIsNone(self._mark())
+
+    def test_correcting_an_absence_the_hall_recorded_restores_present_but_not_one_a_teacher_recorded(self):
+        with tenant_context(self.school):
+            self._call("post", self.invigilator.login_user, self._body((self.kid, "absent")))
+            fixed = self._call("post", self.invigilator.login_user, self._body((self.kid, "present")))
+            self.assertEqual(fixed.data["conflicts"], [])
+            self.assertEqual((self._mark().attendance, self._mark().marks_obtained), ("present", None))
+
+            teacher_absent = self.students_a[1]  # a teacher entered this absence on the marks sheet
+            from .marks import record_marks
+
+            record_marks(self.paper_a, [{"student": str(teacher_absent.pk), "attendance": "absent", "is_absent": True, "marks_obtained": None}],
+                         entered_by=None, user_id=None, reason="")
+            kept = self._call("post", self.invigilator.login_user, self._body((teacher_absent, "present")))
+            self.assertEqual(len(kept.data["conflicts"]), 1)
+            self.assertEqual(self._mark(teacher_absent).attendance, "absent")
+
+    def test_only_the_invigilator_on_duty_or_a_manager_may_mark_and_only_seated_students_can_be_marked(self):
+        with tenant_context(self.school):
+            body = self._body((self.kid, "absent"))
+            self.assertEqual(self._call("post", self.stranger.login_user, body).status_code, 403)
+            self.assertEqual(self._call("get", self.stranger.login_user, {"sitting": body["sitting"], "room": body["room"]}).status_code, 403)
+            self.assertEqual(self._call("post", self.clerk, body).status_code, 403)
+            self.assertEqual(self._call("post", self.owner, body).status_code, 200)  # a manager may
+            outsider = self._call("post", self.invigilator.login_user, {**body, "records": [{"student": str(uuid.uuid4()), "status": "absent"}]})
+            self.assertEqual(outsider.status_code, 400)
+            self.assertEqual(self._call("post", self.invigilator.login_user, {**body, "records": [{"student": str(self.kid.pk), "status": "late"}]}).status_code, 400)
+            self.assertEqual(self._call("post", self.invigilator.login_user, {**body, "records": []}).status_code, 400)
+
+    def test_nothing_can_change_once_results_are_published(self):
+        with tenant_context(self.school):
+            Examination.objects.filter(pk=self.exam.pk).update(is_published=True)
+            response = self._call("post", self.invigilator.login_user, self._body((self.kid, "absent")))
+            self.assertEqual(response.status_code, 400)
+            self.assertIn("published", str(response.data))
+
+    def test_duties_carry_the_ids_needed_to_open_the_attendance_list(self):
+        with tenant_context(self.school):
+            rows = allocation.duty_rows(ExamInvigilation.objects.filter(staff=self.invigilator))
+            self.assertEqual((rows[0]["sitting"], rows[0]["room_id"]), (self.sitting1.pk, self.room_big.pk))

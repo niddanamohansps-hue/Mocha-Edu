@@ -582,6 +582,15 @@ class ExamSeat(models.Model):
     schedule = models.ForeignKey(ExamSchedule, on_delete=models.CASCADE, related_name="seats")
     seat_number = models.PositiveIntegerField()
 
+    # Who sat the paper, as the invigilator recorded it in the hall. Blank until marked.
+    class HallStatus(models.TextChoices):
+        PRESENT = "present", "Present"
+        ABSENT = "absent", "Absent"
+
+    hall_status = models.CharField(max_length=10, choices=HallStatus.choices, blank=True, default="")
+    hall_marked_by_user_id = models.UUIDField(null=True, blank=True)
+    hall_marked_at = models.DateTimeField(null=True, blank=True)
+
     class Meta:
         ordering = ["room__name", "seat_number"]
         constraints = [

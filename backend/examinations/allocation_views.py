@@ -3,7 +3,7 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404
 from rest_framework import viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -394,3 +394,37 @@ class MalpracticeViewSet(viewsets.ViewSet):
         except MalpracticeError as exc:
             raise _fail(exc)
         return Response(case_data(self._queryset(request).get(pk=case.pk)))
+
+
+class HallAttendanceView(APIView):
+    """Who sat the paper, room by room. For the invigilators on duty in the room, and for exam allocation managers."""
+
+    permission_classes = [IsAuthenticated]
+
+    def _context(self, request, data):
+        from timetable.models import Room
+
+        sitting = get_object_or_404(ExamSitting.objects.select_related("examination"), pk=data.get("sitting"))
+        room = get_object_or_404(Room, pk=data.get("room"))
+        from .hall import may_mark
+
+        manager = HasPermission("manage_exam_allocation")().has_permission(request, self)
+        if not may_mark(request.user, sitting, room, is_manager=manager):
+            raise PermissionDenied("You are not on duty in this room.")
+        return sitting, room
+
+    def get(self, request):
+        from .hall import room_attendance
+
+        sitting, room = self._context(request, request.query_params)
+        return Response(room_attendance(sitting, room))
+
+    def post(self, request):
+        from .hall import HallError, mark_attendance, room_attendance
+
+        sitting, room = self._context(request, request.data)
+        try:
+            result = mark_attendance(sitting, room, request.data.get("records") or [], user=request.user, request=request)
+        except HallError as exc:
+            raise _fail(exc)
+        return Response({**result, "attendance": room_attendance(sitting, room)})
