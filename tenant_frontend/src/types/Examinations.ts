@@ -27,6 +27,7 @@ export interface Examination {
 export interface ExaminationSettings {
     require_separate_publisher: boolean;
     show_rank_to_families: boolean;
+    report_card_style: "standard" | "cbse" | "state";
     is_default: boolean;
 }
 
@@ -201,6 +202,8 @@ export interface ReportCardExamination {
 }
 
 export interface ReportCard {
+    /** Which printed layout the school uses. */
+    card_style?: "standard" | "cbse" | "state";
     institution?: InstitutionSummary;
     student: {
         id: string;

@@ -237,6 +237,7 @@ class ExaminationSettingsView(APIView):
         return {
             "require_separate_publisher": row.require_separate_publisher,
             "show_rank_to_families": row.show_rank_to_families,
+            "report_card_style": row.report_card_style,
             "is_default": row._state.adding,
         }
 
@@ -252,8 +253,11 @@ class ExaminationSettingsView(APIView):
 
         data = request.data
         unknown = set(data) - set(ExaminationSettings.EDITABLE_FIELDS)
-        if not data or unknown or any(not isinstance(v, bool) for v in data.values()):
-            raise ValidationError({"non_field_errors": ["Send true or false for the settings you change."]})
+        styles = {key for key, _ in ExaminationSettings.REPORT_CARD_STYLES}
+        if not data or unknown or any(
+            (not isinstance(v, str) or v not in styles) if k == "report_card_style" else not isinstance(v, bool) for k, v in data.items()
+        ):
+            raise ValidationError({"non_field_errors": ["Send true or false for the settings you change, and a known report card style."]})
         row, _ = ExaminationSettings.objects.get_or_create(singleton=True)
         changes = {}
         for field, value in data.items():

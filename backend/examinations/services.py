@@ -1176,6 +1176,7 @@ def build_student_report_card(student, academic_year=None):
     """
     from django.utils import timezone
     from academics.models import Subject
+    from .models import ExaminationSettings
     from .models import ExamResult, GradeBoundary
 
     # Resolve academic year if not provided
@@ -1317,6 +1318,7 @@ def build_student_report_card(student, academic_year=None):
         "remarks": remarks,
         "co_scholastic": co_scholastic,
         "term_weightage": term_weightage,
+        "card_style": ExaminationSettings.load().report_card_style,
         "generated_at": timezone.now().isoformat(),
     }
 

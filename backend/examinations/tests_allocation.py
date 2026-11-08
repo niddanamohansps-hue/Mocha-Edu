@@ -828,6 +828,24 @@ class SelfServiceTests(AllocationBase):
                 self.assertEqual(patch(self.owner, bad).status_code, 400, bad)
             self.assertEqual(patch(self.clerk, {"show_rank_to_families": True}).status_code, 403)
 
+    def test_the_report_card_style_defaults_to_standard_and_accepts_only_known_styles(self):
+        from .services import build_student_report_card
+        from .views import ExaminationSettingsView
+
+        def patch(data):
+            request = self.factory.patch("/x/", data, format="json")
+            request.tenant = self.school
+            force_authenticate(request, user=self.owner)
+            return ExaminationSettingsView.as_view()(request)
+
+        with tenant_context(self.school):
+            self.assertEqual(self._get(ExaminationSettingsView, self.owner).data["report_card_style"], "standard")
+            self.assertEqual(patch({"report_card_style": "cbse"}).data["report_card_style"], "cbse")
+            for bad in ({"report_card_style": "icse"}, {"report_card_style": True}, {"report_card_style": ["cbse"]}, {"report_card_style": None}):
+                self.assertEqual(patch(bad).status_code, 400, bad)
+            self.assertEqual(self._get(ExaminationSettingsView, self.owner).data["report_card_style"], "cbse")
+            self.assertEqual(build_student_report_card(self.kid, "2026")["card_style"], "cbse")
+
 
 class AnalyticsTests(AllocationBase):
     """Class A: Math 90/60/50/20 and English 90/60/30/40 (pass mark 35). Class B: one pass, one borderline, one absent."""

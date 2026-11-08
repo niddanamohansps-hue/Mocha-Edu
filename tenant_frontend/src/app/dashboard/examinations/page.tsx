@@ -189,6 +189,23 @@ export default function ExaminationsPage() {
                 </label>
             )}
 
+            {canManage && examSettings.data && (
+                <label className="grid gap-1 text-sm">
+                    <span>Report card layout</span>
+                    <select
+                        className="h-10 w-64 rounded-md border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950"
+                        value={examSettings.data.report_card_style || "standard"}
+                        disabled={updateSettings.isPending}
+                        onChange={(e) => updateSettings.mutate({ report_card_style: e.target.value as "standard" | "cbse" | "state" })}
+                    >
+                        <option value="standard">Standard</option>
+                        <option value="cbse">CBSE style (grades, scholastic areas)</option>
+                        <option value="state">State board style (marks, result, division)</option>
+                    </select>
+                    <span className="text-xs text-slate-500">How the printed report card is laid out. Applies to every report card in this school.</span>
+                </label>
+            )}
+
             {selectedExam && (
                 <div className="space-y-4">
                     <div className="flex flex-wrap justify-between gap-2 items-center">

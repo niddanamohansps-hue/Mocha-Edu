@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import type { ReportCard } from "@/types/Examinations";
+import { BoardMarks, type CardStyle } from "./BoardMarks";
 
 interface PrintableReportCardProps {
     reportCard: ReportCard;
@@ -27,6 +28,8 @@ export const PrintableReportCard: React.FC<PrintableReportCardProps> = ({
         remarks = [],
         generated_at,
     } = reportCard;
+
+    const style: CardStyle = reportCard.card_style || "standard";
 
     const handlePrint = () => {
         window.print();
@@ -168,7 +171,9 @@ export const PrintableReportCard: React.FC<PrintableReportCardProps> = ({
                 </div>
 
                 {/* Examination Results */}
-                {examinations.length === 0 ? (
+                {style !== "standard" && examinations.length > 0 ? (
+                    <BoardMarks reportCard={reportCard} style={style} />
+                ) : examinations.length === 0 ? (
                     <div className="text-center py-10 border border-dashed border-slate-300 rounded-xl my-6">
                         <AlertCircle className="h-8 w-8 text-amber-500 mx-auto mb-2" />
                         <p className="font-medium text-slate-700">No published examination results found for this academic year.</p>
@@ -501,12 +506,12 @@ export const PrintableReportCard: React.FC<PrintableReportCardProps> = ({
                     </div>
                     <div>
                         <div className="border-b border-slate-400 h-10 mb-2"></div>
-                        <p className="font-bold text-slate-800">Academic Coordinator</p>
+                        <p className="font-bold text-slate-800">{style === "cbse" ? "Examination In-charge" : style === "state" ? "Parent / Guardian" : "Academic Coordinator"}</p>
                         <p className="text-[10px] text-slate-500">Signature & Date</p>
                     </div>
                     <div>
                         <div className="border-b border-slate-400 h-10 mb-2"></div>
-                        <p className="font-bold text-slate-800">Principal / Head of School</p>
+                        <p className="font-bold text-slate-800">{style === "state" ? "Headmaster / Principal" : "Principal / Head of School"}</p>
                         <p className="text-[10px] text-slate-500">Official Seal & Signature</p>
                     </div>
                 </div>
