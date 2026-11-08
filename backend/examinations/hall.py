@@ -125,3 +125,98 @@ def mark_attendance(sitting, room, records, *, user, request=None):
         {"room": str(room.id), "students": len(parsed), "absent": absent_count},
     )
     return {"saved": len(parsed), "absent": absent_count, "conflicts": conflicts}
+
+
+# ---- the room report: scripts collected and incidents -----------------------------------------
+
+
+def _counts(sitting, room):
+    """``(seated, absent)`` for a room at a sitting, from the seating plan and the hall attendance."""
+    seats = ExamSeat.objects.filter(sitting=sitting, room=room)
+    return seats.count(), seats.filter(hall_status="absent").count()
+
+
+def room_report(sitting, room):
+    """The report as it stands, with how many scripts were expected: everyone seated except those the hall marked
+    absent (someone not yet marked is assumed to have sat)."""
+    from .models import ExamRoomReport
+
+    seated, absent = _counts(sitting, room)
+    expected = seated - absent
+    report = ExamRoomReport.objects.filter(sitting=sitting, room=room).first()
+    return {
+        "seated": seated,
+        "absent": absent,
+        "expected": expected,
+        "submitted": report is not None,
+        "scripts_collected": report.scripts_collected if report else None,
+        "difference": (report.scripts_collected - expected) if report else None,
+        "incidents": report.incidents if report else "",
+        "submitted_by": report.submitted_by_name if report else "",
+        "submitted_at": report.updated_at if report else None,
+    }
+
+
+@transaction.atomic
+def submit_room_report(sitting, room, *, scripts_collected, incidents, user, request=None):
+    from .models import ExamRoomReport
+
+    if Examination.objects.filter(pk=sitting.examination_id, is_published=True).exists():
+        raise HallError("The results are published, so this report can no longer be changed.")
+    try:
+        scripts = int(scripts_collected)
+    except (TypeError, ValueError):
+        raise HallError("Enter the number of scripts collected.")
+    seated, _ = _counts(sitting, room)
+    if not seated:
+        raise HallError("Nobody is seated in this room for this sitting.")
+    if scripts < 0 or scripts > seated:
+        raise HallError(f"The scripts collected must be between 0 and the {seated} students seated in this room.")
+
+    ExamRoomReport.objects.update_or_create(
+        sitting=sitting, room=room,
+        defaults={
+            "scripts_collected": scripts,
+            "incidents": (incidents or "").strip(),
+            "submitted_by_user_id": getattr(user, "id", None),
+            "submitted_by_name": user.get_username() if getattr(user, "is_authenticated", False) else "",
+        },
+    )
+    log_action(request, "exam_room_report_submitted", "ExamSitting", str(sitting.id),
+               {"room": str(room.id), "scripts": scripts, "has_incidents": bool((incidents or "").strip())})
+    return room_report(sitting, room)
+
+
+def room_reports_overview(examination):
+    """Every room of every sitting of an examination, with whether it has reported and whether its count matches."""
+    from .models import ExamRoomReport
+
+    rows = []
+    for sitting in ExamSitting.objects.filter(examination=examination):
+        for room_id in ExamSeat.objects.filter(sitting=sitting).values_list("room_id", flat=True).distinct():
+            seats = ExamSeat.objects.filter(sitting=sitting, room_id=room_id)
+            seated = seats.count()
+            absent = seats.filter(hall_status="absent").count()
+            report = ExamRoomReport.objects.filter(sitting=sitting, room_id=room_id).select_related("room").first()
+            room = report.room if report else seats.select_related("room").first().room
+            expected = seated - absent
+            rows.append(
+                {
+                    "sitting": sitting.id,
+                    "room_id": room_id,
+                    "room": room.name,
+                    "date": sitting.date,
+                    "start_time": sitting.start_time,
+                    "end_time": sitting.end_time,
+                    "seated": seated,
+                    "absent": absent,
+                    "expected": expected,
+                    "submitted": report is not None,
+                    "scripts_collected": report.scripts_collected if report else None,
+                    "difference": (report.scripts_collected - expected) if report else None,
+                    "has_incidents": bool(report and report.incidents),
+                    "incidents": report.incidents if report else "",
+                }
+            )
+    rows.sort(key=lambda r: (r["date"], r["start_time"], r["room"]))
+    return rows

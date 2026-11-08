@@ -690,3 +690,24 @@ class SupplementaryCandidate(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["examination", "student", "subject"], name="uniq_supplementary_candidate"),
         ]
+
+
+class ExamRoomReport(models.Model):
+    """The invigilator's report for one room at one sitting: how many answer scripts were collected, and anything
+    that went wrong. One per room per sitting; resubmitting replaces it."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    sitting = models.ForeignKey(ExamSitting, on_delete=models.CASCADE, related_name="room_reports")
+    room = models.ForeignKey("timetable.Room", on_delete=models.PROTECT, related_name="exam_room_reports")
+    scripts_collected = models.PositiveIntegerField()
+    incidents = models.TextField(blank=True)
+    submitted_by_user_id = models.UUIDField(null=True, blank=True)
+    submitted_by_name = models.CharField(max_length=150, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["sitting__date", "sitting__start_time", "room__name"]
+        constraints = [
+            models.UniqueConstraint(fields=["sitting", "room"], name="uniq_exam_room_report"),
+        ]

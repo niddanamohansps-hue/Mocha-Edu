@@ -1576,3 +1576,56 @@ class SupplementaryTests(AllocationBase):
             self.assertEqual(listing.data["summary"]["candidates"], 3)
             none = call("get", self.owner, {"original": str(self.exam.pk)})
             self.assertIsNotNone(none.data["supplementary"])
+
+
+class RoomReportTests(HallAttendanceTests):
+    """Seven students sit in the Hall; the invigilator reports how many scripts came back."""
+
+    def _report(self, method, user, data):
+        from .allocation_views import RoomReportView
+
+        request = self.factory.get("/x/", data) if method == "get" else self.factory.post("/x/", data, format="json")
+        request.tenant = self.school
+        force_authenticate(request, user=user)
+        return RoomReportView.as_view()(request)
+
+    def _ids(self, **extra):
+        return {"sitting": str(self.sitting1.pk), "room": str(self.room_big.pk), **extra}
+
+    def test_an_invigilator_reports_and_the_count_is_checked_against_who_sat(self):
+        with tenant_context(self.school):
+            self._call("post", self.invigilator.login_user, self._body((self.kid, "absent")))
+            before = self._report("get", self.invigilator.login_user, self._ids())
+            self.assertEqual((before.data["seated"], before.data["absent"], before.data["expected"], before.data["submitted"]), (7, 1, 6, False))
+            done = self._report("post", self.invigilator.login_user, self._ids(scripts_collected=5, incidents="  Torn paper  "))
+            self.assertEqual(done.status_code, 200, done.data)
+            self.assertEqual((done.data["scripts_collected"], done.data["difference"], done.data["incidents"]), (5, -1, "Torn paper"))
+            again = self._report("post", self.invigilator.login_user, self._ids(scripts_collected=6))
+            self.assertEqual((again.data["difference"], again.data["incidents"]), (0, ""))
+
+    def test_bad_counts_strangers_and_published_results_are_refused(self):
+        with tenant_context(self.school):
+            self.assertEqual(self._report("post", self.invigilator.login_user, self._ids(scripts_collected=8)).status_code, 400)
+            self.assertEqual(self._report("post", self.invigilator.login_user, self._ids(scripts_collected="x")).status_code, 400)
+            self.assertEqual(self._report("post", self.stranger.login_user, self._ids(scripts_collected=7)).status_code, 403)
+            Examination.objects.filter(pk=self.exam.pk).update(is_published=True)
+            self.assertEqual(self._report("post", self.invigilator.login_user, self._ids(scripts_collected=7)).status_code, 400)
+
+    def test_the_coordinator_sees_which_rooms_have_not_reported_and_where_counts_differ(self):
+        from .allocation_views import RoomReportsOverviewView
+
+        def overview(user):
+            request = self.factory.get("/x/", {"examination": str(self.exam.pk)})
+            request.tenant = self.school
+            force_authenticate(request, user=user)
+            return RoomReportsOverviewView.as_view()(request)
+
+        with tenant_context(self.school):
+            first = overview(self.owner)
+            self.assertEqual(first.status_code, 200)
+            hall = next(r for r in first.data if r["room"] == "Hall")
+            self.assertFalse(hall["submitted"])
+            self._report("post", self.invigilator.login_user, self._ids(scripts_collected=6, incidents="Phone found"))
+            hall = next(r for r in overview(self.owner).data if r["room"] == "Hall")
+            self.assertEqual((hall["submitted"], hall["difference"], hall["has_incidents"]), (True, -1, True))
+            self.assertEqual(overview(self.clerk).status_code, 403)

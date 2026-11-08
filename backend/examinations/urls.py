@@ -17,6 +17,8 @@ from .allocation_views import (
     ModerationPreviewView,
     MyExamsView,
     RankListView,
+    RoomReportsOverviewView,
+    RoomReportView,
     SupplementaryView,
     WeakStudentsView,
 )
@@ -76,6 +78,8 @@ urlpatterns = [
     path("rank-list/", RankListView.as_view(), name="exam-rank-list"),
     path("supplementary/", SupplementaryView.as_view(), name="exam-supplementary"),
     path("hall-attendance/", HallAttendanceView.as_view(), name="exam-hall-attendance"),
+    path("room-report/", RoomReportView.as_view(), name="exam-room-report"),
+    path("room-reports/", RoomReportsOverviewView.as_view(), name="exam-room-reports"),
     path("moderation/<uuid:schedule_id>/preview/", ModerationPreviewView.as_view(), name="exam-moderation-preview"),
     path("moderation/<uuid:schedule_id>/apply/", ModerationApplyView.as_view(), name="exam-moderation-apply"),
     path("analytics/", AnalyticsView.as_view(), name="exam-analytics"),

@@ -470,3 +470,39 @@ class SupplementaryView(APIView):
         except SupplementaryError as exc:
             raise _fail(exc)
         return Response(candidates_data(supplementary), status=201)
+
+
+class RoomReportView(HallAttendanceView):
+    """The invigilator's report for a room: scripts collected and incidents. Same people as the attendance list."""
+
+    def get(self, request):
+        from .hall import room_report
+
+        sitting, room = self._context(request, request.query_params)
+        return Response(room_report(sitting, room))
+
+    def post(self, request):
+        from .hall import HallError, submit_room_report
+
+        sitting, room = self._context(request, request.data)
+        try:
+            data = submit_room_report(
+                sitting, room, scripts_collected=request.data.get("scripts_collected"),
+                incidents=request.data.get("incidents", ""), user=request.user, request=request,
+            )
+        except HallError as exc:
+            raise _fail(exc)
+        return Response(data)
+
+
+class RoomReportsOverviewView(APIView):
+    """Which rooms have reported for an examination, and where the script count does not match."""
+
+    def get_permissions(self):
+        return [IsAuthenticated(), HasPermission("manage_exam_allocation")]
+
+    def get(self, request):
+        from .hall import room_reports_overview
+
+        examination = get_object_or_404(Examination, pk=request.query_params.get("examination"))
+        return Response(room_reports_overview(examination))
