@@ -526,6 +526,11 @@ CELERY_BEAT_SCHEDULE = {
         "task": "students.admissions_tasks.remind_missing_admission_documents",
         "schedule": crontab(hour=4, minute=0),
     },
+    # People who collect fees, about broken or due promises to pay, once a day (03:30 UTC = 09:00 in India).
+    "remind-fee-followups": {
+        "task": "fees.tasks.remind_fee_followups",
+        "schedule": crontab(hour=3, minute=30),
+    },
     "remind-admission-followups": {
         "task": "students.admissions_tasks.remind_admission_followups",
         "schedule": crontab(hour=3, minute=0),

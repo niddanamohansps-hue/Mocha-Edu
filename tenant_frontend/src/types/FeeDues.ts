@@ -39,6 +39,13 @@ export interface DueRow {
     promise: PromiseInfo | null;
 }
 
+export interface DeskResponse {
+    broken: DueRow[];
+    due_today: DueRow[];
+    uncalled: DueRow[];
+    summary: { broken: number; due_today: number; uncalled: number };
+}
+
 export interface DuesResponse {
     totals: {
         students: number;

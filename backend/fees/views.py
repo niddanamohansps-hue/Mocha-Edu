@@ -485,6 +485,17 @@ class DuesByStudentView(APIView):
         ))
 
 
+class FollowUpDeskView(APIView):
+    """Broken promises, promises due today, and overdue families nobody has called in two weeks."""
+
+    permission_classes = [IsAuthenticated, HasPermission("view_financial_reports")]
+
+    def get(self, request):
+        from .followups import desk
+
+        return Response(desk())
+
+
 class StudentCallsView(APIView):
     """The calls made about one student's unpaid fees. Reading needs view_financial_reports; writing a call needs
     collect_payments, the same right as taking the money."""

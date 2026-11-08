@@ -119,3 +119,78 @@ def latest_for(student_ids, today=None):
             promised.add(call.student_id)
             entry["promise"] = promise_state(call, today)
     return out
+
+
+# ---- the follow-up desk and the morning reminder -----------------------------------------------------------
+
+UNCALLED_AFTER_DAYS = 14  # an overdue family nobody has called for this long goes on the desk
+DESK_LIMIT = 50  # rows shown per group; the counts always cover everyone
+CATEGORY = "fees"
+DESK_LINK = "/dashboard/fees/follow-ups"
+
+
+def desk(today=None):
+    """Who the accountant should call: broken promises first, then promises falling due today, then overdue families
+    nobody has called in two weeks (oldest due first). Each group carries its true count and at most DESK_LIMIT
+    rows."""
+    from .dues import dues_by_student
+
+    today = today or school_today()
+    everyone = dues_by_student(today=today, sort="age", page=1, page_size=100000)["results"]
+    cutoff = today - timedelta(days=UNCALLED_AFTER_DAYS)
+    groups = {"broken": [], "due_today": [], "uncalled": []}
+    for row in everyone:
+        promise = row["promise"]
+        if promise and promise["status"] == "broken":
+            groups["broken"].append(row)
+        elif promise and promise["status"] == "pending" and promise["date"] == today:
+            groups["due_today"].append(row)
+        elif row["days_late"] > 0 and (row["last_call_at"] is None or row["last_call_at"].date() <= cutoff) and not (
+            promise and promise["status"] == "pending"
+        ):
+            groups["uncalled"].append(row)
+    groups["broken"].sort(key=lambda r: (r["promise"]["date"], -r["outstanding"]))
+    groups["due_today"].sort(key=lambda r: -r["outstanding"])
+    summary = {key: len(rows) for key, rows in groups.items()}
+    return {**{key: rows[:DESK_LIMIT] for key, rows in groups.items()}, "summary": summary}
+
+
+def accountant_user_ids():
+    """Everyone who may record calls: holders of collect_payments through any of their roles."""
+    from roles.models import UserRole
+
+    return list(
+        UserRole.objects.filter(role__permissions__codename="collect_payments").values_list("user_id", flat=True).distinct()
+    )
+
+
+def remind_accountants(today=None):
+    """One in-app notice a day to each person who collects payments, when a promise was broken or falls due today.
+    Overdue-but-uncalled families are on the desk but not nagged about every day. Not repeated within 20 hours."""
+    from django.utils import timezone as tz
+
+    from notifications.models import Notification
+    from notifications.services import notify
+
+    today = today or school_today()
+    summary = {"people": 0, "broken": 0, "due_today": 0, "already_reminded": 0}
+    counts = desk(today)["summary"]
+    summary["broken"], summary["due_today"] = counts["broken"], counts["due_today"]
+    if not (counts["broken"] or counts["due_today"]):
+        return summary
+
+    parts = []
+    if counts["broken"]:
+        parts.append(f"{counts['broken']} broken promise{'s' if counts['broken'] != 1 else ''}")
+    if counts["due_today"]:
+        parts.append(f"{counts['due_today']} promise{'s' if counts['due_today'] != 1 else ''} due today")
+    title = "Fee follow-ups"
+    window = tz.now() - timedelta(hours=20)
+    for user_id in accountant_user_ids():
+        if Notification.objects.filter(recipient_user_id=user_id, category=CATEGORY, title=title, created_at__gte=window).exists():
+            summary["already_reminded"] += 1
+            continue
+        notify(recipient_user_id=user_id, title=title, body=(", ".join(parts) + ". Open the follow-up desk.")[:500],
+               category=CATEGORY, link=DESK_LINK)
+        summary["people"] += 1
+    return summary

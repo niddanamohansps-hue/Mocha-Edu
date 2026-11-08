@@ -154,3 +154,16 @@ def send_fee_reminders(time_budget=REMINDER_TIME_BUDGET_SECONDS):
     if summary["sent"] or summary["errors"]:
         logger.info("send_fee_reminders finished: %s", summary)
     return summary
+
+
+@shared_task
+def remind_fee_followups():
+    """Daily, in every school: tell the people who collect payments about broken promises and promises falling due
+    today. Iterates the school schemas itself because a periodic task has no tenant of its own."""
+    from .followups import remind_accountants
+
+    reminded = 0
+    for tenant in get_tenant_model().objects.exclude(schema_name="public"):
+        with schema_context(tenant.schema_name):
+            reminded += remind_accountants()["people"]
+    return reminded

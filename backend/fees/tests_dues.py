@@ -294,3 +294,126 @@ class CallLogTests(ReminderFixture):
         self.assertEqual(sorted(listing(promise="none")), ["ENR-D-2", "ENR-D-3"])
         self.assertEqual(listing(promise="broken"), {})
         self.assertEqual(self._api(DuesByStudentView, owner, data={"promise": "maybe"}).status_code, 400)
+
+
+class DeskTests(ReminderFixture):
+    """The follow-up desk and the morning reminder. 'Today' is injected; calls are written straight to the table so
+    their dates can be set."""
+
+    _user = CallLogTests._user
+    _api = CallLogTests._api
+
+    def _day(self, n):
+        from core.dates import school_today
+
+        return school_today() + timedelta(days=n)
+
+    def _student_owing(self, label, *, due, amount="1000.00"):
+        student = self._student(self.school, f"ENR-F-{label}")
+        self._fee(self.school, student, due=due, amount=amount)
+        return student
+
+    def _note(self, student, *, outcome="reached", created_days_ago=0, promise_date=None, promise_amount=None):
+        from django.utils import timezone
+
+        from .models import FeeCallNote
+
+        with tenant_context(self.school):
+            note = FeeCallNote.objects.create(
+                student=student, outcome=outcome, note="n", promise_date=promise_date, promise_amount=promise_amount
+            )
+            FeeCallNote.objects.filter(pk=note.pk).update(created_at=timezone.now() - timedelta(days=created_days_ago))
+            return note
+
+    def test_the_desk_sorts_families_into_broken_due_today_and_uncalled(self):
+        from . import followups
+
+        today = self._day(0)
+        old = today - timedelta(days=60)
+        broken = self._student_owing("BRK", due=old, amount="900.00")
+        self._note(broken, outcome="promised", created_days_ago=10, promise_date=today - timedelta(days=3), promise_amount=Decimal("500"))
+        due_today = self._student_owing("TDY", due=old, amount="700.00")
+        self._note(due_today, outcome="promised", created_days_ago=2, promise_date=today)
+        future = self._student_owing("FUT", due=old)
+        self._note(future, outcome="promised", created_days_ago=1, promise_date=today + timedelta(days=5))
+        never_called = self._student_owing("NEV", due=old - timedelta(days=30))
+        called_long_ago = self._student_owing("OLD", due=old)
+        self._note(called_long_ago, created_days_ago=20)
+        called_recently = self._student_owing("REC", due=old)
+        self._note(called_recently, created_days_ago=3)
+        not_yet_due = self._student_owing("NYD", due=today + timedelta(days=10))
+        with tenant_context(self.school):
+            got = followups.desk(today)
+        ids = lambda key: [r["enrollment_id"] for r in got[key]]
+        self.assertEqual(ids("broken"), ["ENR-F-BRK"])
+        self.assertEqual(ids("due_today"), ["ENR-F-TDY"])
+        uncalled = ids("uncalled")
+        self.assertIn("ENR-F-NEV", uncalled)
+        self.assertIn("ENR-F-OLD", uncalled)
+        for left_out in ("ENR-F-REC", "ENR-F-FUT", "ENR-F-NYD", "ENR-F-BRK", "ENR-F-TDY"):
+            self.assertNotIn(left_out, uncalled)  # recently called, promised, or not yet due
+        self.assertEqual(got["summary"], {"broken": 1, "due_today": 1, "uncalled": len(uncalled)})
+        self.assertEqual(uncalled[0], "ENR-R-1")  # the fixture's own student has the oldest due date, so is first
+
+    def test_a_kept_promise_leaves_the_desk(self):
+        from . import followups
+
+        today = self._day(0)
+        student = self._student_owing("KPT", due=today - timedelta(days=40), amount="800.00")
+        self._note(student, outcome="promised", created_days_ago=10, promise_date=today - timedelta(days=2), promise_amount=Decimal("300"))
+        with tenant_context(self.school):
+            fee = student.fees.get()
+        self._pay(self.school, fee, "300.00")
+        with tenant_context(self.school):
+            got = followups.desk(today)
+        self.assertNotIn("ENR-F-KPT", [r["enrollment_id"] for r in got["broken"]])
+        self.assertEqual(got["summary"]["broken"], 0)
+
+    def test_the_api_serves_the_desk_to_people_who_see_financial_reports_only(self):
+        from .views import FollowUpDeskView
+
+        viewer = self._user("viewer", ["view_financial_reports"])
+        nobody = self._user("nobody", [])
+        self.assertEqual(self._api(FollowUpDeskView, nobody).status_code, 403)
+        ok = self._api(FollowUpDeskView, viewer)
+        self.assertEqual(ok.status_code, 200, ok.data)
+        self.assertEqual(set(ok.data), {"broken", "due_today", "uncalled", "summary"})
+
+    def test_the_morning_reminder_goes_once_to_each_person_who_collects_payments_and_only_with_something_to_say(self):
+        from notifications.models import Notification
+
+        from . import followups
+
+        today = self._day(0)
+        collector = self._user("collector", ["collect_payments"])
+        viewer = self._user("viewer", ["view_financial_reports"])  # may see, may not collect: not reminded
+        with tenant_context(self.school):
+            self.assertEqual(followups.remind_accountants(today)["people"], 0)  # nothing broken or due
+        broken = self._student_owing("BRK", due=today - timedelta(days=60))
+        self._note(broken, outcome="promised", created_days_ago=10, promise_date=today - timedelta(days=3))
+        due = self._student_owing("TDY", due=today - timedelta(days=60))
+        self._note(due, outcome="promised", created_days_ago=2, promise_date=today)
+        with tenant_context(self.school):
+            first = followups.remind_accountants(today)
+            self.assertEqual((first["people"], first["broken"], first["due_today"]), (1, 1, 1))
+            notice = Notification.objects.get(recipient_user_id=collector.id, category="fees")
+            self.assertIn("1 broken promise", notice.body)
+            self.assertIn("1 promise due today", notice.body)
+            self.assertEqual(notice.link, "/dashboard/fees/follow-ups")
+            self.assertFalse(Notification.objects.filter(recipient_user_id=viewer.id, category="fees").exists())
+            again = followups.remind_accountants(today)
+            self.assertEqual((again["people"], again["already_reminded"]), (0, 1))
+            self.assertEqual(Notification.objects.filter(category="fees", title="Fee follow-ups").count(), 1)
+
+    def test_the_daily_task_runs_across_schools(self):
+        from . import tasks
+
+        today = self._day(0)
+        collector = self._user("collector", ["collect_payments"])
+        broken = self._student_owing("BRK", due=today - timedelta(days=60))
+        self._note(broken, outcome="promised", created_days_ago=10, promise_date=today - timedelta(days=3))
+        self.assertGreaterEqual(tasks.remind_fee_followups(), 1)
+        with tenant_context(self.school):
+            from notifications.models import Notification
+
+            self.assertTrue(Notification.objects.filter(recipient_user_id=collector.id, category="fees").exists())

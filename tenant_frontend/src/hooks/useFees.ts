@@ -387,6 +387,12 @@ export const useDues = (filters: DuesFilters) =>
     });
 
 
+export const useFollowUpDesk = () =>
+    useQuery({
+        queryKey: ["fees", "dues", "desk"],
+        queryFn: async () => (await axiosInstance.get<import("@/types/FeeDues").DeskResponse>("/fees/reports/follow-ups/")).data,
+    });
+
 export const useStudentCalls = (student: string | null) =>
     useQuery({
         queryKey: ["fees", "calls", student],
