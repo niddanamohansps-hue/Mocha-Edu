@@ -347,6 +347,19 @@ export const useCollectRecheckFee = () => {
     });
 };
 
+export const useRefundRecheckFee = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async ({ id, reference }: { id: string; reference: string }) =>
+            (await axiosInstance.post(`/examinations/rechecks/${id}/refund-fee/`, { reference })).data as RecheckRequest,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["examinations", "rechecks"] });
+            toast.success("Refund recorded");
+        },
+        onError: (error: unknown) => toast.error(errorMessage(error, "Could not record the refund")),
+    });
+};
+
 export const useDecideRecheck = () => {
     const queryClient = useQueryClient();
     return useMutation({

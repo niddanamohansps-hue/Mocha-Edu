@@ -252,6 +252,20 @@ def collect_recheck_fee(recheck, *, user_id, reference=""):
 
 
 @transaction.atomic
+def refund_recheck_fee(recheck, *, reference=""):
+    """Note that the fee was given back. Only when the recheck changed the mark and the fee was paid; once only."""
+    recheck = RecheckRequest.objects.select_for_update().get(pk=recheck.pk)
+    if recheck.fee_refunded_at:
+        raise serializers.ValidationError({"non_field_errors": ["The fee for this recheck was already refunded."]})
+    if not recheck.refund_due:
+        raise serializers.ValidationError({"non_field_errors": ["No refund is due: the fee was not paid, or the recheck did not change the mark."]})
+    recheck.fee_refunded_at = timezone.now()
+    recheck.fee_refund_reference = (reference or "").strip()[:100]
+    recheck.save(update_fields=["fee_refunded_at", "fee_refund_reference"])
+    return recheck
+
+
+@transaction.atomic
 def decide_recheck(recheck, *, accept, revised_marks, comment, user_id):
     recheck = RecheckRequest.objects.select_for_update().get(pk=recheck.pk)
     if recheck.status != RecheckRequest.Status.PENDING:

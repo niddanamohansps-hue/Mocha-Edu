@@ -235,6 +235,32 @@ class RecheckTests(StageBBase):
         self.assertEqual(self.collect(self.owner, rid).status_code, 400)  # only once
         self.assertEqual(self.decide(self.owner, rid, {"decision": "accept", "revised_marks": "41"}).status_code, 200)
 
+    def refund(self, client, recheck_id, body=None):
+        return client.post(f"{self.URL}{recheck_id}/refund-fee/", body or {}, HTTP_HOST=self.DOMAIN, format="json")
+
+    def test_a_paid_fee_is_owed_back_only_when_the_recheck_changed_the_mark(self):
+        self.publish()
+        self.set_fee("100")
+        changed = self.own_request().data["id"]
+        self.collect(self.owner, changed)
+        self.assertEqual(self.refund(self.owner, changed).status_code, 400)  # not decided yet
+        done = self.decide(self.owner, changed, {"decision": "accept", "revised_marks": "41"})
+        self.assertTrue(done.data["refund_due"])
+        self.assertEqual(self.refund(self.pupil, changed).status_code, 403)
+        refunded = self.refund(self.owner, changed, {"reference": "UPI 123"})
+        self.assertEqual(refunded.status_code, 200, refunded.data)
+        self.assertEqual((refunded.data["refund_due"], refunded.data["fee_refund_reference"]), (False, "UPI 123"))
+        self.assertEqual(self.refund(self.owner, changed).status_code, 400)  # only once
+
+    def test_no_refund_when_the_mark_stays_the_same_or_the_recheck_is_rejected(self):
+        self.publish()
+        self.set_fee("100")
+        same = self.own_request().data["id"]
+        self.collect(self.owner, same)
+        unchanged = self.decide(self.owner, same, {"decision": "accept", "revised_marks": "35"})
+        self.assertFalse(unchanged.data["refund_due"])
+        self.assertEqual(self.refund(self.owner, same).status_code, 400)
+
     def test_changing_the_fee_does_not_change_requests_already_made(self):
         self.publish()
         self.set_fee("100")

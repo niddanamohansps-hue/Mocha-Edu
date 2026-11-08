@@ -289,10 +289,24 @@ class RecheckRequest(models.Model):
     fee_paid_at = models.DateTimeField(null=True, blank=True)
     fee_received_by_user_id = models.UUIDField(null=True, blank=True)
     fee_reference = models.CharField(max_length=100, blank=True)
+    fee_refunded_at = models.DateTimeField(null=True, blank=True)
+    fee_refund_reference = models.CharField(max_length=100, blank=True)
     requested_by_user_id = models.UUIDField(null=True, blank=True)
     decided_by_user_id = models.UUIDField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     decided_at = models.DateTimeField(null=True, blank=True)
+
+    @property
+    def refund_due(self):
+        """The fee was paid and the recheck changed the mark, so the family is owed it back (until it is refunded)."""
+        return bool(
+            self.status == self.Status.ACCEPTED
+            and self.fee_paid_at
+            and not self.fee_refunded_at
+            and self.revised_marks is not None
+            and self.original_marks is not None
+            and self.revised_marks != self.original_marks
+        )
 
     class Meta:
         ordering = ["-created_at"]

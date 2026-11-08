@@ -994,6 +994,22 @@ class RecheckViewSet(viewsets.GenericViewSet):
                    changes={"amount": str(recheck.fee_amount)})
         return Response(RecheckRequestSerializer(recheck).data)
 
+    @action(detail=True, methods=["post"], url_path="refund-fee")
+    def refund_fee(self, request, pk=None):
+        from .marks import refund_recheck_fee
+        from .models import RecheckRequest
+        from .serializers import RecheckRequestSerializer
+
+        if not HasPermission("manage_marks").has_permission(request, None):
+            return Response({"error": "You do not have permission to refund the recheck fee."}, status=status.HTTP_403_FORBIDDEN)
+        recheck = get_object_or_404(RecheckRequest.objects.select_related("mark__exam_schedule"), pk=pk)
+        if not user_can_access_schedule(request, recheck.mark.exam_schedule):
+            return Response({"error": "You are not authorized to change this mark."}, status=status.HTTP_403_FORBIDDEN)
+        recheck = refund_recheck_fee(recheck, reference=request.data.get("reference", ""))
+        log_action(request, action="recheck_fee_refunded", model_name="RecheckRequest", object_id=recheck.id,
+                   changes={"amount": str(recheck.fee_amount)})
+        return Response(RecheckRequestSerializer(recheck).data)
+
     @action(detail=True, methods=["post"])
     def decide(self, request, pk=None):
         from decimal import Decimal, InvalidOperation

@@ -396,6 +396,9 @@ export interface RecheckRequest {
     fee_amount: string;
     fee_paid_at: string | null;
     fee_reference: string;
+    refund_due: boolean;
+    fee_refunded_at: string | null;
+    fee_refund_reference: string;
     created_at: string;
     decided_at: string | null;
 }

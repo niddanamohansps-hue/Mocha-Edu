@@ -331,13 +331,15 @@ class RecheckRequestSerializer(serializers.ModelSerializer):
     examination_name = serializers.CharField(source="mark.exam_schedule.examination.name", read_only=True)
     max_marks = serializers.DecimalField(source="mark.exam_schedule.max_marks", max_digits=6, decimal_places=2, read_only=True)
     current_marks = serializers.DecimalField(source="mark.marks_obtained", max_digits=6, decimal_places=2, read_only=True)
+    refund_due = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = RecheckRequest
         fields = [
             "id", "mark", "student", "student_name", "enrollment_id", "subject_name", "examination_name", "max_marks",
             "current_marks", "status", "reason", "original_marks", "revised_marks", "decision_comment",
-            "fee_amount", "fee_paid_at", "fee_reference", "created_at", "decided_at",
+            "fee_amount", "fee_paid_at", "fee_reference", "refund_due", "fee_refunded_at", "fee_refund_reference",
+            "created_at", "decided_at",
         ]
         read_only_fields = fields
 
