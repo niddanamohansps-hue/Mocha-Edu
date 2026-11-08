@@ -235,3 +235,45 @@ class LeaveApproval(models.Model):
     def __str__(self):
         return f"{self.application.id} - {self.decision} by {self.approver} at {self.decided_at}"
 
+
+
+class StaffDocumentType(models.Model):
+    """One line of the school's standard joining checklist, such as "Aadhaar card" or "Degree certificate"."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=100, unique=True)
+    order = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["order", "name"]
+
+    def __str__(self):
+        return self.name
+
+
+class StaffDocumentItem(models.Model):
+    """One document asked of one staff member, and whether it has come in."""
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        RECEIVED = "received", "Received"
+        WAIVED = "waived", "Not needed"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    staff = models.ForeignKey(StaffMember, on_delete=models.CASCADE, related_name="document_items")
+    # The name is copied so the checklist of a staff member survives the school renaming or retiring a type.
+    document_type = models.ForeignKey(StaffDocumentType, on_delete=models.SET_NULL, null=True, blank=True, related_name="items")
+    name = models.CharField(max_length=100)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
+    received_on = models.DateField(null=True, blank=True)
+    file = models.FileField(upload_to="staff_documents/%Y/%m/", null=True, blank=True)
+    note = models.CharField(max_length=500, blank=True)
+    updated_by_user_id = models.UUIDField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["created_at", "name"]
+        constraints = [models.UniqueConstraint(fields=["staff", "name"], name="uniq_staff_document_name")]

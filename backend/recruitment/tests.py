@@ -264,6 +264,24 @@ class RecruitmentTests(TransactionTestCase):
             self.assertEqual(applicant.hired_staff.designation, "Head Clerk")
             self.assertEqual(applicant.hired_staff.joining_date.isoformat(), "2099-06-01")
 
+    def test_hiring_starts_the_joining_document_checklist(self):
+        from staff.models import StaffDocumentItem, StaffDocumentType
+
+        with tenant_context(self.school):
+            StaffDocumentType.objects.create(name="Aadhaar card", order=1)
+            StaffDocumentType.objects.create(name="Degree certificate", order=2)
+            StaffDocumentType.objects.create(name="Retired item", order=3, is_active=False)
+            opening = self._opening(title="Office Staff", position_type="staff", department="Admin", specialization="")
+            self._publish(opening)
+            applicant = Applicant.objects.get(pk=self._apply(opening).data["id"])
+            self._to_offered(applicant)
+            hired = self._call(ApplicantViewSet, {"post": "hire"}, "post", "/x/", self.owner, {}, pk=str(applicant.pk))
+            self.assertEqual(hired.status_code, 201, hired.data)
+            applicant.refresh_from_db()
+            items = StaffDocumentItem.objects.filter(staff=applicant.hired_staff)
+            self.assertEqual(sorted(items.values_list("name", flat=True)), ["Aadhaar card", "Degree certificate"])
+            self.assertEqual(set(items.values_list("status", flat=True)), {"pending"})
+
     def test_hiring_general_staff_uses_the_opening_title_as_designation(self):
         with tenant_context(self.school):
             opening = self._opening(title="Front Desk Executive", position_type="staff", department="Admin", vacancies=2)

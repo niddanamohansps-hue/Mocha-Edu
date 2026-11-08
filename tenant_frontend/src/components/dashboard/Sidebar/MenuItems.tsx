@@ -68,6 +68,9 @@ export const getMenuItems = (
     if (can("record_interview_feedback")) {
         staffChildren.push({ label: "My Interviews", href: "/dashboard/hr/interviews" });
     }
+    if (can("view_staff")) {
+        staffChildren.push({ label: "Joining Documents", href: "/dashboard/hr/documents" });
+    }
     if (can("view_own_leaves") || can("view_all_leaves") || can("manage_staff_leaves") || user?.active_role === "staff" || user?.active_role === "instructor" || user?.active_role === "owner") {
         staffChildren.push({ label: "Leave Management", href: "/dashboard/staff/leaves" });
     }
@@ -532,7 +535,7 @@ const MENU_ORDER: { group: string; labels: string[] }[] = [
  */
 const CHILD_ORDER: Record<string, string[]> = {
     "Student Management": ["Student Directory", "Admissions", "Parents & Guardians", "Promotion & Transfer"],
-    Staff: ["Staff Directory", "Faculty Directory", "Recruitment", "My Interviews", "Leave Management"],
+    Staff: ["Staff Directory", "Faculty Directory", "Recruitment", "My Interviews", "Joining Documents", "Leave Management"],
     Academics: ["Academic Structure", "Academic Calendar", "Homework"],
     "Course Content": ["Study Materials", "Manage Content", "Assignments", "Grade Submissions"],
     Attendance: ["Mark Attendance", "History", "Reports", "Staff Attendance", "Attendance Settings"],

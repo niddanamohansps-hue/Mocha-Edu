@@ -137,6 +137,10 @@ def hire_applicant(applicant, user, overrides=None, request=None):
     created = serializer.save()
     staff = getattr(created, "staff_member", created)
 
+    from staff.documents import create_checklist
+
+    create_checklist(staff)  # the school's standard joining documents, if it has set any up
+
     applicant.hired_staff = staff
     applicant.stage = Stage.HIRED
     applicant.stage_changed_at = timezone.now()
