@@ -1409,3 +1409,170 @@ class HallAttendanceTests(AllocationBase):
         with tenant_context(self.school):
             rows = allocation.duty_rows(ExamInvigilation.objects.filter(staff=self.invigilator))
             self.assertEqual((rows[0]["sitting"], rows[0]["room_id"]), (self.sitting1.pk, self.room_big.pk))
+
+
+class SupplementaryTests(AllocationBase):
+    """The original is published. Class A: A3 failed English, A4 failed Math, A1 and A2 passed. Class B: B3 missed English."""
+
+    def setUp(self):
+        super().setUp()
+        with tenant_context(self.school):
+            self._publish_original()
+
+    def _entry(self, subject, name, pct, absent=False):
+        if absent:
+            return {"subject": str(subject.pk), "subject_name": name, "marks_obtained": None, "max_marks": 100.0,
+                    "percentage": None, "grade": None, "is_absent": True, "is_pass": False}
+        return {"subject": str(subject.pk), "subject_name": name, "marks_obtained": float(pct), "max_marks": 100.0,
+                "percentage": float(pct), "grade": "A", "is_absent": False, "is_pass": pct >= 35}
+
+    def _result(self, examination, student, entries):
+        from .models import ExamResult
+
+        passed = all(e["is_pass"] for e in entries)
+        sat = [e["percentage"] for e in entries if e["percentage"] is not None]
+        pct = Decimal(str(sum(sat) / len(sat))) if sat else Decimal("0")
+        return ExamResult.objects.create(
+            examination=examination, student=student, academic_year="2026", total_marks_obtained=pct,
+            total_max_marks=Decimal("100"), percentage=pct, overall_grade="A", is_pass=passed, subject_breakdown=entries,
+        )
+
+    def _publish_original(self):
+        m, e = self.math, self.english
+        a1, a2, a3, a4 = self.students_a
+        self._result(self.exam, a1, [self._entry(m, "Math", 90), self._entry(e, "English", 90)])
+        self._result(self.exam, a2, [self._entry(m, "Math", 60), self._entry(e, "English", 60)])
+        self._result(self.exam, a3, [self._entry(m, "Math", 50), self._entry(e, "English", 30)])
+        self._result(self.exam, a4, [self._entry(m, "Math", 20), self._entry(e, "English", 40)])
+        self._result(self.exam, self.students_b[2], [self._entry(m, "Math", 70), self._entry(e, "English", None, absent=True)])
+        Examination.objects.filter(pk=self.exam.pk).update(is_published=True)
+        self.exam.refresh_from_db()
+
+    def _start(self, user=None, **extra):
+        from .supplementary import start_supplementary
+
+        options = {"name": "Supplementary Term 1", "exam_type": self.exam_type, "start_date": DAY2, "end_date": DAY2, "user": user or self.owner}
+        options.update(extra)
+        return start_supplementary(self.exam, **options)
+
+    def test_starting_lists_exactly_who_failed_or_missed_which_subject(self):
+        from .supplementary import candidates_data
+
+        with tenant_context(self.school):
+            supp = self._start()
+            self.assertEqual((supp.supplementary_of_id, supp.academic_year, supp.is_published), (self.exam.pk, "2026", False))
+            data = candidates_data(supp)
+            pairs = {(r["name"], r["subject"], r["reason"]) for r in data["rows"]}
+            self.assertEqual(pairs, {("A3 Pupil", "English", "failed"), ("A4 Pupil", "Math", "failed"), ("B3 Pupil", "English", "absent")})
+            self.assertEqual((data["summary"]["candidates"], data["summary"]["students"], data["summary"]["waiting"]), (3, 3, 3))
+            self.assertEqual(data["original"]["name"], "Term 1")
+            self.assertEqual(next(r for r in data["rows"] if r["name"] == "A3 Pupil")["original_percentage"], Decimal("30.00"))
+
+    def test_it_needs_a_published_original_and_can_only_be_started_once(self):
+        from .supplementary import SupplementaryError
+
+        with tenant_context(self.school):
+            Examination.objects.filter(pk=self.exam.pk).update(is_published=False)
+            self.exam.refresh_from_db()
+            with self.assertRaises(SupplementaryError) as unpublished:
+                self._start()
+            self.assertIn("published", str(unpublished.exception))
+            Examination.objects.filter(pk=self.exam.pk).update(is_published=True)
+            self.exam.refresh_from_db()
+            self._start()
+            with self.assertRaises(SupplementaryError) as twice:
+                self._start(name="Second try")
+            self.assertIn("already been started", str(twice.exception))
+            self.assertEqual(Examination.objects.filter(supplementary_of=self.exam).count(), 1)
+
+    def test_it_refuses_a_chain_bad_dates_a_missing_name_and_a_class_with_no_failures(self):
+        from .supplementary import SupplementaryError, start_supplementary
+        from .models import ExamResult
+
+        with tenant_context(self.school):
+            for bad in ({"name": "  "}, {"start_date": DAY2, "end_date": DAY1}, {"start_date": None}):
+                with self.assertRaises(SupplementaryError, msg=str(bad)):
+                    self._start(**bad)
+            supp = self._start()
+            Examination.objects.filter(pk=supp.pk).update(is_published=True)
+            supp.refresh_from_db()
+            with self.assertRaises(SupplementaryError):
+                start_supplementary(supp, name="Again", exam_type=self.exam_type, start_date=DAY2, end_date=DAY2, user=self.owner)
+
+        with tenant_context(self.school):
+            Examination.objects.filter(supplementary_of=self.exam).delete()
+            ExamResult.objects.filter(examination=self.exam).delete()
+            self._result(self.exam, self.students_a[0], [self._entry(self.math, "Math", 90)])
+            with self.assertRaises(SupplementaryError) as none:
+                self._start()
+            self.assertIn("nothing to re-sit", str(none.exception))
+
+    def test_a_resit_paper_takes_marks_only_for_the_students_entitled_to_it(self):
+        from .serializers import ExamMarkBulkSerializer
+
+        with tenant_context(self.school):
+            supp = self._start()
+            paper = self._paper(self.english, self.section_a, DAY2, exam=supp)
+            a1, a3 = self.students_a[0], self.students_a[2]
+
+            def check(student):
+                serializer = ExamMarkBulkSerializer(
+                    data={"records": [{"student": str(student.pk), "marks_obtained": "60", "attendance": "present"}]}, exam_schedule=paper
+                )
+                return serializer.is_valid(), serializer.errors
+
+            ok, _ = check(a3)  # failed English
+            self.assertTrue(ok)
+            refused, errors = check(a1)  # passed English, so not entitled
+            self.assertFalse(refused)
+            self.assertIn("not entitled", str(errors))
+            math_paper = self._paper(self.math, self.section_a, DAY2, start=datetime.time(14, 0), end=datetime.time(16, 0), exam=supp)
+            wrong, _ = ExamMarkBulkSerializer(
+                data={"records": [{"student": str(a3.pk), "marks_obtained": "60", "attendance": "present"}]}, exam_schedule=math_paper
+            ).is_valid(), None
+            self.assertFalse(wrong)  # A3 failed English, not Math
+
+    def test_once_the_resit_is_published_the_list_shows_who_cleared_each_subject(self):
+        from .supplementary import candidates_data
+
+        with tenant_context(self.school):
+            supp = self._start()
+            self._result(supp, self.students_a[2], [self._entry(self.english, "English", 60)])  # A3 clears English
+            self._result(supp, self.students_a[3], [self._entry(self.math, "Math", 30)])  # A4 fails Math again
+            Examination.objects.filter(pk=supp.pk).update(is_published=True)
+            supp.refresh_from_db()
+            data = candidates_data(supp)
+            outcome = {r["name"]: (r["cleared"], r["resit_percentage"]) for r in data["rows"]}
+            self.assertEqual(outcome["A3 Pupil"], (True, 60.0))
+            self.assertEqual(outcome["A4 Pupil"], (False, 30.0))
+            self.assertEqual(outcome["B3 Pupil"], (None, None))  # did not re-sit
+            self.assertEqual((data["summary"]["cleared"], data["summary"]["not_cleared"], data["summary"]["waiting"]), (1, 1, 1))
+            # the original result is untouched
+            from .models import ExamResult
+
+            self.assertFalse(ExamResult.objects.get(examination=self.exam, student=self.students_a[2]).is_pass)
+
+    def test_the_api_starts_and_lists_and_only_managers_can_start(self):
+        from .allocation_views import SupplementaryView
+
+        def call(method, user, data):
+            request = self.factory.get("/x/", data) if method == "get" else self.factory.post("/x/", data, format="json")
+            request.tenant = self.school
+            force_authenticate(request, user=user)
+            return SupplementaryView.as_view()(request)
+
+        with tenant_context(self.school):
+            body = {"original": str(self.exam.pk), "name": "Supplementary Term 1", "exam_type": str(self.exam_type.pk),
+                    "start_date": DAY2.isoformat(), "end_date": DAY2.isoformat()}
+            self.assertEqual(call("post", self.clerk, body).status_code, 403)
+            self.assertEqual(call("post", self.owner, {**body, "start_date": "nonsense"}).status_code, 400)
+            created = call("post", self.owner, body)
+            self.assertEqual((created.status_code, created.data["summary"]["candidates"]), (201, 3))
+            self.assertEqual(call("post", self.owner, body).status_code, 400)  # already started
+
+            found = call("get", self.owner, {"original": str(self.exam.pk)})
+            self.assertEqual(found.data["supplementary"]["examination"]["name"], "Supplementary Term 1")
+            listing = call("get", self.owner, {"examination": str(created.data["examination"]["id"])})
+            self.assertEqual(listing.data["summary"]["candidates"], 3)
+            none = call("get", self.owner, {"original": str(self.exam.pk)})
+            self.assertIsNotNone(none.data["supplementary"])

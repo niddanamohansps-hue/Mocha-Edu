@@ -68,6 +68,11 @@ class Examination(models.Model):
     # the automatic reminders.
     marks_due_date = models.DateField(null=True, blank=True)
 
+    # Set on a supplementary (re-sit) examination: the published examination whose failed students it is for.
+    supplementary_of = models.ForeignKey(
+        "self", null=True, blank=True, on_delete=models.PROTECT, related_name="supplementaries"
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -661,4 +666,27 @@ class MalpracticeCase(models.Model):
         ordering = ["-created_at"]
         constraints = [
             models.UniqueConstraint(fields=["schedule", "student"], name="uniq_malpractice_case_per_paper"),
+        ]
+
+
+class SupplementaryCandidate(models.Model):
+    """One student's right to re-sit one subject in a supplementary examination, because they failed or missed it in
+    the original. Only candidates can be given marks in that examination's paper for the subject."""
+
+    class Reason(models.TextChoices):
+        FAILED = "failed", "Failed"
+        ABSENT = "absent", "Absent"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    examination = models.ForeignKey(Examination, on_delete=models.CASCADE, related_name="supplementary_candidates")
+    student = models.ForeignKey("students.Student", on_delete=models.CASCADE, related_name="supplementary_candidacies")
+    subject = models.ForeignKey("academics.Subject", on_delete=models.CASCADE, related_name="supplementary_candidacies")
+    reason = models.CharField(max_length=10, choices=Reason.choices)
+    original_percentage = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["subject__name", "student__enrollment_id"]
+        constraints = [
+            models.UniqueConstraint(fields=["examination", "student", "subject"], name="uniq_supplementary_candidate"),
         ]

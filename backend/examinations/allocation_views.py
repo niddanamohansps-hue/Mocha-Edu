@@ -428,3 +428,45 @@ class HallAttendanceView(APIView):
         except HallError as exc:
             raise _fail(exc)
         return Response({**result, "attendance": room_attendance(sitting, room)})
+
+
+class SupplementaryView(APIView):
+    """GET ?original=<id> finds the supplementary examination started for it (or says none); GET ?examination=<id>
+    lists a supplementary examination's candidates; POST starts one for a published original."""
+
+    def get_permissions(self):
+        perm = HasPermission("manage_examinations" if self.request.method == "POST" else "view_examinations")
+        return [IsAuthenticated(), perm]
+
+    def get(self, request):
+        from .supplementary import candidates_data
+
+        params = request.query_params
+        if params.get("original"):
+            original = get_object_or_404(Examination, pk=params["original"])
+            found = Examination.objects.filter(supplementary_of=original).first()
+            return Response({"supplementary": candidates_data(found) if found else None})
+        examination = get_object_or_404(Examination, pk=params.get("examination"), supplementary_of__isnull=False)
+        return Response(candidates_data(examination))
+
+    def post(self, request):
+        from datetime import date
+
+        from .models import ExamType
+        from .supplementary import SupplementaryError, candidates_data, start_supplementary
+
+        data = request.data
+        original = get_object_or_404(Examination, pk=data.get("original"))
+        exam_type = get_object_or_404(ExamType, pk=data.get("exam_type"))
+        try:
+            start, end = (date.fromisoformat(data.get(k) or "") for k in ("start_date", "end_date"))
+        except ValueError:
+            raise ValidationError("Choose a start date and an end date.")
+        try:
+            supplementary = start_supplementary(
+                original, name=data.get("name"), exam_type=exam_type, start_date=start, end_date=end,
+                user=request.user, request=request,
+            )
+        except SupplementaryError as exc:
+            raise _fail(exc)
+        return Response(candidates_data(supplementary), status=201)

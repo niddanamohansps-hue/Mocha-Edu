@@ -35,11 +35,11 @@ class ExaminationSerializer(serializers.ModelSerializer):
             "id", "academic_year", "name", "exam_type", "exam_type_name",
             "start_date", "end_date", "is_published", "published_at", "publication_requested_by_user_id",
             "publication_requested_at", "published_by_user_id", "date_sheet_published_at", "date_sheet_version",
-            "marks_due_date", "created_at", "updated_at",
+            "marks_due_date", "supplementary_of", "created_at", "updated_at",
         ]
         read_only_fields = ["id", "is_published", "published_at", "publication_requested_by_user_id",
                             "publication_requested_at", "published_by_user_id", "date_sheet_published_at",
-                            "date_sheet_version", "created_at", "updated_at"]
+                            "date_sheet_version", "supplementary_of", "created_at", "updated_at"]
 
     def validate(self, attrs):
         start_date = attrs.get("start_date", getattr(self.instance, "start_date", None))
@@ -272,6 +272,18 @@ class ExamMarkBulkSerializer(serializers.Serializer):
                     )
 
         from .services import get_section_roster_student_ids
+
+        if self._exam_schedule.examination.supplementary_of_id:
+            # A re-sit paper takes marks only for the students entitled to re-sit this subject.
+            from .supplementary import candidate_student_ids
+
+            entitled = candidate_student_ids(self._exam_schedule.examination_id, self._exam_schedule.subject_id)
+            invalid = seen - entitled
+            if invalid:
+                raise serializers.ValidationError(
+                    f"Student(s) {sorted(invalid)} are not entitled to this supplementary paper - nothing was saved."
+                )
+            return records
 
         roster_ids = get_section_roster_student_ids(self._exam_schedule.section_id)
         invalid = seen - roster_ids
