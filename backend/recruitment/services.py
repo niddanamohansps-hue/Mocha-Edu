@@ -204,6 +204,91 @@ def send_application_confirmation(applicant, raw_token, status_url, school_name)
     )
 
 
+def _school_name():
+    from django.db import connection
+
+    return getattr(connection.tenant, "name", "") or "The school"
+
+
+# What a candidate is told when their application reaches a stage. The reason for a rejection is an internal note
+# and is never sent. Moving back to "applied" or on to "hired" (done through hiring) sends nothing here.
+STAGE_MESSAGES = {
+    Stage.SHORTLISTED: (
+        "Your application has been shortlisted",
+        "We are pleased to tell you that your application for {title} has been shortlisted. "
+        "We will be in touch about the next step.",
+    ),
+    Stage.INTERVIEW: (
+        "Your application is moving to interview",
+        "Your application for {title} is moving to the interview stage. You will receive the date and time separately.",
+    ),
+    Stage.OFFERED: (
+        "An update on your application",
+        "We would like to take your application for {title} forward to an offer. The school will contact you shortly "
+        "with the details.",
+    ),
+    Stage.REJECTED: (
+        "An update on your application",
+        "Thank you for your interest in {title} and for the time you gave to the process. After careful "
+        "consideration we will not be taking your application forward on this occasion. We wish you well.",
+    ),
+}
+
+
+def send_stage_update(applicant, stage):
+    """Email the candidate that their application reached ``stage``. Nothing is sent without an email address or
+    for a stage that has no message."""
+    from notifications.services import queue_email
+
+    message = STAGE_MESSAGES.get(stage)
+    if not message or not applicant.email:
+        return False
+    subject, body = message
+    queue_email(
+        to_email=applicant.email,
+        subject=f"{subject} - {applicant.opening.title}",
+        body=(
+            f"Dear {applicant.first_name},\n\n"
+            + body.format(title=applicant.opening.title)
+            + f"\n\nYou can follow your application with reference {applicant.reference} on the careers status page.\n\n"
+            f"{_school_name()}\n"
+        ),
+    )
+    return True
+
+
+def send_interview_invitation(interview):
+    """Email the candidate the date, time and place of a scheduled interview."""
+    from core.links import portal_link
+    from notifications.services import queue_email
+
+    applicant = interview.applicant
+    if not applicant.email:
+        return False
+    where = {
+        Interview.Mode.IN_PERSON: "In person",
+        Interview.Mode.ONLINE: "Online",
+        Interview.Mode.PHONE: "By phone",
+    }.get(interview.mode, "")
+    when = timezone.localtime(interview.scheduled_at)
+    detail = f"  {where}" + (f": {interview.location_or_url}" if interview.location_or_url else "")
+    queue_email(
+        to_email=applicant.email,
+        subject=f"Interview invitation - {applicant.opening.title}",
+        body=(
+            f"Dear {applicant.first_name},\n\n"
+            f"You are invited to an interview ({interview.round_name}) for {applicant.opening.title}.\n\n"
+            f"  Date: {when:%A, %d %B %Y}\n"
+            f"  Time: {when:%I:%M %p}\n"
+            f"{detail}\n\n"
+            f"If you cannot attend, please reply to this message as soon as you can.\n"
+            f"Your application: {portal_link('/careers/status')}\n\n"
+            f"{_school_name()}\n"
+        ),
+    )
+    return True
+
+
 def staff_for_user(user):
     """The staff record behind a login, or None. Filtered through the profile's user link, so a user with
     duplicate profiles is still resolved to the one that has a staff record."""

@@ -42,6 +42,8 @@ from .services import (
     is_accepting_applications,
     issue_access_token,
     move_stage,
+    send_interview_invitation,
+    send_stage_update,
     notify_panelists,
     open_opening,
     record_event,
@@ -178,6 +180,10 @@ class ApplicantViewSet(_ReadOrManage, viewsets.ModelViewSet):
             )
         except DjangoValidationError as exc:
             raise _as_api_error(exc)
+        # An interview invitation carries the date, so moving to the interview stage is announced when the
+        # interview is scheduled; every other stage tells the candidate now.
+        if applicant.stage != Applicant.Stage.INTERVIEW:
+            send_stage_update(applicant, applicant.stage)
         return Response(self.get_serializer(applicant).data)
 
     @action(detail=True, methods=["post"], url_path="hire")
@@ -253,6 +259,7 @@ class InterviewViewSet(viewsets.ModelViewSet):
         with transaction.atomic():
             interview = serializer.save(created_by_id=self.request.user.id)
             self._save_panel(serializer, interview)
+            send_interview_invitation(interview)
 
     def perform_update(self, serializer):
         with transaction.atomic():

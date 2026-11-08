@@ -448,6 +448,56 @@ class RecruitmentTests(TransactionTestCase):
             self._public(PublicApplyView, "post", self._public_form(opening, email="bot@example.com", website="x"))
             self.assertEqual(EmailOutboxEvent.objects.count(), 1)
 
+    def _mail_to(self, address):
+        from notifications.models import EmailOutboxEvent
+
+        return list(EmailOutboxEvent.objects.filter(to_email=address).order_by("created_at"))
+
+    def test_the_candidate_is_emailed_as_the_application_moves_but_never_told_the_internal_reason(self):
+        with tenant_context(self.school):
+            opening = self._opening()
+            self._publish(opening)
+            applicant = Applicant.objects.get(pk=self._apply(opening, email="mail@example.com").data["id"])
+            self.assertEqual(self._mail_to("mail@example.com"), [])  # staff-recorded: no mail on entry
+            self.assertEqual(self._move(applicant, "shortlisted").status_code, 200)
+            self.assertEqual(self._move(applicant, "rejected", rejection_reason="Salary demand far too high").status_code, 200)
+            mails = self._mail_to("mail@example.com")
+            self.assertEqual(len(mails), 2)
+            self.assertIn("shortlisted", mails[0].body)
+            self.assertIn("will not be taking your application forward", mails[1].body)
+            self.assertNotIn("Salary", mails[1].body)
+            self.assertIn(applicant.reference, mails[1].body)
+            self.assertIn("Recruit Test School", mails[1].body)
+
+    def test_moving_to_interview_sends_nothing_until_the_interview_is_scheduled(self):
+        with tenant_context(self.school):
+            opening = self._opening()
+            self._publish(opening)
+            applicant = Applicant.objects.get(pk=self._apply(opening, email="iv@example.com").data["id"])
+            self._move(applicant, "shortlisted")
+            self._move(applicant, "interview")
+            self.assertEqual(len(self._mail_to("iv@example.com")), 1)  # only the shortlisted mail
+            made = self._call(
+                InterviewViewSet, {"post": "create"}, "post", "/api/recruitment/interviews/", self.owner,
+                {"applicant": str(applicant.pk), "round_name": "Demo class", "scheduled_at": "2026-12-01T10:30:00+05:30",
+                 "mode": "in_person", "location_or_url": "Room 4, main block"},
+            )
+            self.assertEqual(made.status_code, 201, made.data)
+            invite = self._mail_to("iv@example.com")[-1]
+            self.assertIn("Interview invitation", invite.subject)
+            self.assertIn("Demo class", invite.body)
+            self.assertIn("Room 4, main block", invite.body)
+            self.assertIn("2026", invite.body)
+
+    def test_an_applicant_without_an_email_is_not_mailed(self):
+        from .services import send_stage_update
+
+        with tenant_context(self.school):
+            opening = self._opening()
+            applicant = Applicant.objects.create(opening=opening, first_name="No", last_name="Mail")
+            self.assertFalse(send_stage_update(applicant, Applicant.Stage.REJECTED))
+            self.assertFalse(send_stage_update(applicant, Applicant.Stage.APPLIED))
+
     def test_captcha_is_enforced_only_when_configured(self):
         from unittest import mock
 
