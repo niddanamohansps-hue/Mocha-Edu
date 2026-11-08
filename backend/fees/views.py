@@ -485,6 +485,25 @@ class DuesByStudentView(APIView):
         ))
 
 
+class CollectionSummaryView(APIView):
+    """Billed, collected and outstanding by month and by class for one academic year."""
+
+    permission_classes = [IsAuthenticated, HasPermission("view_financial_reports")]
+
+    def get(self, request):
+        import re
+
+        from .collection import collection_summary
+
+        year = (request.query_params.get("academic_year") or "").strip()
+        if not year:
+            return Response({"academic_year": ["Choose the academic year."]}, status=status.HTTP_400_BAD_REQUEST)
+        month = (request.query_params.get("month") or "").strip() or None
+        if month is not None and month != "undated" and not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", month):
+            return Response({"month": ["Use the form 2026-04."]}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(collection_summary(year, month))
+
+
 class FollowUpDeskView(APIView):
     """Broken promises, promises due today, and overdue families nobody has called in two weeks."""
 

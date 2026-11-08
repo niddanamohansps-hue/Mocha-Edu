@@ -421,3 +421,14 @@ export const useRecordCall = () => {
         onError: (error: unknown) => toast.error(errorMessage(error, "Could not save the call")),
     });
 };
+
+
+export const useCollection = (academicYear: string, month: string) =>
+    useQuery({
+        queryKey: ["fees", "collection", academicYear, month],
+        enabled: !!academicYear,
+        queryFn: async () =>
+            (await axiosInstance.get<import("@/types/FeeDues").CollectionSummary>("/fees/reports/collection/", {
+                params: { academic_year: academicYear, ...(month ? { month } : {}) },
+            })).data,
+    });

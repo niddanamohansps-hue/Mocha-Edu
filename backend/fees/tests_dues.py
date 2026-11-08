@@ -417,3 +417,107 @@ class DeskTests(ReminderFixture):
             from notifications.models import Notification
 
             self.assertTrue(Notification.objects.filter(recipient_user_id=collector.id, category="fees").exists())
+
+
+class CollectionTests(ReminderFixture):
+    """Billed, collected and outstanding by month and class. The fixture's own fee (1500, due 2026-03-20, year 2026)
+    is the starting point."""
+
+    _user = CallLogTests._user
+    _api = CallLogTests._api
+
+    def _summary(self, **params):
+        from .views import CollectionSummaryView
+
+        if not hasattr(self, "_boss"):
+            self._boss = self._user("boss", owner=True)
+        return self._api(CollectionSummaryView, self._boss, data={"academic_year": "2026", **params})
+
+    def _fee_in(self, label, *, due, amount, level="Grade 1"):
+        student = self._student(self.school, f"ENR-C-{label}")
+        fee = self._fee(self.school, student, due=due, amount=amount)
+        with tenant_context(self.school):
+            StudentFee.objects.filter(pk=fee.pk).update(level_name=level)
+        return student, fee
+
+    def test_each_month_shows_what_fell_due_what_was_collected_against_it_and_what_is_left(self):
+        _, april = self._fee_in("A", due=date(2026, 4, 10), amount="1000.00")
+        self._fee_in("B", due=date(2026, 4, 25), amount="500.00")
+        self._pay(self.school, april, "400.00")
+        got = self._summary()
+        self.assertEqual(got.status_code, 200, got.data)
+        months = {m["month"]: m for m in got.data["by_month"]}
+        self.assertEqual((months["2026-04"]["billed"], months["2026-04"]["collected"], months["2026-04"]["outstanding"]),
+                         (Decimal("1500.00"), Decimal("400.00"), Decimal("1100.00")))
+        self.assertEqual(months["2026-04"]["rate"], 26.7)
+        self.assertEqual((months["2026-03"]["billed"], months["2026-03"]["collected"], months["2026-03"]["rate"]), (Decimal("1500.00"), Decimal("0"), 0.0))
+        totals = got.data["totals"]
+        self.assertEqual((totals["billed"], totals["collected"], totals["outstanding"], totals["fees"]),
+                         (Decimal("3000.00"), Decimal("400.00"), Decimal("2600.00"), 3))
+        self.assertEqual(sum(m["outstanding"] for m in got.data["by_month"]), totals["outstanding"])
+
+    def test_discounts_come_off_what_was_billed_and_cancelled_fees_and_other_years_are_left_out(self):
+        _, fee = self._fee_in("D", due=date(2026, 5, 1), amount="1000.00")
+        _, gone = self._fee_in("G", due=date(2026, 5, 1), amount="700.00")
+        _, other_year = self._fee_in("Y", due=date(2026, 5, 1), amount="900.00")
+        with tenant_context(self.school):
+            StudentFee.objects.filter(pk=fee.pk).update(discount_amount=Decimal("200.00"))
+            StudentFee.objects.filter(pk=gone.pk).update(status="cancelled")
+            StudentFee.objects.filter(pk=other_year.pk).update(academic_year="2025")
+        may = next(m for m in self._summary().data["by_month"] if m["month"] == "2026-05")
+        self.assertEqual((may["billed"], may["outstanding"]), (Decimal("800.00"), Decimal("800.00")))
+
+    def test_money_received_in_a_month_is_shown_separately_from_what_that_month_billed(self):
+        _, march = self._fee_in("M", due=date(2026, 3, 5), amount="600.00")
+        self._pay(self.school, march, "250.00")  # paid now, for a March bill
+        got = self._summary()
+        by = {m["month"]: m for m in got.data["by_month"]}
+        from django.utils import timezone
+
+        from core.dates import school_zone
+
+        this_month = timezone.now().astimezone(school_zone()).strftime("%Y-%m")
+        self.assertEqual(by[this_month]["received"], Decimal("250.00"))  # it came in this month...
+        self.assertEqual(by["2026-03"]["collected"], Decimal("250.00"))  # ...but counts toward March's bill
+
+    def test_a_reversed_payment_takes_the_money_back_out(self):
+        from .services import reverse_payment
+        from .models import Payment
+
+        _, fee = self._fee_in("R", due=date(2026, 6, 1), amount="500.00")
+        self._pay(self.school, fee, "500.00")
+        with tenant_context(self.school):
+            payment = Payment.objects.filter(student=fee.student, status="completed").latest("created_at")
+            reverse_payment(payment=payment, reason="Cheque bounced", recorded_by=None)
+        june = next(m for m in self._summary().data["by_month"] if m["month"] == "2026-06")
+        self.assertEqual((june["collected"], june["outstanding"], june["received"]), (Decimal("0.00"), Decimal("500.00"), Decimal("0.00")))
+
+    def test_the_class_table_covers_the_year_or_one_month_and_groups_by_the_level_on_the_fee(self):
+        self._fee_in("A", due=date(2026, 4, 10), amount="1000.00", level="Grade 1")
+        self._fee_in("B", due=date(2026, 4, 12), amount="600.00", level="Grade 2")
+        self._fee_in("C", due=date(2026, 7, 1), amount="300.00", level="Grade 1")
+        year = {r["level"]: r for r in self._summary().data["by_class"]}
+        self.assertEqual((year["Grade 1"]["billed"], year["Grade 2"]["billed"]), (Decimal("1300.00"), Decimal("600.00")))
+        self.assertEqual(year["Not recorded"]["billed"], Decimal("1500.00"))  # the fixture fee has no class on it
+        april = self._summary(month="2026-04")
+        self.assertEqual(april.data["month"], "2026-04")
+        only = {r["level"]: r["billed"] for r in april.data["by_class"]}
+        self.assertEqual(only, {"Grade 1": Decimal("1000.00"), "Grade 2": Decimal("600.00")})
+
+    def test_a_fee_without_a_due_date_is_its_own_line_and_a_year_with_no_fees_is_empty(self):
+        _, fee = self._fee_in("U", due=None, amount="200.00")
+        by = {m["month"]: m for m in self._summary().data["by_month"]}
+        self.assertEqual(by["undated"]["billed"], Decimal("200.00"))
+        self.assertEqual(list(by)[-1], "undated")  # listed last
+        empty = self._summary(academic_year="1999")
+        self.assertEqual((empty.status_code, empty.data["by_month"], empty.data["by_class"]), (200, [], []))
+        self.assertIsNone(empty.data["totals"]["rate"])
+
+    def test_only_people_who_see_financial_reports_can_read_it_and_bad_input_is_refused(self):
+        from .views import CollectionSummaryView
+
+        nobody = self._user("nobody", [])
+        self.assertEqual(self._api(CollectionSummaryView, nobody, data={"academic_year": "2026"}).status_code, 403)
+        self.assertEqual(self._summary(academic_year="").status_code, 400)
+        for bad in ("2026-13", "April", "26-04", "2026-4"):
+            self.assertEqual(self._summary(month=bad).status_code, 400, bad)

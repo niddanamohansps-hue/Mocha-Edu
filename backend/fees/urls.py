@@ -20,6 +20,7 @@ from .views import (
     OnlinePaymentOrderListView,
     OnlinePaymentOrderReconcileView,
     OnlinePaymentVerifyView,
+    CollectionSummaryView,
     DuesByStudentView,
     FollowUpDeskView,
     StudentCallsView,
@@ -64,6 +65,7 @@ urlpatterns = [
     path("reports/outstanding/", OutstandingReportView.as_view(), name="outstanding-report"),
     path("reports/dues/", DuesByStudentView.as_view(), name="dues-by-student"),
     path("reports/follow-ups/", FollowUpDeskView.as_view(), name="fee-follow-up-desk"),
+    path("reports/collection/", CollectionSummaryView.as_view(), name="fee-collection-summary"),
     path("students/<uuid:student_id>/calls/", StudentCallsView.as_view(), name="student-fee-calls"),
     path("", include(router.urls)),
 ]

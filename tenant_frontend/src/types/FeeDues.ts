@@ -57,3 +57,19 @@ export interface DuesResponse {
     count: number;
     results: DueRow[];
 }
+
+
+export interface CollectionLine {
+    billed: string;
+    collected: string;
+    outstanding: string;
+    rate: number | null;
+}
+
+export interface CollectionSummary {
+    academic_year: string;
+    month: string | null;
+    totals: CollectionLine & { fees: number; capped: boolean };
+    by_month: (CollectionLine & { month: string; received: string })[];
+    by_class: (CollectionLine & { level: string })[];
+}
