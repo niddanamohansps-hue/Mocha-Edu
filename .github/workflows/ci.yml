@@ -67,6 +67,13 @@ jobs:
             labels: examinations.tests_stage_b examinations.tests_stage_c examinations.tests_scope_fixes examinations.tests_allocation
           - name: school-life
             labels: front_office ptm recruitment homework attendance announcements notifications
+          # The rest of the backend, so every app has its tests run on GitHub, not just on a developer machine.
+          - name: exams-core
+            labels: examinations.tests
+          - name: academics-staff
+            labels: academics staff timetable course_content parent_portal
+          - name: campus
+            labels: inventory library transport question_bank dashboard
     defaults:
       run:
         working-directory: ./backend
