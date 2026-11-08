@@ -21,6 +21,7 @@ from .views import (
     OnlinePaymentOrderReconcileView,
     OnlinePaymentVerifyView,
     DuesByStudentView,
+    StudentCallsView,
     OutstandingReportView,
     PaymentReceiptView,
     RecordPaymentView,
@@ -61,5 +62,6 @@ urlpatterns = [
     path("payments/<uuid:payment_id>/reverse/", ReversePaymentView.as_view(), name="payment-reverse"),
     path("reports/outstanding/", OutstandingReportView.as_view(), name="outstanding-report"),
     path("reports/dues/", DuesByStudentView.as_view(), name="dues-by-student"),
+    path("students/<uuid:student_id>/calls/", StudentCallsView.as_view(), name="student-fee-calls"),
     path("", include(router.urls)),
 ]

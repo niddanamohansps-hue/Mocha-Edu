@@ -460,10 +460,13 @@ class DuesByStudentView(APIView):
     def get(self, request):
         import uuid
 
-        from .dues import BANDS, SORTS, dues_by_student
+        from .dues import BANDS, PROMISES, SORTS, dues_by_student
 
         params = request.query_params
         band = params.get("band") or None
+        promise = params.get("promise") or None
+        if promise is not None and promise not in PROMISES:
+            return Response({"promise": [f"Choose one of: {', '.join(PROMISES)}."]}, status=status.HTTP_400_BAD_REQUEST)
         sort = params.get("sort") or "amount"
         if band is not None and band not in BANDS:
             return Response({"band": [f"Choose one of: {', '.join(BANDS)}."]}, status=status.HTTP_400_BAD_REQUEST)
@@ -478,8 +481,45 @@ class DuesByStudentView(APIView):
             return Response({"error": "That filter is not valid."}, status=status.HTTP_400_BAD_REQUEST)
         return Response(dues_by_student(
             academic_year=params.get("academic_year") or None, level=level, section=section, band=band,
-            search=params.get("search", ""), sort=sort, page=page, page_size=page_size,
+            search=params.get("search", ""), sort=sort, page=page, page_size=page_size, promise=promise,
         ))
+
+
+class StudentCallsView(APIView):
+    """The calls made about one student's unpaid fees. Reading needs view_financial_reports; writing a call needs
+    collect_payments, the same right as taking the money."""
+
+    def get_permissions(self):
+        code = "view_financial_reports" if self.request.method == "GET" else "collect_payments"
+        return [IsAuthenticated(), HasPermission(code)]
+
+    def get(self, request, student_id):
+        from students.models import Student
+
+        from .followups import history
+
+        get_object_or_404(Student, pk=student_id)
+        return Response(history(student_id))
+
+    def post(self, request, student_id):
+        from django.utils.dateparse import parse_date
+
+        from students.models import Student
+
+        from .followups import history, record_call
+
+        student = get_object_or_404(Student, pk=student_id)
+        raw = request.data.get("promise_date")
+        promise_date = None
+        if raw:
+            promise_date = parse_date(str(raw))
+            if promise_date is None:
+                return Response({"promise_date": ["Enter a valid date."]}, status=status.HTTP_400_BAD_REQUEST)
+        record_call(
+            student, outcome=request.data.get("outcome"), note=request.data.get("note", ""),
+            promise_amount=request.data.get("promise_amount"), promise_date=promise_date, user=request.user, request=request,
+        )
+        return Response(history(student_id), status=status.HTTP_201_CREATED)
 
 
 class OnlinePaymentInitiateView(APIView):

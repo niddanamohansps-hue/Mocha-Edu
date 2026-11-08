@@ -3,15 +3,18 @@
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import Unauthorized from "@/components/Unauthorized";
 import { LoadingState } from "@/components/feedback/LoadingState";
 import { EmptyState } from "@/components/feedback/EmptyState";
-import { useDues } from "@/hooks/useFees";
+import { useDues, useRecordCall, useStudentCalls } from "@/hooks/useFees";
 import { useAcademicLevels } from "@/hooks/useAcademics";
 import { useAcademicYear } from "@/providers/AcademicYearProvider";
 import { usePermissions } from "@/providers/PermissionProvider";
-import type { DueBand } from "@/types/FeeDues";
+import type { DueBand, DueRow, PromiseInfo } from "@/types/FeeDues";
 
 const BANDS: { value: DueBand; label: string }[] = [
     { value: "current", label: "Not yet due" },
@@ -27,18 +30,20 @@ const selectClass = "h-10 rounded-md border border-slate-200 bg-white px-3 text-
 export default function DuesPage() {
     const { can, isOwner } = usePermissions();
     if (!isOwner && !can("view_financial_reports")) return <Unauthorized />;
-    return <Content />;
+    return <Content canCall={isOwner || can("collect_payments")} />;
 }
 
-function Content() {
+function Content({ canCall }: { canCall: boolean }) {
     const { selectedYear } = useAcademicYear();
     const { data: levels = [] } = useAcademicLevels();
     const [band, setBand] = useState("");
     const [level, setLevel] = useState("");
     const [search, setSearch] = useState("");
     const [sort, setSort] = useState<"amount" | "age" | "name">("amount");
+    const [promise, setPromise] = useState("");
+    const [calling, setCalling] = useState<DueRow | null>(null);
     const [page, setPage] = useState(1);
-    const dues = useDues({ academic_year: selectedYear?.name, band, level, search, sort, page });
+    const dues = useDues({ academic_year: selectedYear?.name, band, level, search, sort, promise, page });
     const data = dues.data;
 
     const reset = <T,>(set: (v: T) => void) => (v: T) => { set(v); setPage(1); };
@@ -83,6 +88,13 @@ function Content() {
                     <option value="">All classes</option>
                     {levels.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
                 </select>
+                <select className={selectClass} value={promise} onChange={(e) => reset(setPromise)(e.target.value)}>
+                    <option value="">Any promise</option>
+                    <option value="broken">Broken promises</option>
+                    <option value="pending">Promised, not due yet</option>
+                    <option value="kept">Promise kept</option>
+                    <option value="none">No promise</option>
+                </select>
                 <select className={selectClass} value={sort} onChange={(e) => reset(setSort)(e.target.value as typeof sort)}>
                     <option value="amount">Biggest amount first</option>
                     <option value="age">Oldest first</option>
@@ -102,6 +114,8 @@ function Content() {
                                     <th className="px-4 py-2 text-right">Outstanding</th>
                                     <th className="px-4 py-2">Oldest due</th>
                                     <th className="px-4 py-2">Parent or guardian</th>
+                                    <th className="px-4 py-2">Last call</th>
+                                    {canCall && <th className="px-4 py-2" />}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -133,6 +147,15 @@ function Content() {
                                                 </>
                                             ) : <span className="text-xs text-slate-400">No guardian on file</span>}
                                         </td>
+                                        <td className="px-4 py-2 text-xs">
+                                            {row.last_call_at ? new Date(row.last_call_at).toLocaleDateString() : <span className="text-slate-400">Never called</span>}
+                                            <PromiseBadge promise={row.promise} />
+                                        </td>
+                                        {canCall && (
+                                            <td className="px-4 py-2 text-right">
+                                                <Button size="sm" variant="outline" onClick={() => setCalling(row)}>Record call</Button>
+                                            </td>
+                                        )}
                                     </tr>
                                 ))}
                             </tbody>
@@ -147,7 +170,90 @@ function Content() {
                     </div>
                 </>
             )}
+            {calling && <CallDialog row={calling} onClose={() => setCalling(null)} />}
         </div>
+    );
+}
+
+function PromiseBadge({ promise }: { promise: PromiseInfo | null }) {
+    if (!promise) return null;
+    const label = promise.status === "kept" ? "Promise kept" : promise.status === "broken" ? "Promise broken" : "Promised";
+    return (
+        <span className="mt-1 block">
+            <Badge variant={promise.status === "broken" ? "destructive" : promise.status === "kept" ? "default" : "secondary"}>
+                {label}: {promise.amount ? `${money(promise.amount)} by ` : ""}{promise.date}
+            </Badge>
+        </span>
+    );
+}
+
+function CallDialog({ row, onClose }: { row: DueRow; onClose: () => void }) {
+    const calls = useStudentCalls(row.student);
+    const record = useRecordCall();
+    const [outcome, setOutcome] = useState("reached");
+    const [note, setNote] = useState("");
+    const [date, setDate] = useState("");
+    const [amount, setAmount] = useState("");
+    const promised = outcome === "promised";
+    return (
+        <Dialog open onOpenChange={(o) => !o && onClose()}>
+            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                    <DialogTitle>{row.name}: record a call</DialogTitle>
+                </DialogHeader>
+                <p className="text-sm text-slate-500">
+                    {money(row.outstanding)} outstanding. {row.guardian_name}
+                    {row.guardian_phone && <>, <a className="text-indigo-700 underline" href={`tel:${row.guardian_phone}`}>{row.guardian_phone}</a></>}
+                </p>
+                <div className="grid gap-1.5">
+                    <Label>What happened</Label>
+                    <select className={selectClass} value={outcome} onChange={(e) => setOutcome(e.target.value)}>
+                        <option value="reached">Spoke to the family</option>
+                        <option value="no_answer">No answer</option>
+                        <option value="promised">Promised to pay</option>
+                        <option value="refused">Refused or disputes the fee</option>
+                    </select>
+                </div>
+                <div className="grid gap-1.5">
+                    <Label>What was said</Label>
+                    <Textarea maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} />
+                </div>
+                {promised && (
+                    <div className="grid grid-cols-2 gap-3">
+                        <div className="grid gap-1.5">
+                            <Label>Will pay by</Label>
+                            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+                        </div>
+                        <div className="grid gap-1.5">
+                            <Label>Amount (optional)</Label>
+                            <Input type="number" min={0} value={amount} onChange={(e) => setAmount(e.target.value)} />
+                        </div>
+                    </div>
+                )}
+                <Button
+                    disabled={record.isPending || !note.trim() || (promised && !date)}
+                    onClick={() =>
+                        record.mutate(
+                            { student: row.student, outcome, note, promise_date: promised ? date : null, promise_amount: promised && amount ? amount : null },
+                            { onSuccess: () => { setNote(""); setDate(""); setAmount(""); setOutcome("reached"); } },
+                        )
+                    }
+                >
+                    {record.isPending ? "Saving..." : "Save call"}
+                </Button>
+                <div className="space-y-2 border-t border-slate-100 pt-3 dark:border-slate-800">
+                    <h3 className="text-sm font-semibold">Earlier calls</h3>
+                    {(calls.data ?? []).length === 0 && <p className="text-sm text-slate-500">None yet.</p>}
+                    {(calls.data ?? []).map((c) => (
+                        <div key={c.id} className="rounded-lg border border-slate-200 p-2 text-sm dark:border-slate-800">
+                            <span className="text-xs text-slate-500">{new Date(c.at).toLocaleString()}, {c.by}: {c.outcome_label}</span>
+                            <p>{c.note}</p>
+                            <PromiseBadge promise={c.promise} />
+                        </div>
+                    ))}
+                </div>
+            </DialogContent>
+        </Dialog>
     );
 }
 

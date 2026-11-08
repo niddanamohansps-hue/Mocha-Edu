@@ -66,8 +66,11 @@ def _classes(student_ids):
     return out
 
 
+PROMISES = ("broken", "pending", "kept", "none")
+
+
 def dues_by_student(*, academic_year=None, level=None, section=None, band=None, search="", sort="amount", today=None,
-                    page=1, page_size=25):
+                    page=1, page_size=25, promise=None):
     """One row per student with an unpaid fee. Returns ``{"totals", "count", "results"}``.
 
     A student's *age* is how late their oldest unpaid fee is. Money is aged fee by fee into the band totals, so a
@@ -106,6 +109,9 @@ def dues_by_student(*, academic_year=None, level=None, section=None, band=None, 
 
     students = {s.id: s for s in Student.objects.filter(id__in=ids).select_related("profile")}
     guardians = _guardians(ids)
+    from .followups import latest_for
+
+    calls = latest_for(ids, today)
     needle = (search or "").strip().lower()
     out = []
     for student_id in ids:
@@ -119,6 +125,10 @@ def dues_by_student(*, academic_year=None, level=None, section=None, band=None, 
         if band and student_band != band:
             continue
         if needle and needle not in name.lower() and needle not in (student.enrollment_id or "").lower():
+            continue
+        call = calls.get(student_id)
+        state = call["promise"]["status"] if call and call["promise"] else "none"
+        if promise and state != promise:
             continue
         guardian = guardians.get(student_id, ("", "", ""))
         klass = classes.get(student_id, ("", "", None, None))
@@ -137,6 +147,9 @@ def dues_by_student(*, academic_year=None, level=None, section=None, band=None, 
             "guardian_name": guardian[0],
             "guardian_phone": guardian[1],
             "guardian_relation": guardian[2],
+            "last_call_at": call["last_call_at"] if call else None,
+            "last_outcome": call["last_outcome"] if call else None,
+            "promise": call["promise"] if call else None,
             "_bands": entry["bands"],
         })
 

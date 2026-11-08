@@ -153,3 +153,144 @@ class DuesApiTests(ReminderFixture):
             self.assertEqual(self._call(owner, bad).status_code, 400, bad)
         capped = self._call(owner, {"page_size": "9999"})
         self.assertEqual(capped.status_code, 200)
+
+
+class CallLogTests(ReminderFixture):
+    """Calls about unpaid fees, promises to pay, and how a promise is kept or broken."""
+
+    def _user(self, name, codenames=None, owner=False):
+        from accounts.models import User
+        from roles.constants import SYSTEM_PERMISSIONS
+        from roles.models import Permission
+
+        with tenant_context(self.school):
+            seed_default_roles()
+            for p in SYSTEM_PERMISSIONS:
+                Permission.objects.get_or_create(
+                    codename=p["codename"], defaults={"name": p["name"], "module": p["module"], "description": p["description"]}
+                )
+            user = User.objects.create_user(username=f"frm_{name}", email=f"frm_{name}@rem.test", password="Pass1234!")
+            if owner:
+                role = Role.objects.get(slug="owner")
+            else:
+                role = Role.objects.create(name=name, slug=f"role-{name}", is_system_role=False)
+                role.permissions.set(Permission.objects.filter(codename__in=codenames or []))
+            UserRole.objects.create(user=user, role=role)
+        return user
+
+    def _api(self, view, user, method="get", data=None, **kwargs):
+        factory = APIRequestFactory()
+        request = factory.get("/x/", data or {}) if method == "get" else factory.post("/x/", data or {}, format="json")
+        request.tenant = self.school
+        force_authenticate(request, user=user)
+        with tenant_context(self.school):
+            return view.as_view()(request, **kwargs)
+
+    def _call(self, user, **body):
+        from .views import StudentCallsView
+
+        return self._api(StudentCallsView, user, "post", body, student_id=self.student.pk)
+
+    def _day(self, n):
+        from core.dates import school_today
+
+        return school_today() + timedelta(days=n)
+
+    def test_a_call_is_recorded_with_who_made_it_and_only_people_who_collect_payments_may_write_one(self):
+        from .views import StudentCallsView
+
+        collector = self._user("collector", ["collect_payments", "view_financial_reports"])
+        viewer = self._user("viewer", ["view_financial_reports"])
+        nobody = self._user("nobody", [])
+        self.assertEqual(self._call(viewer, outcome="reached", note="Spoke to the father").status_code, 403)
+        self.assertEqual(self._call(nobody, outcome="reached", note="x").status_code, 403)
+        ok = self._call(collector, outcome="no_answer", note="  Phone was off  ")
+        self.assertEqual(ok.status_code, 201, ok.data)
+        self.assertEqual((ok.data[0]["note"], ok.data[0]["by"], ok.data[0]["promise"]), ("Phone was off", "frm_collector", None))
+        self.assertEqual(self._api(StudentCallsView, viewer, student_id=self.student.pk).status_code, 200)  # a viewer can read
+        self.assertEqual(self._api(StudentCallsView, nobody, student_id=self.student.pk).status_code, 403)
+
+    def test_bad_calls_are_refused_and_a_student_who_owes_nothing_cannot_be_called_about(self):
+        owner = self._user("boss", owner=True)
+        self.assertEqual(self._call(owner, outcome="shrugged", note="x").status_code, 400)
+        self.assertEqual(self._call(owner, outcome="reached", note="   ").status_code, 400)
+        self.assertEqual(self._call(owner, outcome="reached", note="x" * 501).status_code, 400)
+        self.assertEqual(self._call(owner, outcome="promised", note="Will pay").status_code, 400)  # no date
+        self.assertEqual(self._call(owner, outcome="promised", note="x", promise_date=self._day(-1).isoformat()).status_code, 400)
+        self.assertEqual(self._call(owner, outcome="promised", note="x", promise_date=self._day(200).isoformat()).status_code, 400)
+        self.assertEqual(self._call(owner, outcome="promised", note="x", promise_date="soon").status_code, 400)
+        later = self._day(3).isoformat()
+        for bad in ("abc", "0", "-5", "99999"):
+            self.assertEqual(self._call(owner, outcome="promised", note="x", promise_date=later, promise_amount=bad).status_code, 400, bad)
+        self._pay(self.school, self.fee, "1500.00")
+        self.assertEqual(self._call(owner, outcome="reached", note="x").status_code, 400)  # nothing owed now
+        with tenant_context(self.school):
+            from .models import FeeCallNote
+
+            self.assertEqual(FeeCallNote.objects.count(), 0)  # refusals wrote nothing
+
+    def test_a_promise_is_pending_until_its_date_then_kept_if_paid_or_broken_if_not(self):
+        from .followups import history, latest_for
+
+        owner = self._user("boss", owner=True)
+        made = self._call(owner, outcome="promised", note="Father will pay Friday", promise_date=self._day(2).isoformat(), promise_amount="1000")
+        self.assertEqual(made.status_code, 201, made.data)
+        with tenant_context(self.school):
+            self.assertEqual(history(self.student.pk)[0]["promise"]["status"], "pending")
+            self.assertEqual(latest_for([self.student.pk], self._day(2))[self.student.pk]["promise"]["status"], "pending")  # the day itself is still fine
+            self.assertEqual(latest_for([self.student.pk], self._day(3))[self.student.pk]["promise"]["status"], "broken")  # a day late
+        self._pay(self.school, self.fee, "400.00")  # part-payment is not enough
+        with tenant_context(self.school):
+            self.assertEqual(latest_for([self.student.pk], self._day(3))[self.student.pk]["promise"]["status"], "broken")
+        self._pay(self.school, self.fee, "600.00")  # now 1000 has come in since the call
+        with tenant_context(self.school):
+            self.assertEqual(latest_for([self.student.pk], self._day(3))[self.student.pk]["promise"]["status"], "kept")
+
+    def test_a_payment_made_before_the_call_does_not_count_towards_the_promise(self):
+        from .followups import latest_for
+
+        owner = self._user("boss", owner=True)
+        self._pay(self.school, self.fee, "300.00")  # paid before anyone called
+        self._call(owner, outcome="promised", note="Will pay the rest", promise_date=self._day(1).isoformat(), promise_amount="500")
+        with tenant_context(self.school):
+            self.assertEqual(latest_for([self.student.pk], self._day(2))[self.student.pk]["promise"]["status"], "broken")
+
+    def test_a_newer_promise_replaces_an_older_one_and_a_promise_without_an_amount_is_kept_by_any_payment(self):
+        from .followups import history, latest_for
+
+        owner = self._user("boss", owner=True)
+        self._call(owner, outcome="promised", note="first", promise_date=self._day(1).isoformat())
+        self._call(owner, outcome="promised", note="second", promise_date=self._day(10).isoformat(), promise_amount="200")
+        with tenant_context(self.school):
+            rows = history(self.student.pk)
+            self.assertEqual([r["note"] for r in rows], ["second", "first"])
+            self.assertEqual(rows[1]["promise"]["status"], "replaced")
+            self.assertEqual(latest_for([self.student.pk], self._day(0))[self.student.pk]["promise"]["amount"], Decimal("200.00"))
+        self._call(owner, outcome="promised", note="third, no amount", promise_date=self._day(5).isoformat())
+        self._pay(self.school, self.fee, "1.00")
+        with tenant_context(self.school):
+            self.assertEqual(latest_for([self.student.pk], self._day(0))[self.student.pk]["promise"]["status"], "kept")
+
+    def test_the_dues_list_shows_the_last_call_and_promise_and_filters_by_promise(self):
+        from .views import DuesByStudentView, StudentCallsView
+
+        owner = self._user("boss", owner=True)
+        other = self._student(self.school, "ENR-D-2")
+        self._fee(self.school, other, amount="800.00")
+        third = self._student(self.school, "ENR-D-3")
+        self._fee(self.school, third, amount="900.00")
+        self._call(owner, outcome="promised", note="will pay", promise_date=self._day(2).isoformat(), promise_amount="500")
+        self._api(StudentCallsView, owner, "post", {"outcome": "no_answer", "note": "off"}, student_id=other.pk)
+
+        def listing(**params):
+            return {r["enrollment_id"]: r for r in self._api(DuesByStudentView, owner, data=params).data["results"]}
+
+        everyone = listing()
+        self.assertEqual(everyone["ENR-R-1"]["last_outcome"], "promised")
+        self.assertEqual(everyone["ENR-R-1"]["promise"]["status"], "pending")
+        self.assertEqual((everyone["ENR-D-2"]["last_outcome"], everyone["ENR-D-2"]["promise"]), ("no_answer", None))
+        self.assertIsNone(everyone["ENR-D-3"]["last_call_at"])
+        self.assertEqual(list(listing(promise="pending")), ["ENR-R-1"])
+        self.assertEqual(sorted(listing(promise="none")), ["ENR-D-2", "ENR-D-3"])
+        self.assertEqual(listing(promise="broken"), {})
+        self.assertEqual(self._api(DuesByStudentView, owner, data={"promise": "maybe"}).status_code, 400)

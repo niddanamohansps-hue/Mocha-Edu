@@ -410,3 +410,28 @@ class OnlinePaymentOrder(models.Model):
             return None
         from accounts.models import User
         return User.objects.filter(id=self.created_by_user_id).first()
+
+
+class FeeCallNote(models.Model):
+    """One call or visit about a student's unpaid fees, and the promise to pay that came out of it, if any. Append
+    only: a call is never edited, so the history of what was said stays as it was."""
+
+    class Outcome(models.TextChoices):
+        REACHED = "reached", "Spoke to the family"
+        NO_ANSWER = "no_answer", "No answer"
+        PROMISED = "promised", "Promised to pay"
+        REFUSED = "refused", "Refused or disputes the fee"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    student = models.ForeignKey("students.Student", on_delete=models.CASCADE, related_name="fee_call_notes")
+    outcome = models.CharField(max_length=20, choices=Outcome.choices)
+    note = models.CharField(max_length=500)
+    promise_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    promise_date = models.DateField(null=True, blank=True)
+    created_by_user_id = models.UUIDField(null=True, blank=True)
+    created_by_name = models.CharField(max_length=150, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["student", "-created_at"], name="feecall_student_idx")]

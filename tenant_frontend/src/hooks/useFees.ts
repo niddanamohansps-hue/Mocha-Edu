@@ -372,6 +372,7 @@ export interface DuesFilters {
     band?: string;
     search?: string;
     sort?: "amount" | "age" | "name";
+    promise?: string;
     page?: number;
 }
 
@@ -384,3 +385,33 @@ export const useDues = (filters: DuesFilters) =>
         },
         placeholderData: (previous) => previous,
     });
+
+
+export const useStudentCalls = (student: string | null) =>
+    useQuery({
+        queryKey: ["fees", "calls", student],
+        enabled: !!student,
+        queryFn: async () => (await axiosInstance.get<import("@/types/FeeDues").CallRow[]>(`/fees/students/${student}/calls/`)).data,
+    });
+
+export const useRecordCall = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (vars: {
+            student: string;
+            outcome: string;
+            note: string;
+            promise_date?: string | null;
+            promise_amount?: string | null;
+        }) => {
+            const { student, ...body } = vars;
+            return (await axiosInstance.post(`/fees/students/${student}/calls/`, body)).data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["fees", "dues"] });
+            queryClient.invalidateQueries({ queryKey: ["fees", "calls"] });
+            toast.success("Call saved");
+        },
+        onError: (error: unknown) => toast.error(errorMessage(error, "Could not save the call")),
+    });
+};
