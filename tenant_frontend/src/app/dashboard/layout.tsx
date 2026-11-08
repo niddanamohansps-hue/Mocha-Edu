@@ -86,7 +86,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                                         <span className="hidden sm:inline shrink-0">Dashboard</span>
                                         <ChevronRight className="h-4 w-4 hidden sm:inline shrink-0" />
                                         <span className="text-slate-900 dark:text-white capitalize truncate">
-                                            {pathname.split("/").pop()?.replace(/-/g, " ")}
+                                            {pathname.split("/").filter((part) => part && !/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(part)).pop()?.replace(/-/g, " ")}
                                         </span>
                                     </div>
                                 </div>

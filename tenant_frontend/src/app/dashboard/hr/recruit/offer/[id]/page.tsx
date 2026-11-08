@@ -21,7 +21,7 @@ export default function OfferLetterPage({ params }: { params: Promise<{ id: stri
     }
     return (
         <div className="mx-auto max-w-3xl space-y-4">
-            <style>{`@media print { @page { size: A4 portrait; margin: 20mm; } .no-print { display: none !important; } body { background: white !important; } }`}</style>
+            <style>{`@media print { @page { size: A4 portrait; margin: 20mm; } nav, header, aside, .no-print { display: none !important; } body { background: white !important; color: black !important; } }`}</style>
             <div className="no-print flex justify-end">
                 <Button onClick={() => window.print()}><Printer className="mr-2 h-4 w-4" />Print</Button>
             </div>
