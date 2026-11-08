@@ -89,6 +89,14 @@ class Applicant(models.Model):
     reference = models.CharField(max_length=20, blank=True, default="", editable=False)
     access_token_hash = models.CharField(max_length=64, blank=True, default="", editable=False)
 
+    # The terms of the offer, set while the applicant is at the offered stage.
+    offered_designation = models.CharField(max_length=100, blank=True)
+    offered_salary = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    offered_joining_date = models.DateField(null=True, blank=True)
+    offer_valid_until = models.DateField(null=True, blank=True)
+    offer_notes = models.TextField(blank=True)
+    offer_sent_at = models.DateTimeField(null=True, blank=True)
+
     stage = models.CharField(max_length=20, choices=Stage.choices, default=Stage.APPLIED)
     stage_changed_at = models.DateTimeField(auto_now_add=True)
     rejection_reason = models.TextField(blank=True)

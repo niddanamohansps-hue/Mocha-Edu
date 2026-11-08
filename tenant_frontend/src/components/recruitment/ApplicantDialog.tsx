@@ -17,6 +17,7 @@ import {
     usePanelOptions,
     useScheduleInterview,
 } from "@/hooks/useRecruitment";
+import { OfferPanel } from "@/components/recruitment/OfferPanel";
 import { NEXT_STAGES, STAGES, type Applicant } from "@/types/Recruitment";
 
 const stageLabel = (value: string) => STAGES.find((s) => s.value === value)?.label ?? value;
@@ -131,6 +132,10 @@ export function ApplicantDialog({
                     </section>
                 )}
 
+                {canManage && applicant.stage === "offered" && (
+                    <OfferPanel key={`${applicant.id}-${applicant.offered_salary}-${applicant.offer_sent_at}`} applicant={applicant} />
+                )}
+
                 {canHire && applicant.stage === "offered" && (
                     <section className="space-y-3 rounded-lg border border-emerald-200 p-4 dark:border-emerald-900">
                         <h3 className="text-sm font-semibold">Hire</h3>
@@ -140,7 +145,11 @@ export function ApplicantDialog({
                         <div className="grid grid-cols-2 gap-3">
                             <div className="grid gap-1.5">
                                 <Label>Joining date</Label>
-                                <Input type="date" value={joiningDate} onChange={(e) => setJoiningDate(e.target.value)} />
+                                <Input
+                                    type="date"
+                                    value={joiningDate || applicant.offered_joining_date || ""}
+                                    onChange={(e) => setJoiningDate(e.target.value)}
+                                />
                             </div>
                             {!applicant.gender && (
                                 <div className="grid gap-1.5">
@@ -162,7 +171,7 @@ export function ApplicantDialog({
                             disabled={hire.isPending || (!applicant.gender && !gender)}
                             onClick={() =>
                                 hire.mutate(
-                                    { id: applicant.id, joining_date: joiningDate || null, gender: gender || undefined },
+                                    { id: applicant.id, joining_date: joiningDate || applicant.offered_joining_date || null, gender: gender || undefined },
                                     { onSuccess: onClose },
                                 )
                             }

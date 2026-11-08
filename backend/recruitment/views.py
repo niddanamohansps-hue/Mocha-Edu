@@ -27,6 +27,7 @@ from .serializers import (
     InterviewCompleteSerializer,
     InterviewSerializer,
     JobOpeningSerializer,
+    OfferSerializer,
     PanelistFeedbackSerializer,
     PublicApplySerializer,
     PublicOpeningSerializer,
@@ -42,7 +43,10 @@ from .services import (
     is_accepting_applications,
     issue_access_token,
     move_stage,
+    offer_letter,
+    save_offer,
     send_interview_invitation,
+    send_offer,
     send_stage_update,
     notify_panelists,
     open_opening,
@@ -136,7 +140,7 @@ class ApplicantViewSet(_ReadOrManage, viewsets.ModelViewSet):
     serializer_class = ApplicantSerializer
     parser_classes = [JSONParser, MultiPartParser, FormParser]
     http_method_names = ["get", "post", "patch", "put", "head", "options"]
-    read_actions = ("list", "retrieve", "resume", "history")
+    read_actions = ("list", "retrieve", "resume", "history", "letter")
 
     def get_permissions(self):
         if self.action == "hire":
@@ -195,6 +199,38 @@ class ApplicantViewSet(_ReadOrManage, viewsets.ModelViewSet):
         except DjangoValidationError as exc:
             raise _as_api_error(exc)
         return Response(self.get_serializer(applicant).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["post"], url_path="offer")
+    def offer(self, request, pk=None):
+        data = OfferSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        v = data.validated_data
+        try:
+            with transaction.atomic():
+                applicant = save_offer(
+                    self.get_object(), designation=v.get("designation", ""), salary=v["salary"],
+                    joining_date=v["joining_date"], valid_until=v.get("valid_until"), notes=v.get("notes", ""),
+                    user=request.user, request=request,
+                )
+        except DjangoValidationError as exc:
+            raise _as_api_error(exc)
+        return Response(self.get_serializer(applicant).data)
+
+    @action(detail=True, methods=["get"], url_path="letter")
+    def letter(self, request, pk=None):
+        try:
+            return Response(offer_letter(self.get_object()))
+        except DjangoValidationError as exc:
+            raise _as_api_error(exc)
+
+    @action(detail=True, methods=["post"], url_path="send-offer")
+    def send_offer(self, request, pk=None):
+        try:
+            with transaction.atomic():
+                applicant = send_offer(self.get_object(), request.user, request)
+        except DjangoValidationError as exc:
+            raise _as_api_error(exc)
+        return Response(self.get_serializer(applicant).data)
 
     @action(detail=True, methods=["get"], url_path="history")
     def history(self, request, pk=None):

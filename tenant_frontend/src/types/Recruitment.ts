@@ -66,7 +66,25 @@ export interface Applicant {
     rejection_reason: string;
     hired_staff: string | null;
     average_score: number | null;
+    offered_designation: string;
+    offered_salary: string | null;
+    offered_joining_date: string | null;
+    offer_valid_until: string | null;
+    offer_notes: string;
+    offer_sent_at: string | null;
     created_at: string;
+}
+
+export interface OfferLetter {
+    subject: string;
+    body: string;
+    school: string;
+    candidate: string;
+    designation: string;
+    salary: string;
+    joining_date: string;
+    valid_until: string | null;
+    sent_at: string | null;
 }
 
 export interface ApplicantEvent {

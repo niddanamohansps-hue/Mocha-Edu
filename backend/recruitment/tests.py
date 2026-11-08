@@ -177,6 +177,93 @@ class RecruitmentTests(TransactionTestCase):
             self.assertEqual(Instructor.objects.get(staff_member=staff).specialization, "Mathematics")
             self.assertEqual(opening.status, "closed")  # the only vacancy is filled
 
+    def _offer(self, applicant, user=None, **extra):
+        body = {"salary": "45000", "joining_date": "2099-06-01", "valid_until": "2099-05-15", "designation": "Senior Maths Teacher"}
+        body.update(extra)
+        return self._call(ApplicantViewSet, {"post": "offer"}, "post", "/x/", user or self.owner, body, pk=str(applicant.pk))
+
+    def test_offer_terms_are_saved_only_at_the_offered_stage_by_people_who_manage_recruitment(self):
+        with tenant_context(self.school):
+            opening = self._opening()
+            self._publish(opening)
+            applicant = Applicant.objects.get(pk=self._apply(opening).data["id"])
+            self.assertEqual(self._offer(applicant).status_code, 400)  # not offered yet
+            self._to_offered(applicant)
+            self.assertEqual(self._offer(applicant, self.clerk).status_code, 403)
+            saved = self._offer(applicant)
+            self.assertEqual(saved.status_code, 200, saved.data)
+            self.assertEqual((saved.data["offered_salary"], saved.data["offered_designation"]), ("45000.00", "Senior Maths Teacher"))
+            for bad in ({"salary": "0"}, {"salary": "abc"}, {"joining_date": "2001-01-01"}, {"valid_until": "2099-07-01"}, {"valid_until": "2001-01-01"}):
+                self.assertEqual(self._offer(applicant, **bad).status_code, 400, bad)
+            # the offer cannot be sent before there are terms, and the terms cannot be forged through a normal update
+            blank = Applicant.objects.get(pk=self._apply(opening, email="b@example.com").data["id"])
+            self._to_offered(blank)
+            self.assertEqual(
+                self._call(ApplicantViewSet, {"get": "letter"}, "get", "/x/", self.owner, pk=str(blank.pk)).status_code, 400
+            )
+            sneaky = self._call(
+                ApplicantViewSet, {"patch": "partial_update"}, "patch", "/x/", self.owner, {"offered_salary": "999"}, pk=str(blank.pk)
+            )
+            blank.refresh_from_db()
+            self.assertIsNone(blank.offered_salary, sneaky.data)
+
+    def test_the_letter_holds_only_the_offer_terms_and_sending_it_emails_it_once_per_version(self):
+        from notifications.models import EmailOutboxEvent
+
+        with tenant_context(self.school):
+            opening = self._opening()
+            self._publish(opening)
+            applicant = Applicant.objects.get(
+                pk=self._apply(opening, email="cand@example.com", address="12 Park Road", expected_salary="99999").data["id"]
+            )
+            self._to_offered(applicant)
+            self._offer(applicant, notes="Probation of six months applies.")
+            letter = self._call(ApplicantViewSet, {"get": "letter"}, "get", "/x/", self.owner, pk=str(applicant.pk))
+            self.assertEqual(letter.status_code, 200, letter.data)
+            body = letter.data["body"]
+            for expected in ("Asha Rao", "12 Park Road", "Senior Maths Teacher", "45,000.00", "01 June 2099", "15 May 2099",
+                             "Probation of six months applies.", "Recruit Test School", applicant.reference):
+                self.assertIn(expected, body)
+            self.assertNotIn("99999", body)  # the applicant's own expected salary is never in the letter
+            self.assertIsNone(letter.data["sent_at"])
+
+            send = lambda user=None: self._call(ApplicantViewSet, {"post": "send_offer"}, "post", "/x/", user or self.owner, {}, pk=str(applicant.pk))
+            self.assertEqual(send(self.clerk).status_code, 403)
+            sent = send()
+            self.assertEqual(sent.status_code, 200, sent.data)
+            self.assertIsNotNone(sent.data["offer_sent_at"])
+            mails = EmailOutboxEvent.objects.filter(to_email="cand@example.com", subject__startswith="Offer of appointment")
+            self.assertEqual(mails.count(), 1)
+            self.assertIn("45,000.00", mails.get().body)
+            # changing the terms means the new version has not been sent yet
+            self.assertIsNone(self._offer(applicant, salary="50000").data["offer_sent_at"])
+
+    def test_an_applicant_without_an_email_cannot_be_sent_an_offer_but_the_letter_still_prints(self):
+        with tenant_context(self.school):
+            opening = self._opening()
+            self._publish(opening)
+            applicant = Applicant.objects.get(pk=self._apply(opening, email="").data["id"])
+            self._to_offered(applicant)
+            self._offer(applicant)
+            sent = self._call(ApplicantViewSet, {"post": "send_offer"}, "post", "/x/", self.owner, {}, pk=str(applicant.pk))
+            self.assertEqual(sent.status_code, 400)
+            self.assertIn("no email", str(sent.data))
+            printed = self._call(ApplicantViewSet, {"get": "letter"}, "get", "/x/", self.owner, pk=str(applicant.pk))
+            self.assertEqual(printed.status_code, 200)
+
+    def test_hiring_starts_from_the_offer_and_an_override_still_wins(self):
+        with tenant_context(self.school):
+            opening = self._opening(title="Office Staff", position_type="staff", department="Admin", specialization="")
+            self._publish(opening)
+            applicant = Applicant.objects.get(pk=self._apply(opening).data["id"])
+            self._to_offered(applicant)
+            self._offer(applicant, designation="Head Clerk")
+            hired = self._call(ApplicantViewSet, {"post": "hire"}, "post", "/x/", self.owner, {}, pk=str(applicant.pk))
+            self.assertEqual(hired.status_code, 201, hired.data)
+            applicant.refresh_from_db()
+            self.assertEqual(applicant.hired_staff.designation, "Head Clerk")
+            self.assertEqual(applicant.hired_staff.joining_date.isoformat(), "2099-06-01")
+
     def test_hiring_general_staff_uses_the_opening_title_as_designation(self):
         with tenant_context(self.school):
             opening = self._opening(title="Front Desk Executive", position_type="staff", department="Admin", vacancies=2)

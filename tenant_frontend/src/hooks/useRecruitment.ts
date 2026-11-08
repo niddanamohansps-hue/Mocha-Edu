@@ -7,6 +7,7 @@ import type {
     ApplicantStage,
     Interview,
     JobOpening,
+    OfferLetter,
     PanelOption,
     RecruitmentSummary,
 } from "@/types/Recruitment";
@@ -112,6 +113,31 @@ export const useHireApplicant = () =>
         "Hired - the staff record has been created",
         "Could not hire the applicant",
     );
+
+export const useSaveOffer = () =>
+    useRecruitmentMutation(
+        async (vars: { id: string; designation: string; salary: string; joining_date: string; valid_until: string | null; notes: string }) => {
+            const { id, ...body } = vars;
+            return (await axiosInstance.post(`/recruitment/applicants/${id}/offer/`, body)).data;
+        },
+        "Offer terms saved",
+        "Could not save the offer",
+    );
+
+export const useSendOffer = () =>
+    useRecruitmentMutation(
+        async (id: string) => (await axiosInstance.post(`/recruitment/applicants/${id}/send-offer/`, {})).data,
+        "Offer letter emailed",
+        "Could not send the offer",
+    );
+
+export const useOfferLetter = (id: string | null) =>
+    useQuery({
+        queryKey: [KEY, "letter", id],
+        enabled: !!id,
+        retry: false,
+        queryFn: async () => (await axiosInstance.get<OfferLetter>(`/recruitment/applicants/${id}/letter/`)).data,
+    });
 
 export const useInterviews = (applicant: string | null) =>
     useQuery({

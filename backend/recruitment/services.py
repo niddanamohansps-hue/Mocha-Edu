@@ -121,7 +121,7 @@ def hire_applicant(applicant, user, overrides=None, request=None):
         "phone": applicant.phone,
         "address": applicant.address,
         "email": applicant.email or None,
-        "joining_date": overrides.get("joining_date"),
+        "joining_date": overrides.get("joining_date") or applicant.offered_joining_date,
         "qualification": applicant.qualification,
         "experience_years": applicant.experience_years,
     }
@@ -129,7 +129,7 @@ def hire_applicant(applicant, user, overrides=None, request=None):
         data["specialization"] = overrides.get("specialization") or opening.specialization or "General"
         serializer = InstructorOnboardingSerializer(data=data)
     else:
-        data["designation"] = overrides.get("designation") or opening.title
+        data["designation"] = overrides.get("designation") or applicant.offered_designation or opening.title
         data["department"] = overrides.get("department") or opening.department
         serializer = StaffOnboardingSerializer(data=data)
     if not serializer.is_valid():
@@ -287,6 +287,115 @@ def send_interview_invitation(interview):
         ),
     )
     return True
+
+
+def save_offer(applicant, *, designation, salary, joining_date, valid_until, notes, user, request=None):
+    """Record the terms of the offer. Only while the applicant is at the offered stage; replaces earlier terms and
+    clears the 'sent' mark, because a changed offer has to be sent again."""
+    from decimal import Decimal, InvalidOperation
+
+    applicant = Applicant.objects.select_for_update().select_related("opening").get(pk=applicant.pk)
+    if applicant.stage != Stage.OFFERED:
+        raise ValidationError("Offer terms can be set only for an applicant at the offered stage.")
+    designation = (designation or "").strip() or applicant.opening.title
+    try:
+        amount = Decimal(str(salary)).quantize(Decimal("0.01"))
+    except (InvalidOperation, ValueError, TypeError):
+        raise ValidationError("Enter the monthly salary as a number.")
+    if not amount.is_finite() or amount <= 0 or amount >= Decimal("10000000"):
+        raise ValidationError("The monthly salary must be above zero.")
+    today = school_today()
+    if joining_date is None:
+        raise ValidationError("Give the joining date.")
+    if joining_date < today:
+        raise ValidationError("The joining date cannot be in the past.")
+    if valid_until is not None and (valid_until < today or valid_until > joining_date):
+        raise ValidationError("The offer must stay open from today until the joining date at most.")
+
+    applicant.offered_designation = designation[:100]
+    applicant.offered_salary = amount
+    applicant.offered_joining_date = joining_date
+    applicant.offer_valid_until = valid_until
+    applicant.offer_notes = (notes or "").strip()
+    applicant.offer_sent_at = None
+    applicant.save(update_fields=[
+        "offered_designation", "offered_salary", "offered_joining_date", "offer_valid_until", "offer_notes",
+        "offer_sent_at", "updated_at",
+    ])
+    record_event(applicant, Stage.OFFERED, Stage.OFFERED, user, f"Offer terms saved: {designation}, {amount} a month")
+    log_action(request, "applicant_offer_saved", "Applicant", str(applicant.id), {"salary": str(amount)})
+    return applicant
+
+
+def offer_letter(applicant):
+    """The text of the offer letter, built only from the saved terms. Nothing about the applicant's expected salary,
+    scores or internal notes goes in it."""
+    if applicant.offered_salary is None or applicant.offered_joining_date is None:
+        raise ValidationError("Save the offer terms first.")
+    school = _school_name()
+    lines = [
+        f"{school}",
+        "",
+        f"Date: {school_today():%d %B %Y}",
+        f"Reference: {applicant.reference}",
+        "",
+        f"To: {applicant.full_name}",
+    ]
+    if applicant.address:
+        lines.append(applicant.address)
+    lines += [
+        "",
+        f"Subject: Offer of appointment - {applicant.offered_designation}",
+        "",
+        f"Dear {applicant.first_name},",
+        "",
+        f"Following the selection process, we are pleased to offer you the position of {applicant.offered_designation} "
+        f"at {school}.",
+        "",
+        f"  Monthly salary: {applicant.offered_salary:,.2f}",
+        f"  Date of joining: {applicant.offered_joining_date:%d %B %Y}",
+    ]
+    if applicant.offer_valid_until:
+        lines.append(f"  This offer is open until: {applicant.offer_valid_until:%d %B %Y}")
+    if applicant.offer_notes:
+        lines += ["", applicant.offer_notes]
+    lines += [
+        "",
+        "Please sign and return a copy of this letter to confirm that you accept the offer.",
+        "",
+        "Yours sincerely,",
+        "",
+        f"Principal, {school}",
+    ]
+    return {
+        "subject": f"Offer of appointment - {applicant.offered_designation}",
+        "body": "\n".join(lines),
+        "school": school,
+        "candidate": applicant.full_name,
+        "designation": applicant.offered_designation,
+        "salary": str(applicant.offered_salary),
+        "joining_date": applicant.offered_joining_date.isoformat(),
+        "valid_until": applicant.offer_valid_until.isoformat() if applicant.offer_valid_until else None,
+        "sent_at": applicant.offer_sent_at.isoformat() if applicant.offer_sent_at else None,
+    }
+
+
+def send_offer(applicant, user, request=None):
+    """Email the offer letter to the candidate and note when it went out."""
+    from notifications.services import queue_email
+
+    applicant = Applicant.objects.select_for_update().select_related("opening").get(pk=applicant.pk)
+    if applicant.stage != Stage.OFFERED:
+        raise ValidationError("Only an offered applicant can be sent an offer.")
+    if not applicant.email:
+        raise ValidationError("This applicant has no email address. Print the letter instead.")
+    letter = offer_letter(applicant)
+    queue_email(to_email=applicant.email, subject=letter["subject"], body=letter["body"])
+    applicant.offer_sent_at = timezone.now()
+    applicant.save(update_fields=["offer_sent_at", "updated_at"])
+    record_event(applicant, Stage.OFFERED, Stage.OFFERED, user, "Offer letter emailed")
+    log_action(request, "applicant_offer_sent", "Applicant", str(applicant.id), {})
+    return applicant
 
 
 def staff_for_user(user):

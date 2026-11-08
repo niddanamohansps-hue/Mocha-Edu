@@ -220,9 +220,18 @@ class ApplicantSerializer(serializers.ModelSerializer):
             "rejection_reason",
             "hired_staff",
             "average_score",
+            "offered_designation",
+            "offered_salary",
+            "offered_joining_date",
+            "offer_valid_until",
+            "offer_notes",
+            "offer_sent_at",
             "created_at",
         ]
-        read_only_fields = ["id", "reference", "stage", "stage_changed_at", "rejection_reason", "hired_staff", "created_at"]
+        read_only_fields = [
+            "id", "reference", "stage", "stage_changed_at", "rejection_reason", "hired_staff", "created_at",
+            "offered_designation", "offered_salary", "offered_joining_date", "offer_valid_until", "offer_notes", "offer_sent_at",
+        ]
         extra_kwargs = {"resume": {"write_only": True}}
 
     def get_resume_url(self, obj):
@@ -260,6 +269,14 @@ class StageMoveSerializer(serializers.Serializer):
     stage = serializers.ChoiceField(choices=Applicant.Stage.choices)
     note = serializers.CharField(required=False, allow_blank=True)
     rejection_reason = serializers.CharField(required=False, allow_blank=True)
+
+
+class OfferSerializer(serializers.Serializer):
+    designation = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    salary = serializers.DecimalField(max_digits=12, decimal_places=2)
+    joining_date = serializers.DateField()
+    valid_until = serializers.DateField(required=False, allow_null=True)
+    notes = serializers.CharField(required=False, allow_blank=True, max_length=2000)
 
 
 class HireSerializer(serializers.Serializer):
