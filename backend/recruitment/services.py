@@ -408,6 +408,74 @@ def staff_for_user(user):
     return StaffMember.objects.filter(profile__user_id=user.id).select_related("profile").first()
 
 
+INTERVIEW_MINUTES = 60  # an interview has no end time of its own; clashes are checked over this long
+
+
+def panel_conflicts(staff_ids, scheduled_at, exclude_interview=None):
+    """Why each of these staff members may not be free at ``scheduled_at``: on approved leave that day, on exam
+    duty at that time, teaching a timetabled class then, or on another interview panel at an overlapping time.
+    Returns ``[{"staff": id, "name": ..., "reason": ...}]``; empty when everyone looks free. A warning only:
+    HR decides whether to go ahead."""
+    import datetime
+
+    from academics.models import AcademicYear
+    from examinations.models import ExamInvigilation
+    from staff.models import LeaveApplication, StaffMember
+    from timetable.models import TimetableEntry
+
+    ids = set(staff_ids)
+    if not ids:
+        return []
+    from core.dates import school_zone
+
+    start = scheduled_at.astimezone(school_zone())
+    end = start + datetime.timedelta(minutes=INTERVIEW_MINUTES)
+    day = start.date()
+    names = {
+        m.pk: f"{m.profile.first_name} {m.profile.last_name}".strip()
+        for m in StaffMember.objects.filter(pk__in=ids).select_related("profile")
+    }
+    found = {}
+
+    def flag(staff_id, reason):
+        found.setdefault(staff_id, []).append(reason)
+
+    for staff_id in LeaveApplication.objects.filter(
+        status="approved", start_date__lte=day, end_date__gte=day, staff_id__in=ids
+    ).values_list("staff_id", flat=True):
+        flag(staff_id, "on approved leave that day")
+
+    start_t, end_t = start.time(), end.time() if end.date() == start.date() else datetime.time(23, 59, 59)
+    for duty in ExamInvigilation.objects.filter(
+        staff_id__in=ids, sitting__date=day, sitting__start_time__lt=end_t, sitting__end_time__gt=start_t
+    ).select_related("sitting__examination"):
+        flag(duty.staff_id, f"on exam duty for {duty.sitting.examination.name}")
+
+    current = AcademicYear.objects.filter(is_current=True).values_list("name", flat=True).first()
+    if current:
+        for entry in TimetableEntry.objects.filter(
+            academic_year=current, day_of_week=day.weekday(), instructor__staff_member_id__in=ids,
+            period__start_time__lt=end_t, period__end_time__gt=start_t,
+        ).select_related("section", "subject"):
+            flag(entry.instructor.staff_member_id, f"teaching {entry.subject.name} in {entry.section}")
+
+    earliest = scheduled_at - datetime.timedelta(minutes=INTERVIEW_MINUTES)
+    latest = scheduled_at + datetime.timedelta(minutes=INTERVIEW_MINUTES)
+    others = InterviewPanelist.objects.filter(
+        staff_id__in=ids, interview__status=Interview.Status.SCHEDULED,
+        interview__scheduled_at__gt=earliest, interview__scheduled_at__lt=latest,
+    ).select_related("interview__applicant")
+    if exclude_interview is not None:
+        others = others.exclude(interview=exclude_interview)
+    for panelist in others:
+        flag(panelist.staff_id, f"already on the panel for {panelist.interview.applicant.full_name}'s interview at that time")
+
+    return [
+        {"staff": staff_id, "name": names.get(staff_id, ""), "reason": "; ".join(reasons)}
+        for staff_id, reasons in found.items()
+    ]
+
+
 @transaction.atomic
 def set_panel(interview, staff_ids, request=None):
     """Make the panel exactly these staff members. Someone who has already submitted a score stays, whatever

@@ -650,6 +650,69 @@ class RecruitmentTests(TransactionTestCase):
     def _view(self, user, interview):
         return self._call(InterviewViewSet, {"get": "retrieve"}, "get", "/x/", user, pk=str(interview.pk))
 
+    def _conflicts(self, members, at="2027-03-01T09:00:00+00:00", user=None, **extra):
+        from .views import PanelConflictsView
+
+        request = self.factory.get("/x/", {"staff": ",".join(str(m.pk) for m in members), "at": at, **extra})
+        request.tenant = self.school
+        force_authenticate(request, user=user or self.owner)
+        return PanelConflictsView.as_view()(request)
+
+    def test_the_clash_check_flags_leave_exam_duty_and_another_interview_but_not_a_free_person(self):
+        import datetime
+
+        from core.dates import school_zone
+        from examinations.models import Examination, ExamInvigilation, ExamSitting, ExamType
+        from staff.models import LeaveApplication, LeaveType
+        from timetable.models import Room
+
+        with tenant_context(self.school):
+            (_, free), (_, on_leave), (_, on_duty), (_, busy) = (self._staff_user(n) for n in ("free", "leave", "duty", "busy"))
+            local = datetime.datetime(2027, 3, 1, 9, 0, tzinfo=datetime.timezone.utc).astimezone(school_zone())
+            day = local.date()
+
+            leave_type = LeaveType.objects.create(name="Casual", code="CL")
+            LeaveApplication.objects.create(
+                staff=on_leave, leave_type=leave_type, academic_year="2026-27", start_date=day, end_date=day,
+                reason="Away", status="approved",
+            )
+            exam = Examination.objects.create(
+                name="Mid Term", academic_year="2026-27", exam_type=ExamType.objects.create(name="Mid"), start_date=day, end_date=day
+            )
+            sitting = ExamSitting.objects.create(
+                examination=exam, date=day,
+                start_time=(local - datetime.timedelta(minutes=30)).time(), end_time=(local + datetime.timedelta(minutes=90)).time(),
+            )
+            ExamInvigilation.objects.create(sitting=sitting, room=Room.objects.create(name="Hall", capacity=40), staff=on_duty)
+            self._panel_interview(busy)  # busy sits on a panel at that same time
+
+            got = self._conflicts([free, on_leave, on_duty, busy])
+            self.assertEqual(got.status_code, 200, got.data)
+            reasons = {row["staff"]: row["reason"] for row in got.data}
+            self.assertNotIn(free.pk, reasons)
+            self.assertIn("leave", reasons[on_leave.pk])
+            self.assertIn("exam duty for Mid Term", reasons[on_duty.pk])
+            self.assertIn("already on the panel", reasons[busy.pk])
+            # editing that interview itself is not a clash with itself
+            own = Interview.objects.get()
+            self.assertEqual(self._conflicts([busy], interview=str(own.pk)).data, [])
+            # a time two hours later is free again for the busy panelist
+            self.assertEqual(self._conflicts([busy], at="2027-03-01T11:30:00+00:00").data, [])
+
+    def test_the_clash_check_needs_manage_recruitment_and_a_valid_time_and_ids(self):
+        with tenant_context(self.school):
+            _, someone = self._staff_user("someone")
+            self.assertEqual(self._conflicts([someone], user=self.clerk).status_code, 403)
+            self.assertEqual(self._conflicts([someone], at="").status_code, 400)
+            self.assertEqual(self._conflicts([someone], at="tomorrow").status_code, 400)
+            from .views import PanelConflictsView
+
+            request = self.factory.get("/x/", {"staff": "not-a-uuid", "at": "2027-03-01T09:00:00+00:00"})
+            request.tenant = self.school
+            force_authenticate(request, user=self.owner)
+            self.assertEqual(PanelConflictsView.as_view()(request).status_code, 400)
+            self.assertEqual(self._conflicts([]).data, [])
+
     def test_panelists_score_separately_and_the_last_one_completes_the_interview_with_the_average(self):
         from notifications.models import Notification
 

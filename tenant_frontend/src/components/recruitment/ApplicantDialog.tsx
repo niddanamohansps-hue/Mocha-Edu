@@ -14,6 +14,7 @@ import {
     useInterviewAction,
     useInterviews,
     useMoveApplicant,
+    usePanelConflicts,
     usePanelOptions,
     useScheduleInterview,
 } from "@/hooks/useRecruitment";
@@ -48,6 +49,7 @@ export function ApplicantDialog({
     const [panel, setPanel] = useState<string[]>([]);
     const [round, setRound] = useState("Interview");
     const [scheduledAt, setScheduledAt] = useState("");
+    const conflicts = usePanelConflicts(panel, scheduledAt ? new Date(scheduledAt).toISOString() : "");
     const [scoreFor, setScoreFor] = useState<string | null>(null);
     const [score, setScore] = useState("");
     const [feedback, setFeedback] = useState("");
@@ -303,6 +305,14 @@ export function ApplicantDialog({
                             >
                                 Schedule
                             </Button>
+                        </div>
+                    )}
+                    {(conflicts.data?.length ?? 0) > 0 && (
+                        <div className="space-y-1 rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
+                            <p className="font-medium">Check before you schedule:</p>
+                            {conflicts.data?.map((c) => (
+                                <p key={c.staff}>{c.name}: {c.reason}</p>
+                            ))}
                         </div>
                     )}
                     {canSchedule && panelOptions.length > 0 && (

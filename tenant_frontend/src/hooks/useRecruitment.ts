@@ -153,6 +153,21 @@ export const useScheduleInterview = () =>
         "Could not schedule the interview",
     );
 
+export interface PanelConflict {
+    staff: string;
+    name: string;
+    reason: string;
+}
+
+/** Who on the proposed panel may not be free at the chosen time. Warnings only. */
+export const usePanelConflicts = (staff: string[], at: string) =>
+    useQuery({
+        queryKey: [KEY, "panel-conflicts", staff.join(","), at],
+        enabled: staff.length > 0 && !!at,
+        queryFn: async () =>
+            (await axiosInstance.get<PanelConflict[]>("/recruitment/panel-conflicts/", { params: { staff: staff.join(","), at } })).data,
+    });
+
 export const usePanelOptions = (enabled: boolean) =>
     useQuery({
         queryKey: [KEY, "panel-options"],

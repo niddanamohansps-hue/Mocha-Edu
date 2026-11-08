@@ -375,6 +375,34 @@ class PanelOptionsView(APIView):
         )
 
 
+class PanelConflictsView(APIView):
+    """Warnings for a proposed panel and time: who is on leave, on exam duty, teaching or already on another panel."""
+
+    permission_classes = [IsAuthenticated, HasPermission("manage_recruitment")]
+
+    def get(self, request):
+        import uuid
+
+        from django.utils.dateparse import parse_datetime
+
+        raw = (request.query_params.get("at") or "").strip().replace(" ", "+")
+        moment = parse_datetime(raw) if raw else None
+        if moment is None:
+            raise ValidationError({"at": ["Give the interview date and time."]})
+        if moment.tzinfo is None:
+            from core.dates import school_zone
+
+            moment = moment.replace(tzinfo=school_zone())
+        ids = [i for i in (request.query_params.get("staff") or "").split(",") if i]
+        try:
+            ids = [str(uuid.UUID(i)) for i in ids]
+        except ValueError:
+            raise ValidationError({"staff": ["Those are not valid staff ids."]})
+        from .services import panel_conflicts
+
+        return Response(panel_conflicts(ids, moment, exclude_interview=request.query_params.get("interview") or None))
+
+
 class RecruitmentSummaryView(APIView):
     """Counts for the recruitment landing page."""
 
