@@ -284,6 +284,11 @@ class RecheckRequest(models.Model):
     original_marks = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
     revised_marks = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
     decision_comment = models.CharField(max_length=1000, blank=True)
+    # The fee in force when the request was made (zero when rechecks are free), and when it was collected.
+    fee_amount = models.DecimalField(max_digits=8, decimal_places=2, default=0)
+    fee_paid_at = models.DateTimeField(null=True, blank=True)
+    fee_received_by_user_id = models.UUIDField(null=True, blank=True)
+    fee_reference = models.CharField(max_length=100, blank=True)
     requested_by_user_id = models.UUIDField(null=True, blank=True)
     decided_by_user_id = models.UUIDField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -436,7 +441,7 @@ class ExaminationSettings(models.Model):
     """The school's examination rules: exactly one row per school. Reading never writes: with no row, ``load()``
     returns the defaults. Two-person publishing is off by default, so nothing changes until a school turns it on."""
 
-    EDITABLE_FIELDS = ("require_separate_publisher", "show_rank_to_families", "report_card_style")
+    EDITABLE_FIELDS = ("require_separate_publisher", "show_rank_to_families", "report_card_style", "recheck_fee")
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     singleton = models.BooleanField(default=True, unique=True, editable=False)
@@ -449,6 +454,8 @@ class ExaminationSettings(models.Model):
     # common Indian board formats.
     REPORT_CARD_STYLES = (("standard", "Standard"), ("cbse", "CBSE style"), ("state", "State board style"))
     report_card_style = models.CharField(max_length=10, choices=REPORT_CARD_STYLES, default="standard")
+    # What a family pays to ask for a recheck of one mark. Zero means rechecks are free.
+    recheck_fee = models.DecimalField(max_digits=8, decimal_places=2, default=0)
     updated_by_user_id = models.UUIDField(null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
 

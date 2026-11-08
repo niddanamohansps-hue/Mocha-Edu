@@ -28,6 +28,8 @@ export interface ExaminationSettings {
     require_separate_publisher: boolean;
     show_rank_to_families: boolean;
     report_card_style: "standard" | "cbse" | "state";
+    /** What a family pays to ask for a recheck, as a decimal string. "0.00" means free. */
+    recheck_fee: string;
     is_default: boolean;
 }
 
@@ -391,6 +393,9 @@ export interface RecheckRequest {
     original_marks: string | null;
     revised_marks: string | null;
     decision_comment: string;
+    fee_amount: string;
+    fee_paid_at: string | null;
+    fee_reference: string;
     created_at: string;
     decided_at: string | null;
 }

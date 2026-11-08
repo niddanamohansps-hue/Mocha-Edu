@@ -238,6 +238,7 @@ class ExaminationSettingsView(APIView):
             "require_separate_publisher": row.require_separate_publisher,
             "show_rank_to_families": row.show_rank_to_families,
             "report_card_style": row.report_card_style,
+            "recheck_fee": str(row.recheck_fee),
             "is_default": row._state.adding,
         }
 
@@ -254,14 +255,31 @@ class ExaminationSettingsView(APIView):
         data = request.data
         unknown = set(data) - set(ExaminationSettings.EDITABLE_FIELDS)
         styles = {key for key, _ in ExaminationSettings.REPORT_CARD_STYLES}
-        if not data or unknown or any(
-            (not isinstance(v, str) or v not in styles) if k == "report_card_style" else not isinstance(v, bool) for k, v in data.items()
-        ):
+        data = dict(data)
+        if "recheck_fee" in data:
+            from decimal import Decimal, InvalidOperation
+
+            try:
+                fee = Decimal(str(data["recheck_fee"])).quantize(Decimal("0.01"))
+            except (InvalidOperation, ValueError, TypeError):
+                raise ValidationError({"recheck_fee": ["Enter the fee as a number."]})
+            if isinstance(data["recheck_fee"], bool) or not fee.is_finite() or fee < 0 or fee > Decimal("100000"):
+                raise ValidationError({"recheck_fee": ["The fee must be between 0 and 100000."]})
+            data["recheck_fee"] = fee
+
+        def valid(key, value):
+            if key == "report_card_style":
+                return isinstance(value, str) and value in styles
+            if key == "recheck_fee":
+                return True
+            return isinstance(value, bool)
+
+        if not data or unknown or not all(valid(k, v) for k, v in data.items()):
             raise ValidationError({"non_field_errors": ["Send true or false for the settings you change, and a known report card style."]})
         row, _ = ExaminationSettings.objects.get_or_create(singleton=True)
         changes = {}
         for field, value in data.items():
-            changes[field] = [getattr(row, field), value]
+            changes[field] = [str(getattr(row, field)), str(value)]
             setattr(row, field, value)
         row.updated_by_user_id = request.user.id
         row.save()
@@ -959,6 +977,22 @@ class RecheckViewSet(viewsets.GenericViewSet):
                    changes={"mark": str(mark.id)})
         _tell_markers(recheck)
         return Response(RecheckRequestSerializer(recheck).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["post"], url_path="collect-fee")
+    def collect_fee(self, request, pk=None):
+        from .marks import collect_recheck_fee
+        from .models import RecheckRequest
+        from .serializers import RecheckRequestSerializer
+
+        if not HasPermission("manage_marks").has_permission(request, None):
+            return Response({"error": "You do not have permission to collect the recheck fee."}, status=status.HTTP_403_FORBIDDEN)
+        recheck = get_object_or_404(RecheckRequest.objects.select_related("mark__exam_schedule"), pk=pk)
+        if not user_can_access_schedule(request, recheck.mark.exam_schedule):
+            return Response({"error": "You are not authorized to change this mark."}, status=status.HTTP_403_FORBIDDEN)
+        recheck = collect_recheck_fee(recheck, user_id=request.user.id, reference=request.data.get("reference", ""))
+        log_action(request, action="recheck_fee_collected", model_name="RecheckRequest", object_id=recheck.id,
+                   changes={"amount": str(recheck.fee_amount)})
+        return Response(RecheckRequestSerializer(recheck).data)
 
     @action(detail=True, methods=["post"])
     def decide(self, request, pk=None):

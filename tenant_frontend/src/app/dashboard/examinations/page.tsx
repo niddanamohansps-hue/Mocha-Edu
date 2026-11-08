@@ -206,6 +206,15 @@ export default function ExaminationsPage() {
                 </label>
             )}
 
+            {canManage && examSettings.data && (
+                <RecheckFeeSetting
+                    key={examSettings.data.recheck_fee}
+                    current={examSettings.data.recheck_fee}
+                    pending={updateSettings.isPending}
+                    onSave={(fee) => updateSettings.mutate({ recheck_fee: fee })}
+                />
+            )}
+
             {selectedExam && (
                 <div className="space-y-4">
                     <div className="flex flex-wrap justify-between gap-2 items-center">
@@ -386,6 +395,29 @@ export default function ExaminationsPage() {
                     </Button>
                 </DialogContent>
             </Dialog>
+        </div>
+    );
+}
+
+function RecheckFeeSetting({ current, pending, onSave }: { current: string; pending: boolean; onSave: (fee: string) => void }) {
+    const [value, setValue] = useState(String(Number(current)));
+    return (
+        <div className="grid gap-1 text-sm">
+            <span>Recheck fee</span>
+            <div className="flex items-center gap-2">
+                <input
+                    type="number" min={0} step="0.01" value={value} onChange={(e) => setValue(e.target.value)}
+                    className="h-10 w-32 rounded-md border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950"
+                />
+                <button
+                    type="button" disabled={pending || value === "" || Number(value) === Number(current)}
+                    onClick={() => onSave(value)}
+                    className="h-10 rounded-md border border-slate-200 px-3 text-sm disabled:opacity-50 dark:border-slate-800"
+                >
+                    Save
+                </button>
+            </div>
+            <span className="text-xs text-slate-500">What a family pays to ask for a recheck of one mark. Zero means free. A recheck with a fee cannot be decided until the fee is marked as received.</span>
         </div>
     );
 }

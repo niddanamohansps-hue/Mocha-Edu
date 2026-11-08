@@ -337,7 +337,7 @@ class RecheckRequestSerializer(serializers.ModelSerializer):
         fields = [
             "id", "mark", "student", "student_name", "enrollment_id", "subject_name", "examination_name", "max_marks",
             "current_marks", "status", "reason", "original_marks", "revised_marks", "decision_comment",
-            "created_at", "decided_at",
+            "fee_amount", "fee_paid_at", "fee_reference", "created_at", "decided_at",
         ]
         read_only_fields = fields
 

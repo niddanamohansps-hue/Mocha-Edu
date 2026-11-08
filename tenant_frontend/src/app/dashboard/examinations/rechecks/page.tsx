@@ -10,7 +10,7 @@ import { EmptyState } from "@/components/feedback/EmptyState";
 import { ErrorState } from "@/components/feedback/ErrorState";
 import { Field, FILTER_SELECT_CLASS, FormDialog, Pager, SELECT_CLASS, formatDateTime } from "@/components/dashboard/inventory/shared";
 import { useMe } from "@/hooks/useAuth";
-import { useDecideRecheck, useExaminations, useRechecks, useRequestRecheck, useStudentResults } from "@/hooks/useExaminations";
+import { useCollectRecheckFee, useDecideRecheck, useExaminations, useRechecks, useRequestRecheck, useStudentResults } from "@/hooks/useExaminations";
 import { usePermissions } from "@/providers/PermissionProvider";
 import { RecheckRequest, RecheckStatus } from "@/types/Examinations";
 
@@ -112,6 +112,11 @@ export default function RechecksPage() {
     const [deciding, setDeciding] = useState<{ recheck: RecheckRequest; decision: "accept" | "reject" } | null>(null);
     const [asking, setAsking] = useState(false);
     const { data, isLoading, isError, refetch } = useRechecks(status, page);
+    const collect = useCollectRecheckFee();
+    const collectFee = (r: RecheckRequest) => {
+        const reference = window.prompt(`Record that the fee of ${Number(r.fee_amount)} was received. Receipt or reference (optional):`);
+        if (reference !== null) collect.mutate({ id: r.id, reference: reference.trim() });
+    };
     const studentId = isStudent ? me?.profile?.student_id ?? "" : "";
 
     if (!(canDecide || can("view_results") || isStudent)) return <Unauthorized />;
@@ -155,11 +160,18 @@ export default function RechecksPage() {
                                 <span className="text-sm">{r.reason}{r.decision_comment && <span className="block text-xs text-slate-500">Reply: {r.decision_comment}</span>}</span>
                             ),
                         },
+                        {
+                            key: "fee", header: "Fee", hideOnMobile: true, cell: (r) => Number(r.fee_amount) <= 0 ? <span className="text-xs text-slate-400">Free</span> : r.fee_paid_at ? (
+                                <span className="text-xs text-emerald-700">{Number(r.fee_amount)} received{r.fee_reference ? ` (${r.fee_reference})` : ""}</span>
+                            ) : <span className="text-xs font-medium text-amber-700">{Number(r.fee_amount)} due</span>,
+                        },
                         { key: "status", header: "Status", cell: (r) => <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[r.status]}`}>{STATUS_LABELS[r.status]}</span> },
                         { key: "when", header: "Asked", hideOnMobile: true, className: "text-slate-500", cell: (r) => formatDateTime(r.created_at) },
                     ]}
                     actionsHeader=""
-                    actions={(r) => canDecide && r.status === "pending" ? (
+                    actions={(r) => canDecide && r.status === "pending" && Number(r.fee_amount) > 0 && !r.fee_paid_at ? (
+                        <Button size="sm" onClick={() => collectFee(r)} disabled={collect.isPending}>Fee received</Button>
+                    ) : canDecide && r.status === "pending" ? (
                         <div className="flex gap-2">
                             <Button size="sm" onClick={() => setDeciding({ recheck: r, decision: "accept" })}>Accept</Button>
                             <Button size="sm" variant="outline" onClick={() => setDeciding({ recheck: r, decision: "reject" })}>Reject</Button>

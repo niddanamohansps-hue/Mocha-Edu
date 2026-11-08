@@ -202,6 +202,54 @@ class RecheckTests(StageBBase):
             self.assertTrue(ExamMarkChange.objects.filter(kind="recheck", old_marks=35, new_marks=41).exists())
         self.assertEqual(self.decide(self.owner, resp.data["id"], {"decision": "reject", "decision_comment": "x"}).status_code, 400)
 
+    def set_fee(self, amount):
+        from .models import ExaminationSettings
+
+        with tenant_context(self.school):
+            ExaminationSettings.objects.update_or_create(singleton=True, defaults={"recheck_fee": Decimal(amount)})
+
+    def collect(self, client, recheck_id, body=None):
+        return client.post(f"{self.URL}{recheck_id}/collect-fee/", body or {}, HTTP_HOST=self.DOMAIN, format="json")
+
+    def test_a_recheck_is_free_until_the_school_sets_a_fee(self):
+        self.publish()
+        resp = self.own_request()
+        self.assertEqual((resp.status_code, resp.data["fee_amount"], resp.data["fee_paid_at"]), (201, "0.00", None))
+        self.assertEqual(self.collect(self.owner, resp.data["id"]).status_code, 400)  # nothing to collect
+        self.assertEqual(self.decide(self.owner, resp.data["id"], {"decision": "reject", "decision_comment": "ok"}).status_code, 200)
+
+    def test_with_a_fee_the_recheck_cannot_be_decided_until_the_fee_is_collected(self):
+        self.publish()
+        self.set_fee("100")
+        resp = self.own_request()
+        self.assertEqual(resp.data["fee_amount"], "100.00")
+        rid = resp.data["id"]
+        blocked = self.decide(self.owner, rid, {"decision": "accept", "revised_marks": "41"})
+        self.assertEqual(blocked.status_code, 400)
+        self.assertIn("fee", str(blocked.data))
+        self.assertEqual(self.collect(self.pupil, rid).status_code, 403)  # a student cannot mark their own fee paid
+        self.assertEqual(self.collect(self.teacher, rid).status_code, 403)
+        paid = self.collect(self.owner, rid, {"reference": "Receipt 77"})
+        self.assertEqual(paid.status_code, 200, paid.data)
+        self.assertEqual((paid.data["fee_reference"], bool(paid.data["fee_paid_at"])), ("Receipt 77", True))
+        self.assertEqual(self.collect(self.owner, rid).status_code, 400)  # only once
+        self.assertEqual(self.decide(self.owner, rid, {"decision": "accept", "revised_marks": "41"}).status_code, 200)
+
+    def test_changing_the_fee_does_not_change_requests_already_made(self):
+        self.publish()
+        self.set_fee("100")
+        rid = self.own_request().data["id"]
+        self.set_fee("250")
+        listed = self.owner.get(self.URL, HTTP_HOST=self.DOMAIN)
+        self.assertEqual(next(r for r in listed.data["results"] if r["id"] == rid)["fee_amount"], "100.00")
+
+    def test_the_fee_setting_takes_a_sensible_amount_only(self):
+        url = "/api/examinations/settings/"
+        for bad in ("-5", "abc", "999999999", True):
+            self.assertEqual(self.owner.patch(url, {"recheck_fee": bad}, HTTP_HOST=self.DOMAIN, format="json").status_code, 400, bad)
+        ok = self.owner.patch(url, {"recheck_fee": "75.5"}, HTTP_HOST=self.DOMAIN, format="json")
+        self.assertEqual((ok.status_code, ok.data["recheck_fee"]), (200, "75.50"))
+
     def test_student_cannot_ask_about_another_students_mark(self):
         self.publish()
         other = self.mark_of(self.student2)

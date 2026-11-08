@@ -226,9 +226,29 @@ def request_recheck(mark, reason, user_id):
         raise serializers.ValidationError({"non_field_errors": ["Only marks that were entered can be re-checked."]})
     if mark.rechecks.filter(status=RecheckRequest.Status.PENDING).exists():
         raise serializers.ValidationError({"non_field_errors": ["A recheck of this mark is already waiting."]})
+    from .models import ExaminationSettings
+
     return RecheckRequest.objects.create(
         mark=mark, reason=reason[:1000], original_marks=mark.marks_obtained, requested_by_user_id=user_id,
+        fee_amount=ExaminationSettings.load().recheck_fee,
     )
+
+
+@transaction.atomic
+def collect_recheck_fee(recheck, *, user_id, reference=""):
+    """Note that the recheck fee was received (at the counter, or by transfer). Once only."""
+    recheck = RecheckRequest.objects.select_for_update().get(pk=recheck.pk)
+    if recheck.fee_amount <= 0:
+        raise serializers.ValidationError({"non_field_errors": ["This recheck has no fee."]})
+    if recheck.fee_paid_at:
+        raise serializers.ValidationError({"non_field_errors": ["The fee for this recheck was already collected."]})
+    if recheck.status != RecheckRequest.Status.PENDING:
+        raise serializers.ValidationError({"non_field_errors": ["This recheck has already been decided."]})
+    recheck.fee_paid_at = timezone.now()
+    recheck.fee_received_by_user_id = user_id
+    recheck.fee_reference = (reference or "").strip()[:100]
+    recheck.save(update_fields=["fee_paid_at", "fee_received_by_user_id", "fee_reference"])
+    return recheck
 
 
 @transaction.atomic
@@ -236,6 +256,8 @@ def decide_recheck(recheck, *, accept, revised_marks, comment, user_id):
     recheck = RecheckRequest.objects.select_for_update().get(pk=recheck.pk)
     if recheck.status != RecheckRequest.Status.PENDING:
         raise serializers.ValidationError({"non_field_errors": ["This recheck has already been decided."]})
+    if recheck.fee_amount > 0 and not recheck.fee_paid_at:
+        raise serializers.ValidationError({"non_field_errors": ["The recheck fee has not been collected yet."]})
     comment = (comment or "").strip()
     mark = _locked_mark(recheck.mark_id)
     if accept:

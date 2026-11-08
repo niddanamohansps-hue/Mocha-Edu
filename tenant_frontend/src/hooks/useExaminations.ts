@@ -104,7 +104,7 @@ export const useUpdateExaminationSettings = () => {
     const queryClient = useQueryClient();
     return useMutation({
         // A bare true/false changes two-person publishing (as before); an object changes the settings it names.
-        mutationFn: async (change: boolean | Partial<Pick<ExaminationSettings, "require_separate_publisher" | "show_rank_to_families" | "report_card_style">>) =>
+        mutationFn: async (change: boolean | Partial<Pick<ExaminationSettings, "require_separate_publisher" | "show_rank_to_families" | "report_card_style" | "recheck_fee">>) =>
             (await axiosInstance.patch(
                 "/examinations/settings/",
                 typeof change === "boolean" ? { require_separate_publisher: change } : change,
@@ -331,6 +331,19 @@ export const useRequestRecheck = () => {
             toast.success("Recheck requested");
         },
         onError: (error: unknown) => toast.error(errorMessage(error, "Could not request a recheck")),
+    });
+};
+
+export const useCollectRecheckFee = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async ({ id, reference }: { id: string; reference: string }) =>
+            (await axiosInstance.post(`/examinations/rechecks/${id}/collect-fee/`, { reference })).data as RecheckRequest,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["examinations", "rechecks"] });
+            toast.success("Fee recorded as received");
+        },
+        onError: (error: unknown) => toast.error(errorMessage(error, "Could not record the fee")),
     });
 };
 
