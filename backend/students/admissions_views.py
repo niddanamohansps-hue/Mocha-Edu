@@ -490,6 +490,26 @@ class AdmissionSeatsView(APIView):
         return Response(seats_overview(request.data.get("academic_year").strip()))
 
 
+class RequiredDocumentsView(APIView):
+    """The documents the school asks of applicants, for every class and for each class. Setting them needs
+    manage_admission_applications."""
+
+    def get_permissions(self):
+        code = "view_admissions" if self.request.method == "GET" else "manage_admission_applications"
+        return [IsAuthenticated(), HasPermission(code)]
+
+    def get(self, request):
+        from .admissions_services import required_documents_overview
+
+        return Response(required_documents_overview())
+
+    def put(self, request):
+        from .admissions_services import required_documents_overview, set_required_documents
+
+        set_required_documents(request.data.get("level") or None, request.data.get("document_types"), request)
+        return Response(required_documents_overview())
+
+
 class AdmissionReportView(APIView):
     """Enquiry sources, the funnel by class, and how long enrolment takes."""
 

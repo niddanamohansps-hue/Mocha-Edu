@@ -173,6 +173,7 @@ export interface AdmissionApplication {
     decision_date?: string | null;
     decision_notice_sent_at?: string | null;
     documents_reminded_at?: string | null;
+    document_checklist?: { document_type: string; label: string; status: "verified" | "received" | "rejected" | "missing" }[];
     decision_reason?: string;
     decision_by?: string | null;
     decision_by_name?: string | null;

@@ -696,3 +696,30 @@ export const useAdmissionsReport = (academicYear: string) =>
         enabled: !!academicYear,
         queryFn: async () => (await axiosInstance.get<AdmissionsReport>("/admissions/report/", { params: { academic_year: academicYear } })).data,
     });
+
+
+export interface RequiredDocuments {
+    types: { value: string; label: string }[];
+    all_classes: string[];
+    by_level: { level: string; level_name: string; document_types: string[] }[];
+}
+
+export const useRequiredDocuments = () =>
+    useQuery({
+        queryKey: [ADMISSIONS_KEY, "required-documents"],
+        queryFn: async () => (await axiosInstance.get<RequiredDocuments>("/admissions/required-documents/")).data,
+    });
+
+/** Replace the documents asked of one class, or of every class when ``level`` is null. */
+export const useSetRequiredDocuments = () => {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (vars: { level: string | null; document_types: string[] }) =>
+            (await axiosInstance.put<RequiredDocuments>("/admissions/required-documents/", vars)).data,
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: [ADMISSIONS_KEY] });
+            toast.success("Required documents saved");
+        },
+        onError: (err) => toast.error(admissionsErrorMessage(err, "Could not save the list")),
+    });
+};

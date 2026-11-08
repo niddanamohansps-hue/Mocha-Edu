@@ -2159,3 +2159,92 @@ class AdmissionsSeatsAndReportTests(AdmissionsFixtureMixin, TransactionTestCase)
         self.assertAlmostEqual(got.data["average_days_to_enrol"], 20.0, delta=0.2)
         self.assertEqual(got.data["enrolled_with_enquiry"], 1)
         self.assertEqual(self._client_as(self.staff_user).get("/api/admissions/report/", HTTP_HOST=self.DOMAIN).status_code, 400)
+
+
+class AdmissionsRequiredDocumentTests(AdmissionsFixtureMixin, TransactionTestCase):
+    """The school says which documents each class needs; the checklist and the nudge follow that list."""
+
+    def _app(self, level=None, status="documents_pending"):
+        return AdmissionApplication.objects.create(
+            application_number=generate_application_number(), first_name="Rohan", last_name="Verma",
+            date_of_birth="2018-01-01", gender="male", guardian_first_name="Anil", guardian_last_name="Verma",
+            guardian_phone="+919999988888", guardian_email="anil@example.com", academic_year="2026-27",
+            level=level or self.level_1, status=status,
+        )
+
+    def _doc(self, app, kind, verification="pending", scan="clean"):
+        return AdmissionDocument.objects.create(
+            application=app, document_type=kind, title=kind, file="admission_documents/x.pdf",
+            verification_status=verification, scan_status=scan,
+        )
+
+    def _require(self, client, types, level=None):
+        return client.put(
+            "/api/admissions/required-documents/", {"level": str(level.pk) if level else None, "document_types": types},
+            format="json", HTTP_HOST=self.DOMAIN,
+        )
+
+    def test_the_list_is_set_for_every_class_and_per_class_and_replaced_not_piled_up(self):
+        staff = self._client_as(self.staff_user)
+        self.assertEqual(self._require(self._client_as(self.viewer_user), ["photo"]).status_code, 403)
+        self.assertEqual(self._require(staff, ["birth_certificate", "photo"]).status_code, 200)
+        done = self._require(staff, ["transfer_certificate"], level=self.level_2)
+        self.assertEqual(done.status_code, 200, done.data)
+        self.assertEqual(done.data["all_classes"], ["birth_certificate", "photo"])
+        grade2 = next(r for r in done.data["by_level"] if r["level_name"] == "Grade 2")
+        self.assertEqual(grade2["document_types"], ["transfer_certificate"])
+        again = self._require(staff, ["photo"])  # replaces: birth certificate is dropped
+        self.assertEqual(again.data["all_classes"], ["photo"])
+        self.assertEqual(self._require(staff, []).data["all_classes"], [])
+        self.assertEqual(self._require(staff, ["passport"]).status_code, 400)
+        self.assertEqual(self._require(staff, "photo").status_code, 400)
+        self.assertEqual(
+            staff.put("/api/admissions/required-documents/", {"level": str(uuid_module.uuid4()), "document_types": ["photo"]}, format="json", HTTP_HOST=self.DOMAIN).status_code, 400
+        )
+        self.assertEqual(self._client_as(self.viewer_user).get("/api/admissions/required-documents/", HTTP_HOST=self.DOMAIN).status_code, 200)
+
+    def test_an_applicants_checklist_combines_every_class_and_their_class_and_shows_where_each_stands(self):
+        from .admissions_services import document_checklist
+
+        staff = self._client_as(self.staff_user)
+        self._require(staff, ["birth_certificate", "photo"])
+        self._require(staff, ["transfer_certificate", "address_proof"], level=self.level_2)
+        with tenant_context(self.school):
+            first = self._app(level=self.level_1)
+            second = self._app(level=self.level_2)
+            self._doc(first, "birth_certificate", verification="verified")
+            self._doc(first, "photo", verification="rejected")
+            self._doc(second, "transfer_certificate", verification="pending")
+            self._doc(second, "address_proof", scan="infected")  # a failed scan does not count as received
+            state_one = {i["document_type"]: i["status"] for i in document_checklist(first)}
+            state_two = {i["document_type"]: i["status"] for i in document_checklist(second)}
+        self.assertEqual(state_one, {"birth_certificate": "verified", "photo": "rejected"})
+        self.assertEqual(state_two, {"birth_certificate": "missing", "photo": "missing", "transfer_certificate": "received", "address_proof": "missing"})
+        shown = self._client_as(self.owner_user).get(f"/api/admissions/applications/{second.pk}/", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(len(shown.data["document_checklist"]), 4)
+
+    def test_with_no_list_set_nothing_changes(self):
+        from .admissions_services import document_checklist, documents_family_must_send
+
+        with tenant_context(self.school):
+            app = self._app()
+            self.assertEqual(document_checklist(app), [])
+            self.assertEqual(documents_family_must_send(app), ["No documents have been received yet."])
+
+    def test_the_nudge_names_exactly_what_is_missing_and_stays_quiet_when_only_checking_is_left(self):
+        from .admissions_services import documents_family_must_send
+
+        staff = self._client_as(self.staff_user)
+        self._require(staff, ["birth_certificate", "photo", "address_proof"])
+        with tenant_context(self.school):
+            app = self._app()
+            self._doc(app, "birth_certificate", verification="verified")
+            self._doc(app, "photo", verification="rejected")
+            lines = documents_family_must_send(app)
+            self.assertEqual(len(lines), 2)
+            self.assertTrue(any("Passport Size Photograph" in l and "corrected" in l for l in lines))
+            self.assertTrue(any("Address Proof" in l and "not received" in l for l in lines))
+            self.assertFalse(any("Birth Certificate" in l for l in lines))
+            self._doc(app, "photo", verification="pending")  # a fresh copy came in
+            self._doc(app, "address_proof", verification="pending")
+            self.assertEqual(documents_family_must_send(app), [])  # all in; the school's turn to check

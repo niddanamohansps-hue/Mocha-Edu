@@ -7,7 +7,14 @@ import { Input } from "@/components/ui/input";
 import Unauthorized from "@/components/Unauthorized";
 import { LoadingState } from "@/components/feedback/LoadingState";
 import { EmptyState } from "@/components/feedback/EmptyState";
-import { useAdmissionsReport, useSeats, useSetSeatLimit, type SeatRow } from "@/hooks/useAdmissions";
+import {
+    useAdmissionsReport,
+    useRequiredDocuments,
+    useSeats,
+    useSetRequiredDocuments,
+    useSetSeatLimit,
+    type SeatRow,
+} from "@/hooks/useAdmissions";
 import { useAcademicYear } from "@/providers/AcademicYearProvider";
 import { usePermissions } from "@/providers/PermissionProvider";
 
@@ -59,6 +66,8 @@ function Content({ canEdit }: { canEdit: boolean }) {
                 )}
             </section>
 
+            {canEdit && <RequiredDocumentsSection />}
+
             <section className="space-y-4">
                 <h2 className="text-lg font-semibold">Enquiries to enrolment</h2>
                 {report.isLoading || !report.data ? <LoadingState /> : report.data.totals.enquiries + report.data.totals.applications === 0 ? (
@@ -85,6 +94,61 @@ function Content({ canEdit }: { canEdit: boolean }) {
                 )}
             </section>
         </div>
+    );
+}
+
+function Picker({
+    title, hint, types, chosen, pending, onSave,
+}: {
+    title: string; hint?: string; types: { value: string; label: string }[]; chosen: string[]; pending: boolean; onSave: (next: string[]) => void;
+}) {
+    const [picked, setPicked] = useState<string[]>(chosen);
+    const changed = picked.length !== chosen.length || picked.some((p) => !chosen.includes(p));
+    return (
+        <div className="space-y-2 rounded-xl border border-slate-200 p-3 dark:border-slate-800">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-sm font-medium">{title}{hint && <span className="ml-2 text-xs font-normal text-slate-500">{hint}</span>}</span>
+                <Button size="sm" variant="outline" disabled={pending || !changed} onClick={() => onSave(picked)}>Save</Button>
+            </div>
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                {types.map((t) => (
+                    <label key={t.value} className="flex items-center gap-1.5">
+                        <input
+                            type="checkbox" checked={picked.includes(t.value)}
+                            onChange={(e) => setPicked((cur) => (e.target.checked ? [...cur, t.value] : cur.filter((v) => v !== t.value)))}
+                        />
+                        {t.label}
+                    </label>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+function RequiredDocumentsSection() {
+    const required = useRequiredDocuments();
+    const save = useSetRequiredDocuments();
+    if (required.isLoading || !required.data) return <LoadingState />;
+    const data = required.data;
+    return (
+        <section className="space-y-3">
+            <h2 className="text-lg font-semibold">Documents applicants must hand in</h2>
+            <p className="text-xs text-slate-500">
+                Choose what every applicant needs, then anything extra for a class. A class with nothing chosen only gets the
+                general reminder. Families are reminded of exactly what is still missing.
+            </p>
+            <Picker
+                key={`all-${data.all_classes.join(",")}`} title="Every class" types={data.types} chosen={data.all_classes}
+                pending={save.isPending} onSave={(next) => save.mutate({ level: null, document_types: next })}
+            />
+            {data.by_level.map((row) => (
+                <Picker
+                    key={`${row.level}-${row.document_types.join(",")}`} title={row.level_name} hint="extra for this class" types={data.types}
+                    chosen={row.document_types} pending={save.isPending}
+                    onSave={(next) => save.mutate({ level: row.level, document_types: next })}
+                />
+            ))}
+        </section>
     );
 }
 

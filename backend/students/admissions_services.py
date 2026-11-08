@@ -4,6 +4,7 @@ import logging
 import secrets
 import uuid
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError, PermissionDenied
 
@@ -656,9 +657,19 @@ def documents_family_must_send(application):
     all, a document that was rejected and has not been replaced by one of the same type, or a file that failed the
     virus scan."""
     docs = list(application.documents.all())
+    labels = dict(DOCUMENT_TYPE_CHOICES)
+    required = document_checklist(application)
+    if required:
+        # The school has said exactly what it needs: ask only for what is still missing or has to be re-sent.
+        lines = []
+        for item in required:
+            if item["status"] == "missing":
+                lines.append(f"{item['label']}: not received yet.")
+            elif item["status"] == "rejected":
+                lines.append(f"{item['label']}: please upload a clearer or corrected copy.")
+        return lines
     if not docs:
         return ["No documents have been received yet."]
-    labels = dict(DOCUMENT_TYPE_CHOICES)
     lines = []
     for doc in docs:
         kind = labels.get(doc.document_type, doc.document_type)
@@ -845,3 +856,76 @@ def admissions_report(academic_year):
         "average_days_to_enrol": avg_days,
         "enrolled_with_enquiry": spans["n"],
     }
+
+
+# ---- required documents per class -------------------------------------------------------------------------
+
+
+def required_types_for(application):
+    """The document types this applicant must hand in: those asked of every class plus those asked of their class."""
+    from .models import AdmissionRequiredDocument
+
+    wanted = AdmissionRequiredDocument.objects.filter(Q(level__isnull=True) | Q(level_id=application.level_id))
+    return [t for t, _ in DOCUMENT_TYPE_CHOICES if t in set(wanted.values_list("document_type", flat=True))]
+
+
+def document_checklist(application):
+    """One line per required document with where it stands: verified, received (waiting to be checked), rejected (a
+    new copy is needed) or missing. Empty when the school has not set a list for this class."""
+    labels = dict(DOCUMENT_TYPE_CHOICES)
+    docs = list(application.documents.all())
+    out = []
+    for kind in required_types_for(application):
+        mine = [d for d in docs if d.document_type == kind and d.scan_status not in ("infected", "error")]
+        if any(d.verification_status == "verified" for d in mine):
+            state = "verified"
+        elif any(d.verification_status == "pending" for d in mine):
+            state = "received"
+        elif any(d.verification_status == "rejected" for d in mine):
+            state = "rejected"
+        else:
+            state = "missing"
+        out.append({"document_type": kind, "label": labels.get(kind, kind), "status": state})
+    return out
+
+
+def required_documents_overview():
+    """Everything the school has set: the types it can ask for, what is asked of every class, and per class."""
+    from .models import AdmissionRequiredDocument
+
+    rows = list(AdmissionRequiredDocument.objects.select_related("level"))
+    return {
+        "types": [{"value": value, "label": label} for value, label in DOCUMENT_TYPE_CHOICES],
+        "all_classes": sorted(r.document_type for r in rows if r.level_id is None),
+        "by_level": [
+            {
+                "level": level.id,
+                "level_name": level.name,
+                "document_types": sorted(r.document_type for r in rows if r.level_id == level.id),
+            }
+            for level in AcademicLevel.objects.order_by("order", "name")
+        ],
+    }
+
+
+def set_required_documents(level_id, document_types, request=None):
+    """Replace the documents asked of one class (or of every class when ``level_id`` is empty)."""
+    from .models import AdmissionRequiredDocument
+
+    valid = {value for value, _ in DOCUMENT_TYPE_CHOICES}
+    if not isinstance(document_types, (list, tuple)) or any(t not in valid for t in document_types):
+        raise ValidationError({"document_types": ["Choose from the known document types."]})
+    level = None
+    if level_id:
+        level = AcademicLevel.objects.filter(pk=level_id).first()
+        if level is None:
+            raise ValidationError({"level": ["Choose a class."]})
+    wanted = set(document_types)
+    scope = AdmissionRequiredDocument.objects.filter(level=level) if level else AdmissionRequiredDocument.objects.filter(level__isnull=True)
+    scope.exclude(document_type__in=wanted).delete()
+    have = set(scope.values_list("document_type", flat=True))
+    for kind in wanted - have:
+        AdmissionRequiredDocument.objects.create(level=level, document_type=kind)
+    if request:
+        log_action(request, action="CHANGE", model_name="AdmissionRequiredDocument", object_id=str(level.id) if level else "all",
+                   changes={"level": level.name if level else "all classes", "document_types": sorted(wanted)})

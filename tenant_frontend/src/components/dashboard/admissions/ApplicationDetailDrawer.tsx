@@ -514,6 +514,23 @@ export default function ApplicationDetailDrawer({
 
                             {/* Tab 2: Documents */}
                             <TabsContent value="documents" className="space-y-4 pt-4">
+                                {(application.document_checklist?.length ?? 0) > 0 && (
+                                    <div className="rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
+                                        <span className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                                            Required for this class
+                                        </span>
+                                        <ul className="space-y-1 text-sm">
+                                            {application.document_checklist?.map((item) => (
+                                                <li key={item.document_type} className="flex items-center justify-between gap-2">
+                                                    <span>{item.label}</span>
+                                                    <Badge variant={item.status === "verified" ? "default" : item.status === "received" ? "secondary" : "destructive"}>
+                                                        {item.status === "verified" ? "Verified" : item.status === "received" ? "Received, to check" : item.status === "rejected" ? "Send again" : "Missing"}
+                                                    </Badge>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
                                 {canManageApps && (
                                     <form onSubmit={handleUploadDoc} className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 space-y-3">
                                         <span className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 block">

@@ -296,6 +296,12 @@ class AdmissionApplicationDetailSerializer(serializers.ModelSerializer):
     interviews = AdmissionInterviewSerializer(many=True, read_only=True)
     activities = AdmissionActivityLogSerializer(many=True, read_only=True)
     enquiry_number = serializers.CharField(source="enquiry.enquiry_number", read_only=True)
+    document_checklist = serializers.SerializerMethodField()
+
+    def get_document_checklist(self, obj):
+        from .admissions_services import document_checklist
+
+        return document_checklist(obj)
 
     class Meta:
         model = AdmissionApplication
@@ -349,6 +355,7 @@ class AdmissionApplicationDetailSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
             "documents",
+            "document_checklist",
             "interviews",
             "activities",
         ]

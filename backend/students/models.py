@@ -694,3 +694,24 @@ class AdmissionSeatLimit(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["academic_year", "level"], name="uniq_admission_seat_limit"),
         ]
+
+
+class AdmissionRequiredDocument(models.Model):
+    """A document the school asks every applicant to hand in. With no class it applies to every class; with a class,
+    only to applicants to that class."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    level = models.ForeignKey(
+        "academics.AcademicLevel", null=True, blank=True, on_delete=models.CASCADE, related_name="admission_required_documents"
+    )
+    document_type = models.CharField(max_length=50, choices=DOCUMENT_TYPE_CHOICES)
+
+    class Meta:
+        ordering = ["level__order", "level__name", "document_type"]
+        constraints = [
+            models.UniqueConstraint(fields=["level", "document_type"], name="uniq_required_doc_per_level"),
+            # a NULL level never clashes in a plain unique constraint, so "every class" is checked on its own
+            models.UniqueConstraint(
+                fields=["document_type"], condition=models.Q(level__isnull=True), name="uniq_required_doc_all_classes"
+            ),
+        ]
