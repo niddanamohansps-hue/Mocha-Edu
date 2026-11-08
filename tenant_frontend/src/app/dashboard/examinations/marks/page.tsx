@@ -570,11 +570,19 @@ export default function MarksEntryPage() {
             const response = await axiosInstance.get(
                 `/attendance/sections/${schedule?.section}/roster/?date=${schedule?.date}`
             );
-            return response.data.students as {
+            const students = response.data.students as {
                 student: string;
                 full_name: string;
                 enrollment_id: string;
             }[];
+            // A supplementary paper takes marks only for the students entitled to re-sit this subject.
+            if (!examinations?.find((e) => e.id === examinationId)?.supplementary_of) return students;
+            const entitled = await axiosInstance.get<{ rows: { student_id: string; subject_id: string }[] }>(
+                "/examinations/supplementary/",
+                { params: { examination: examinationId } },
+            );
+            const allowed = new Set(entitled.data.rows.filter((r) => r.subject_id === schedule?.subject).map((r) => r.student_id));
+            return students.filter((s) => allowed.has(s.student));
         },
         enabled: Boolean(schedule),
     });

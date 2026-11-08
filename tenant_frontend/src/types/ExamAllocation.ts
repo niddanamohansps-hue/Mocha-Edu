@@ -279,3 +279,23 @@ export interface HallSaveResult {
     conflicts: { student_id: string; name: string; problem: string }[];
     attendance: HallAttendance;
 }
+
+export interface SupplementaryRow {
+    student_id: string;
+    name: string;
+    enrollment_id: string;
+    class: string;
+    subject_id: string;
+    subject: string;
+    reason: "failed" | "absent";
+    original_percentage: string | null;
+    resit_percentage: number | null;
+    cleared: boolean | null;
+}
+
+export interface SupplementaryData {
+    examination: { id: string; name: string; is_published: boolean; start_date: string; end_date: string };
+    original: { id: string; name: string } | null;
+    summary: { candidates: number; students: number; cleared: number; not_cleared: number; waiting: number };
+    rows: SupplementaryRow[];
+}

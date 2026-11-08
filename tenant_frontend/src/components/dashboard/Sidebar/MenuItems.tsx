@@ -242,6 +242,9 @@ export const getMenuItems = (
     if (can("view_exam_reports")) {
         examinationChildren.push({ label: "Analytics", href: "/dashboard/examinations/analytics" });
     }
+    if (can("manage_examinations") || can("view_examinations")) {
+        examinationChildren.push({ label: "Supplementary", href: "/dashboard/examinations/supplementary" });
+    }
     if (can("manage_marks") || can("view_results") || user?.active_role === "student") {
         examinationChildren.push({ label: "Rechecks", href: "/dashboard/examinations/rechecks" });
     }
@@ -535,7 +538,7 @@ const CHILD_ORDER: Record<string, string[]> = {
         "Examinations", "Grading", "Term Weightage", "Co-scholastic",
         "Question Bank", "Questions to Review", "Question Papers",
         "Rooms & Invigilators", "Admit Cards", "Exam Duties", "Malpractice",
-        "Marks Progress", "Mark Sheets", "Marks Entry", "Moderation", "My Exams", "Results", "Rank List", "Analytics", "Rechecks",
+        "Marks Progress", "Mark Sheets", "Marks Entry", "Moderation", "My Exams", "Results", "Rank List", "Analytics", "Supplementary", "Rechecks",
     ],
     Fees: ["Student Fees / Collect Payment", "Outstanding Report", "My Fees", "Fee Structures", "Payment Gateways"],
     Payroll: ["Payroll runs", "Salaries", "My payslips", "Setup"],

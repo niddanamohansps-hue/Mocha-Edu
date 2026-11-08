@@ -19,6 +19,8 @@ export interface Examination {
     date_sheet_published_at: string | null;
     date_sheet_version: number;
     marks_due_date: string | null;
+    /** Set on a supplementary (re-sit) examination: the published examination it is for. */
+    supplementary_of: string | null;
     published_by_user_id: string | null;
 }
 

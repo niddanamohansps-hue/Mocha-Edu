@@ -17,6 +17,7 @@ import type {
     RankList,
     SittingPlan,
     SittingSummary,
+    SupplementaryData,
     WeakStudents,
 } from "@/types/ExamAllocation";
 
@@ -307,3 +308,20 @@ export const useSaveHallAttendance = () => {
         onError: (error: unknown) => toast.error(allocationError(error, "Could not save the attendance")),
     });
 };
+
+/** The supplementary examination started for a published examination, with who may re-sit what (null if none). */
+export const useSupplementaryFor = (original: string | undefined) =>
+    useQuery({
+        queryKey: [KEY, "supplementary", original],
+        enabled: !!original,
+        queryFn: async () =>
+            (await axiosInstance.get<{ supplementary: SupplementaryData | null }>(`${BASE}/supplementary/`, { params: { original } })).data.supplementary,
+    });
+
+export const useStartSupplementary = () =>
+    useAllocationMutation(
+        async (vars: { original: string; name: string; exam_type: string; start_date: string; end_date: string }) =>
+            (await axiosInstance.post<SupplementaryData>(`${BASE}/supplementary/`, vars)).data,
+        "Supplementary examination started",
+        "Could not start the supplementary examination",
+    );
