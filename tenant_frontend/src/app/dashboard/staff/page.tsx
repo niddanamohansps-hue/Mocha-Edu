@@ -22,7 +22,9 @@ import {
     Calendar,
     Shield,
     Eye,
+    Printer,
 } from "lucide-react";
+import { StaffIDCardModal } from "@/components/dashboard/staff/StaffIDCardModal";
 import { Input } from "@/components/ui/input";
 import {
     Table,
@@ -131,6 +133,7 @@ export default function StaffPage() {
     const totalCount = data?.count || 0;
     const { mutate: deleteStaff } = useDeleteStaff();
     const [staffToDelete, setStaffToDelete] = useState<string | null>(null);
+    const [idCardStaff, setIdCardStaff] = useState<any>(null);
 
     const handlePageChange = (nextPage: number) => {
         const params = new URLSearchParams(searchParams.toString());
@@ -453,6 +456,15 @@ export default function StaffPage() {
                                                         <span>View 360 Profile</span>
                                                     </DropdownMenuItem>
 
+                                                    {/* Print ID Card */}
+                                                    <DropdownMenuItem
+                                                        onClick={() => setIdCardStaff(member)}
+                                                        className="flex items-center gap-2 p-2 rounded-lg cursor-pointer text-xs focus:bg-indigo-50 focus:text-indigo-600 dark:focus:bg-indigo-950/40"
+                                                    >
+                                                        <Printer className="h-4 w-4 text-indigo-600" />
+                                                        <span>Print ID Card</span>
+                                                    </DropdownMenuItem>
+
                                                     {canEdit && (
                                                         <DropdownMenuItem
                                                             onClick={() => router.push(`/dashboard/staff/edit/${member.id}`)}
@@ -522,6 +534,13 @@ export default function StaffPage() {
                 contentClassName="rounded-2xl"
                 cancelClassName="rounded-lg h-9 text-xs"
                 confirmClassName="rounded-lg h-9 text-xs bg-rose-600 hover:bg-rose-500"
+            />
+
+            {/* Staff ID Card Modal */}
+            <StaffIDCardModal
+                isOpen={Boolean(idCardStaff)}
+                onClose={() => setIdCardStaff(null)}
+                staff={idCardStaff}
             />
         </div>
     );

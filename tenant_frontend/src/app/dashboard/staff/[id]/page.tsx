@@ -12,6 +12,7 @@ import { LoadingState } from "@/components/feedback/LoadingState";
 import { ErrorState } from "@/components/feedback/ErrorState";
 import { LeaveDetailModal } from "@/components/dashboard/staff/leaves/LeaveDetailModal";
 import { ApplyLeaveDialog } from "@/components/dashboard/staff/leaves/ApplyLeaveDialog";
+import { StaffIDCardModal } from "@/components/dashboard/staff/StaffIDCardModal";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -45,6 +46,7 @@ import {
     Plus,
     UserCheck,
     FileText,
+    Printer,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -118,6 +120,7 @@ export default function Staff360Page({ params }: Staff360PageProps) {
     const [copiedPhone, setCopiedPhone] = useState<string | null>(null);
     const [selectedLeaveId, setSelectedLeaveId] = useState<string | null>(null);
     const [isApplyLeaveOpen, setIsApplyLeaveOpen] = useState(false);
+    const [isIdCardOpen, setIsIdCardOpen] = useState(false);
 
     const { data: staff, isLoading, isError, refetch } = useStaffMember(id);
     const { data: leaveBalancesData } = useAllLeaveBalances({ staff: id });
@@ -162,6 +165,15 @@ export default function Staff360Page({ params }: Staff360PageProps) {
                 </Button>
 
                 <div className="flex items-center gap-2">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setIsIdCardOpen(true)}
+                        className="rounded-lg h-9 font-semibold text-xs gap-1.5 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-800"
+                    >
+                        <Printer className="h-3.5 w-3.5 text-indigo-600" />
+                        <span>Print ID Card</span>
+                    </Button>
                     {canManageLeaves && (
                         <Button
                             size="sm"
@@ -715,6 +727,13 @@ export default function Staff360Page({ params }: Staff360PageProps) {
             <ApplyLeaveDialog
                 open={isApplyLeaveOpen}
                 onOpenChange={setIsApplyLeaveOpen}
+            />
+
+            {/* Staff Identity Card Generator & Printer */}
+            <StaffIDCardModal
+                isOpen={isIdCardOpen}
+                onClose={() => setIsIdCardOpen(false)}
+                staff={staff}
             />
         </div>
     );
