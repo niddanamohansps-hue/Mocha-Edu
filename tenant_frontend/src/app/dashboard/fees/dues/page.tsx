@@ -58,19 +58,23 @@ function Content({ canCall }: { canCall: boolean }) {
 
             {data && (
                 <>
-                    <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="grid grid-cols-3 gap-2 sm:gap-3">
                         <Stat label="Students owing" value={String(data.totals.students)} />
                         <Stat label="Outstanding" value={money(data.totals.outstanding)} />
                         <Stat label="Of which overdue" value={money(data.totals.overdue)} />
                     </div>
-                    <div className="grid gap-2 sm:grid-cols-5">
+                    <div className="flex gap-2 overflow-x-auto pb-1 sm:grid sm:grid-cols-5 no-scrollbar">
                         {BANDS.map((b) => (
                             <button
                                 key={b.value} type="button" onClick={() => reset(setBand)(band === b.value ? "" : b.value)}
-                                className={`rounded-xl border p-3 text-left text-sm ${band === b.value ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-950/30" : "border-slate-200 dark:border-slate-800"}`}
+                                className={`shrink-0 min-w-[130px] sm:min-w-0 rounded-xl border p-2.5 sm:p-3 text-left transition-all cursor-pointer ${
+                                    band === b.value
+                                        ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-950/30 ring-2 ring-indigo-500/20"
+                                        : "border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                                }`}
                             >
-                                <span className="block text-xs text-slate-500">{b.label}</span>
-                                <span className="font-semibold">{money(data.totals.bands[b.value])}</span>
+                                <span className="block text-[11px] text-slate-500 truncate">{b.label}</span>
+                                <span className="font-semibold text-xs sm:text-sm">{money(data.totals.bands[b.value])}</span>
                             </button>
                         ))}
                     </div>
@@ -175,9 +179,9 @@ function Content({ canCall }: { canCall: boolean }) {
 
 function Stat({ label, value }: { label: string; value: string }) {
     return (
-        <div className="rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
-            <span className="block text-xs uppercase text-slate-500">{label}</span>
-            <span className="text-2xl font-bold">{value}</span>
+        <div className="rounded-xl sm:rounded-2xl border border-slate-200 p-2.5 sm:p-4 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xs">
+            <span className="block text-[10px] sm:text-xs uppercase font-medium text-slate-500 truncate">{label}</span>
+            <span className="text-sm sm:text-2xl font-bold text-slate-900 dark:text-white truncate block">{value}</span>
         </div>
     );
 }

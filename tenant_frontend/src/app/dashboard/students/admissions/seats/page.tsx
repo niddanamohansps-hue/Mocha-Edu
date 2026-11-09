@@ -74,12 +74,25 @@ function Content({ canEdit }: { canEdit: boolean }) {
                     <EmptyState title="Nothing to report yet" description="Enquiries and applications for this year will be counted here." />
                 ) : (
                     <>
-                        <p className="text-sm text-slate-600 dark:text-slate-300">
-                            {report.data.totals.enquiries} enquiries, {report.data.totals.applications} applications, {report.data.totals.enrolled} enrolled.
-                            {report.data.average_days_to_enrol !== null
-                                ? ` Families who started as an enquiry took ${report.data.average_days_to_enrol} days on average to enrol (${report.data.enrolled_with_enquiry} children).`
-                                : ""}
-                        </p>
+                        <div className="grid grid-cols-3 gap-2 sm:gap-4 p-3 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xs">
+                            <div>
+                                <span className="block text-[11px] sm:text-xs text-slate-500 uppercase font-medium">Enquiries</span>
+                                <span className="text-base sm:text-2xl font-bold text-slate-900 dark:text-white">{report.data.totals.enquiries}</span>
+                            </div>
+                            <div>
+                                <span className="block text-[11px] sm:text-xs text-slate-500 uppercase font-medium">Applications</span>
+                                <span className="text-base sm:text-2xl font-bold text-slate-900 dark:text-white">{report.data.totals.applications}</span>
+                            </div>
+                            <div>
+                                <span className="block text-[11px] sm:text-xs text-slate-500 uppercase font-medium">Enrolled</span>
+                                <span className="text-base sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400">{report.data.totals.enrolled}</span>
+                            </div>
+                        </div>
+                        {report.data.average_days_to_enrol !== null && (
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                                Families who started as an enquiry took {report.data.average_days_to_enrol} days on average to enrol ({report.data.enrolled_with_enquiry} children).
+                            </p>
+                        )}
                         <Table
                             title="Where enquiries come from"
                             heads={["Source", "Enquiries", "Applied", "Lost", "Enrolled"]}

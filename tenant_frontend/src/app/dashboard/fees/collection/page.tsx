@@ -43,7 +43,7 @@ function Content() {
                 <EmptyState title="No fees yet for this year" description="Fees assigned to students will be counted here." />
             ) : (
                 <>
-                    <div className="grid gap-3 sm:grid-cols-4">
+                    <div className="grid grid-cols-2 gap-2 sm:gap-3 sm:grid-cols-4">
                         <Stat label="Billed" value={money(data.totals.billed)} />
                         <Stat label="Collected" value={money(data.totals.collected)} />
                         <Stat label="Outstanding" value={money(data.totals.outstanding)} />
@@ -126,9 +126,9 @@ function Rate({ line }: { line: CollectionLine }) {
 
 function Stat({ label, value }: { label: string; value: string }) {
     return (
-        <div className="rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
-            <span className="block text-xs uppercase text-slate-500">{label}</span>
-            <span className="text-2xl font-bold">{value}</span>
+        <div className="rounded-xl sm:rounded-2xl border border-slate-200 p-2.5 sm:p-4 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xs">
+            <span className="block text-[10px] sm:text-xs uppercase font-medium text-slate-500 truncate">{label}</span>
+            <span className="text-sm sm:text-2xl font-bold text-slate-900 dark:text-white truncate block">{value}</span>
         </div>
     );
 }
