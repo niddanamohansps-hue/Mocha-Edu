@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import Unauthorized from "@/components/Unauthorized";
 import { LoadingState } from "@/components/feedback/LoadingState";
 import { EmptyState } from "@/components/feedback/EmptyState";
+import { PageHeader } from "@/components/common/PageLayout";
 import {
     useAdmissionsReport,
     useRequiredDocuments,
@@ -33,13 +34,12 @@ function Content({ canEdit }: { canEdit: boolean }) {
     if (!year) return <EmptyState title="Choose an academic year" description="Pick the year at the top of the page." />;
 
     return (
-        <div className="max-w-5xl mx-auto space-y-10">
-            <div className="space-y-2">
-                <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Seats and admissions report</h1>
-                <p className="text-slate-500 dark:text-slate-400">
-                    Academic year {year}. A class with no limit set can take any number. Approving past a limit asks for confirmation.
-                </p>
-            </div>
+        <div className="max-w-7xl mx-auto space-y-6">
+            <PageHeader
+                title="Seats and Admissions Report"
+                description={`Academic year ${year}. A class with no limit set can take any number. Approving past a limit asks for confirmation.`}
+                badge={<Badge variant="outline" className="text-xs font-semibold bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-300">{year}</Badge>}
+            />
 
             <section className="space-y-3">
                 <h2 className="text-lg font-semibold">Seats by class</h2>

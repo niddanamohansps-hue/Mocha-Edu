@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import Unauthorized from "@/components/Unauthorized";
 import { LoadingState } from "@/components/feedback/LoadingState";
 import { EmptyState } from "@/components/feedback/EmptyState";
+import { PageHeader } from "@/components/common/PageLayout";
 import { CallDialog, PromiseBadge } from "@/components/fees/CallDialog";
 import { useDues } from "@/hooks/useFees";
 import { useAcademicLevels } from "@/hooks/useAcademics";
@@ -48,13 +49,12 @@ function Content({ canCall }: { canCall: boolean }) {
     const pages = data ? Math.max(Math.ceil(data.count / 25), 1) : 1;
 
     return (
-        <div className="max-w-6xl mx-auto space-y-6">
-            <div className="space-y-2">
-                <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Fee dues</h1>
-                <p className="text-slate-500 dark:text-slate-400">
-                    Every student who owes fees, one row each, with how late their oldest fee is and a number to call.
-                </p>
-            </div>
+        <div className="max-w-7xl mx-auto space-y-6">
+            <PageHeader
+                title="Fee Dues"
+                description="Review all students with outstanding balances, oldest due dates, and record collection calls."
+                badge={selectedYear ? <Badge variant="outline" className="text-xs font-semibold bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-300">{selectedYear.name}</Badge> : undefined}
+            />
 
             {data && (
                 <>

@@ -4,6 +4,8 @@ import { useState } from "react";
 import Unauthorized from "@/components/Unauthorized";
 import { LoadingState } from "@/components/feedback/LoadingState";
 import { EmptyState } from "@/components/feedback/EmptyState";
+import { PageHeader } from "@/components/common/PageLayout";
+import { Badge } from "@/components/ui/badge";
 import { useCollection } from "@/hooks/useFees";
 import { useAcademicYear } from "@/providers/AcademicYearProvider";
 import { usePermissions } from "@/providers/PermissionProvider";
@@ -29,15 +31,12 @@ function Content() {
     if (!year) return <EmptyState title="Choose an academic year" description="Pick the year at the top of the page." />;
 
     return (
-        <div className="max-w-5xl mx-auto space-y-8">
-            <div className="space-y-2">
-                <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Fee collection</h1>
-                <p className="text-slate-500 dark:text-slate-400">
-                    Academic year {year}. <strong>Billed</strong> is what fell due in a month, after discounts. <strong>Collected</strong> is
-                    what has been paid against those fees so far. <strong>Received</strong> is the cash that came in during the month,
-                    whichever month it was for.
-                </p>
-            </div>
+        <div className="max-w-7xl mx-auto space-y-6">
+            <PageHeader
+                title="Fee Collection"
+                description={`Academic year ${year}. Billed is what fell due in a month, Collected is what has been paid against those fees, and Received is cash received during the month.`}
+                badge={year ? <Badge variant="outline" className="text-xs font-semibold bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-300">{year}</Badge> : undefined}
+            />
 
             {!data ? <LoadingState /> : data.by_month.length === 0 ? (
                 <EmptyState

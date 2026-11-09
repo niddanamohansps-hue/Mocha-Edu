@@ -5,15 +5,34 @@ import { cn } from "@/lib/utils";
  * The top of a page: what it is, a one-line "what is this for", and the main buttons.
  * On a phone the buttons go under the title and fill the width so they are easy to tap.
  */
-export function PageHeader({ title, description, actions }: { title: string; description?: string; actions?: ReactNode }) {
+export function PageHeader({
+    title,
+    description,
+    badge,
+    actions,
+}: {
+    title: string;
+    description?: string;
+    badge?: ReactNode;
+    actions?: ReactNode;
+}) {
     return (
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 pb-2 border-b border-slate-200/60 dark:border-slate-800/60">
             <div className="min-w-0">
-                <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">{title}</h1>
-                {description && <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-2xl">{description}</p>}
+                <div className="flex items-center gap-2.5 flex-wrap">
+                    <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+                        {title}
+                    </h1>
+                    {badge}
+                </div>
+                {description && (
+                    <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-2xl leading-relaxed">
+                        {description}
+                    </p>
+                )}
             </div>
             {actions && (
-                <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 [&>*]:w-full sm:[&>*]:w-auto">{actions}</div>
+                <div className="flex flex-wrap items-center gap-2 shrink-0">{actions}</div>
             )}
         </div>
     );
