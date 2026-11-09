@@ -10,6 +10,7 @@ from rest_framework.response import Response
 
 from core.audit import log_action
 from core.pagination import StandardResultsPagination
+from core.query_params import int_param, uuid_param
 from .models import AcademicYear, CalendarEvent, Program, AcademicLevel, Section, Subject, SubjectAssignment
 from .serializers import (
     AcademicYearSerializer,
@@ -117,15 +118,14 @@ class SubjectAssignmentViewSet(viewsets.ModelViewSet):
             "section__level__program", "subject__level", "instructor__staff_member__profile"
         )
 
-        instructor_id = self.request.query_params.get("instructor", None)
-        section_id = self.request.query_params.get("section", None)
+        # ?instructor= is the Instructor record's own id (the integer), not the staff member's UUID.
+        instructor_id = int_param(self.request, "instructor")
+        section_id = uuid_param(self.request, "section")
 
-        if instructor_id:
-            # Check if it's an Instructor ID or Staff ID.
-            # Note: The model has FK to Instructor.
+        if instructor_id is not None:
             queryset = queryset.filter(instructor__id=instructor_id)
 
-        if section_id:
+        if section_id is not None:
             queryset = queryset.filter(section__id=section_id)
 
         return queryset
@@ -399,7 +399,7 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=["get"], url_path="upcoming")
     def upcoming(self, request):
         today = timezone.now().date()
-        limit = int(request.query_params.get("limit", 10))
+        limit = int_param(request, "limit", default=10, minimum=1, maximum=200)
         qs = self.get_queryset().filter(end_date__gte=today)[:limit]
         serializer = self.get_serializer(qs, many=True)
         return Response(serializer.data)

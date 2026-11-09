@@ -126,7 +126,7 @@ export default function Staff360Page({ params }: Staff360PageProps) {
     const { data: leaveBalancesData } = useAllLeaveBalances({ staff: id });
     const { data: leaveApplicationsData } = useApproverInbox({ staff: id });
     const { data: attendance } = useStaffAttendanceHistory(id);
-    const { data: teachingAssignments = [] } = useInstructorAssignments(id);
+    const { data: teachingAssignments = [] } = useInstructorAssignments(staff?.instructor_data?.id);
 
     const copyToClipboard = (text: string, label: string) => {
         if (!text) return;

@@ -259,14 +259,17 @@ export const useDeleteSubject = () => {
 
 // === ASSIGNMENTS ===
 
-export const useInstructorAssignments = (instructorId: string) => {
+// `instructorId` is the Instructor record's own id (staff.instructor_data.id), not the staff member's UUID.
+// A staff member who is not a teacher has none, so nothing is requested for them.
+export const useInstructorAssignments = (instructorId: string | number | null | undefined) => {
+    const hasId = instructorId !== null && instructorId !== undefined && instructorId !== "";
     return useQuery({
         queryKey: ["assignments", "instructor", instructorId],
         queryFn: async () => {
             const response = await axiosInstance.get(`/academics/assignments/?instructor=${instructorId}`);
             return response.data as SubjectAssignment[];
         },
-        enabled: !!instructorId
+        enabled: hasId
     });
 };
 

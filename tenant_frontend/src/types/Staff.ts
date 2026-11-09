@@ -80,4 +80,6 @@ export interface StaffMember {
     qualification?: string;
     experience_years?: number;
     profile_details: ProfileDetails;
+    /** Present only for teaching staff; its id is what the assignments filter expects. */
+    instructor_data?: { id: number } | null;
 }

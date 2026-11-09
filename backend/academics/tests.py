@@ -106,6 +106,44 @@ class AcademicsApiTests(AcademicsFixtureMixin, TransactionTestCase):
         self.assertEqual(resp.status_code, 201, resp.data)
         self.assertEqual(resp.data["code"], "COM")
 
+    # --- Subject assignment filters -----------------------------------------
+
+    def test_assignment_filters_filter_correctly_and_a_malformed_value_is_a_400_not_a_500(self):
+        """The staff profile page once sent a staff UUID as ?instructor= and every visit was a 500."""
+        with tenant_context(self.school):
+            SubjectAssignment.objects.create(section=self.section_a, subject=self.subject, instructor=self.instructor)
+        client = self._client_as(self.owner, self.DOMAIN)
+        url = "/api/academics/assignments/"
+
+        def get(query):
+            return client.get(url + query, HTTP_HOST=self.DOMAIN)
+
+        def count(query):
+            resp = get(query)
+            self.assertEqual(resp.status_code, 200, query)
+            return len(resp.data if isinstance(resp.data, list) else resp.data["results"])
+
+        self.assertEqual(count(f"?instructor={self.instructor.id}"), 1)
+        self.assertEqual(count(f"?instructor={self.instructor.id + 999}"), 0)
+        self.assertEqual(count(f"?section={self.section_a.id}"), 1)
+        self.assertEqual(count(f"?section={self.section_b.id}"), 0)
+        self.assertEqual(count(""), 1)
+
+        # a malformed value is the caller's mistake: 400 naming the parameter, never a server error
+        bad_instructor = get(f"?instructor={self.instructor.staff_member_id}")   # a staff UUID is not an instructor id
+        self.assertEqual(bad_instructor.status_code, 400)
+        self.assertIn("instructor", bad_instructor.data)
+        bad_section = get("?section=abc")
+        self.assertEqual(bad_section.status_code, 400)
+        self.assertIn("section", bad_section.data)
+
+    def test_upcoming_events_limit_is_clamped_and_a_malformed_one_is_a_400(self):
+        client = self._client_as(self.owner, self.DOMAIN)
+        path = "/api/calendar-events/upcoming/"
+        self.assertEqual(client.get(path + "?limit=2", HTTP_HOST=self.DOMAIN).status_code, 200)
+        self.assertEqual(client.get(path + "?limit=0", HTTP_HOST=self.DOMAIN).status_code, 200)
+        self.assertEqual(client.get(path + "?limit=abc", HTTP_HOST=self.DOMAIN).status_code, 400)
+
     # --- Validation and uniqueness -----------------------------------------
 
     def test_duplicate_program_code_rejected(self):
