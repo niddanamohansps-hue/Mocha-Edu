@@ -293,7 +293,7 @@ export const getMenuItems = (
         accessChildren.push({ label: "Staff Portal", href: "/dashboard/portal-access/staff" });
     }
     if (can("change_family") || can("view_family")) {
-        accessChildren.push({ label: "Parent Portal", href: "/dashboard/portal-access/parents" });
+        accessChildren.push({ label: "Parent Accounts", href: "/dashboard/portal-access/parents" });
     }
 
     if (accessChildren.length > 0) {
@@ -564,6 +564,7 @@ const CHILD_ORDER: Record<string, string[]> = {
     "Course Content": ["Study Materials", "Manage Content", "Assignments", "Grade Submissions"],
     Attendance: ["Mark Attendance", "History", "Reports", "Staff Attendance", "Attendance Settings"],
     Timetable: ["Timetable", "My Schedule", "Substitutions"],
+    "Portal Access": ["Student Portal", "Staff Portal", "Parent Accounts"],
     Examinations: ["Setup & Rules", "Question Papers", "Exam Day Logistics", "Marks & Results"],
     "Setup & Rules": ["Examinations", "Grading", "Term Weightage", "Co-scholastic"],
     "Question Papers": ["Question Bank", "Questions to Review", "Question Papers"],
