@@ -40,7 +40,12 @@ function Content() {
             </div>
 
             {!data ? <LoadingState /> : data.by_month.length === 0 ? (
-                <EmptyState title="No fees yet for this year" description="Fees assigned to students will be counted here." />
+                <EmptyState
+                    title="No fee transactions recorded for this year"
+                    description="Fee billing and collection metrics will appear here as soon as student fees are assigned and payment receipts are generated."
+                    hint="Use Quick Action › Collect Fee to record your first tuition or bus payment."
+                    className="py-16"
+                />
             ) : (
                 <>
                     <div className="grid grid-cols-2 gap-2 sm:gap-3 sm:grid-cols-4">

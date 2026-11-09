@@ -472,9 +472,11 @@ export default function FeeStructuresPage() {
                     <ErrorState onRetry={refetchStructures} />
                 ) : !structures || structures.length === 0 ? (
                     <EmptyState
+                        icon={<Receipt className="h-6 w-6 stroke-[1.75]" />}
                         title={`No fee structures defined for ${academicYear} yet`}
                         description="Add your first fee slab using the form above to establish student billing rules."
-                        className="py-16 text-slate-500 text-sm"
+                        hint="Create recurring monthly fees or one-time annual charges using the slab form above."
+                        className="py-16"
                     />
                 ) : (
                     <TableShell>

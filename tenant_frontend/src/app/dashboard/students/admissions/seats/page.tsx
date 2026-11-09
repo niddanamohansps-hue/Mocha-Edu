@@ -43,7 +43,14 @@ function Content({ canEdit }: { canEdit: boolean }) {
 
             <section className="space-y-3">
                 <h2 className="text-lg font-semibold">Seats by class</h2>
-                {seats.isLoading ? <LoadingState /> : (
+                {seats.isLoading ? <LoadingState /> : (seats.data ?? []).length === 0 ? (
+                    <EmptyState
+                        title="No classes configured for this academic year"
+                        description="Academic levels and class sections need to be configured in Academics before assigning seat quotas."
+                        hint="Go to Academics › Academic Structure to add your grades and sections."
+                        className="py-12"
+                    />
+                ) : (
                     <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
                         <table className="w-full min-w-[34rem] text-sm">
                             <thead className="border-b border-slate-200 text-left text-xs uppercase text-slate-500 dark:border-slate-800">
@@ -152,17 +159,28 @@ function RequiredDocumentsSection() {
                 Choose what every applicant needs, then anything extra for a class. A class with nothing chosen only gets the
                 general reminder. Families are reminded of exactly what is still missing.
             </p>
-            <Picker
-                key={`all-${data.all_classes.join(",")}`} title="Every class" types={data.types} chosen={data.all_classes}
-                pending={save.isPending} onSave={(next) => save.mutate({ level: null, document_types: next })}
-            />
-            {data.by_level.map((row) => (
-                <Picker
-                    key={`${row.level}-${row.document_types.join(",")}`} title={row.level_name} hint="extra for this class" types={data.types}
-                    chosen={row.document_types} pending={save.isPending}
-                    onSave={(next) => save.mutate({ level: row.level, document_types: next })}
+            {data.types.length === 0 ? (
+                <EmptyState
+                    title="No admission document types defined yet"
+                    description="Configure required document types (such as Birth Certificate, Transfer Certificate, Report Card) to request them from applying families."
+                    hint="Choose what every applicant needs, then add any class-specific requirements."
+                    className="py-10"
                 />
-            ))}
+            ) : (
+                <>
+                    <Picker
+                        key={`all-${data.all_classes.join(",")}`} title="Every class" types={data.types} chosen={data.all_classes}
+                        pending={save.isPending} onSave={(next) => save.mutate({ level: null, document_types: next })}
+                    />
+                    {data.by_level.map((row) => (
+                        <Picker
+                            key={`${row.level}-${row.document_types.join(",")}`} title={row.level_name} hint="extra for this class" types={data.types}
+                            chosen={row.document_types} pending={save.isPending}
+                            onSave={(next) => save.mutate({ level: row.level, document_types: next })}
+                        />
+                    ))}
+                </>
+            )}
         </section>
     );
 }

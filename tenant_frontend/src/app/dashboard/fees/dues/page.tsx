@@ -105,7 +105,12 @@ function Content({ canCall }: { canCall: boolean }) {
             </div>
 
             {!data ? <LoadingState /> : data.results.length === 0 ? (
-                <EmptyState title="Nobody owes anything here" description="Change the filters, or all fees in this view are paid." />
+                <EmptyState
+                    title="No outstanding fee dues found"
+                    description="All students in this class or aging band are up to date with their fees, or no students match the active filter criteria."
+                    hint="Try adjusting the class dropdown, aging band, or academic year."
+                    className="py-16"
+                />
             ) : (
                 <>
                     <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
