@@ -467,7 +467,14 @@ export default function SystemHealthPage() {
                                         {[...api.endpoints]
                                             .sort((x, y) => Number(y.requests >= MIN_SAMPLE) - Number(x.requests >= MIN_SAMPLE))
                                             .map((r) => {
-                                                const ev = speedEvaluation(r.p95_ms, r.requests, r.p50_ms);
+                                                // An endpoint that fails often is not "Fast", however quickly it fails.
+                                                const failing = r.requests >= MIN_SAMPLE && r.server_errors / r.requests >= 0.05;
+                                                const ev = failing
+                                                    ? {
+                                                          label: "Erroring",
+                                                          badge: "bg-rose-50 text-rose-700 border-rose-300 dark:bg-rose-950/60 dark:text-rose-300",
+                                                      }
+                                                    : speedEvaluation(r.p95_ms, r.requests, r.p50_ms);
                                                 const methodBadge = METHOD_BADGES[r.method] ?? "bg-slate-100 text-slate-700";
                                                 return (
                                                     <TableRow key={`${r.method} ${r.endpoint}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
