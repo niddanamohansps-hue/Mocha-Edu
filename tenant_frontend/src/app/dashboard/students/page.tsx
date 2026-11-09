@@ -27,7 +27,9 @@ import {
     Clock,
     Shield,
     Eye,
+    Printer,
 } from "lucide-react";
+import { StudentIDCardModal } from "@/components/dashboard/students/StudentIDCardModal";
 import { Input } from "@/components/ui/input";
 import {
     Table,
@@ -140,6 +142,7 @@ export default function StudentsPage() {
     const students = data?.results;
     const { mutate: deleteStudent } = useDeleteStudent();
     const [studentToDelete, setStudentToDelete] = useState<string | null>(null);
+    const [idCardStudent, setIdCardStudent] = useState<any>(null);
     const [exportingUdise, setExportingUdise] = useState(false);
     const [exportingCbseLoc, setExportingCbseLoc] = useState(false);
 
@@ -632,6 +635,15 @@ export default function StudentsPage() {
                                                         <span>Collect Fees</span>
                                                     </DropdownMenuItem>
 
+                                                    {/* Print ID Card */}
+                                                    <DropdownMenuItem
+                                                        onClick={() => setIdCardStudent(student)}
+                                                        className="flex items-center gap-2 p-2 rounded-lg cursor-pointer text-xs focus:bg-indigo-50 focus:text-indigo-600 dark:focus:bg-indigo-950/40"
+                                                    >
+                                                        <Printer className="h-4 w-4 text-indigo-600" />
+                                                        <span>Print ID Card</span>
+                                                    </DropdownMenuItem>
+
                                                     {canEdit && (
                                                         <DropdownMenuItem
                                                             onClick={() => router.push(`/dashboard/students/edit/${student.id}`)}
@@ -691,6 +703,13 @@ export default function StudentsPage() {
                 contentClassName="rounded-2xl"
                 cancelClassName="rounded-lg h-9 text-xs"
                 confirmClassName="rounded-lg h-9 text-xs bg-rose-600 hover:bg-rose-500"
+            />
+
+            {/* Student ID Card Modal */}
+            <StudentIDCardModal
+                isOpen={Boolean(idCardStudent)}
+                onClose={() => setIdCardStudent(null)}
+                student={idCardStudent}
             />
         </div>
     );

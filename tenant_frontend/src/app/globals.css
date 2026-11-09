@@ -237,8 +237,58 @@ body {
     }
   }
 
-  /* Printing (receipts, report cards): never let the comfort rules above change a printout. */
+  /* Universal Document Printing Engine (Receipts, ID cards, Certificates, Report Cards) */
   @media print {
+    /* Hide layout chrome, navigation, overlays, and interactive triggers */
+    header,
+    aside,
+    nav,
+    footer,
+    [data-slot="dialog-overlay"],
+    [data-slot="dialog-close"],
+    [data-slot="alert-dialog-overlay"],
+    .print\:hidden,
+    .no-print {
+      display: none !important;
+    }
+
+    /* Reset background and sizing for document paper output */
+    html,
+    body {
+      background: #ffffff !important;
+      color: #0f172a !important;
+      width: 100% !important;
+      height: auto !important;
+      overflow: visible !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+
+    /* When printing from inside a modal, unpin fixed position and flow cleanly */
+    [data-slot="dialog-portal"] [data-slot="dialog-content"] {
+      position: static !important;
+      top: auto !important;
+      left: auto !important;
+      transform: none !important;
+      max-width: 100% !important;
+      max-height: none !important;
+      width: 100% !important;
+      box-shadow: none !important;
+      border: none !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      overflow: visible !important;
+    }
+
+    [data-slot="table-container"] {
+      overflow: visible !important;
+    }
+
+    .print-avoid-break {
+      break-inside: avoid !important;
+      page-break-inside: avoid !important;
+    }
+
     [data-slot="button"],
     [data-slot="input"],
     input,
@@ -246,6 +296,11 @@ body {
     textarea {
       min-height: 0;
       min-width: 0;
+    }
+
+    @page {
+      margin: 8mm;
+      size: auto;
     }
   }
 }

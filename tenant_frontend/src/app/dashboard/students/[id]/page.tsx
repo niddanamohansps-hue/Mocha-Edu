@@ -12,6 +12,7 @@ import { LoadingState } from "@/components/feedback/LoadingState";
 import { ErrorState } from "@/components/feedback/ErrorState";
 import { StudentParentsCard } from "@/components/dashboard/families/StudentParentsCard";
 import { ReceiptModal } from "@/components/dashboard/fees/ReceiptModal";
+import { StudentIDCardModal } from "@/components/dashboard/students/StudentIDCardModal";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -122,6 +123,7 @@ export default function Student360Page({ params }: Student360PageProps) {
 
     const [activeTab, setActiveTab] = useState("overview");
     const [receiptIdToPrint, setReceiptIdToPrint] = useState<string | null>(null);
+    const [isIdCardOpen, setIsIdCardOpen] = useState(false);
 
     const { data: student, isLoading, isError, refetch } = useStudent(id);
     const { data: attendance } = useStudentAttendanceHistory(id);
@@ -154,6 +156,15 @@ export default function Student360Page({ params }: Student360PageProps) {
                 </Button>
 
                 <div className="flex items-center gap-2">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setIsIdCardOpen(true)}
+                        className="rounded-lg h-9 font-semibold text-xs gap-1.5 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-800"
+                    >
+                        <Printer className="h-3.5 w-3.5 text-indigo-600" />
+                        <span>Print ID Card</span>
+                    </Button>
                     {canCollectFee && (
                         <Button
                             size="sm"
@@ -710,6 +721,13 @@ export default function Student360Page({ params }: Student360PageProps) {
                 isOpen={Boolean(receiptIdToPrint)}
                 onClose={() => setReceiptIdToPrint(null)}
                 paymentId={receiptIdToPrint}
+            />
+
+            {/* Student Identity Card Generator & Printer */}
+            <StudentIDCardModal
+                isOpen={isIdCardOpen}
+                onClose={() => setIsIdCardOpen(false)}
+                student={student}
             />
         </div>
     );
