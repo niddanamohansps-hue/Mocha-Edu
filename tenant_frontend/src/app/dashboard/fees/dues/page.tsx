@@ -112,7 +112,7 @@ function Content({ canCall }: { canCall: boolean }) {
                         <table className="w-full min-w-[48rem] text-sm">
                             <thead className="border-b border-slate-200 text-left text-xs uppercase text-slate-500 dark:border-slate-800">
                                 <tr>
-                                    <th className="whitespace-nowrap px-4 py-2">Student</th>
+                                    <th className="whitespace-nowrap px-4 py-2 sticky left-0 bg-white dark:bg-slate-900 z-10 border-r border-slate-100 dark:border-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]">Student</th>
                                     <th className="whitespace-nowrap px-4 py-2 text-right">Outstanding</th>
                                     <th className="whitespace-nowrap px-4 py-2">Oldest due</th>
                                     <th className="whitespace-nowrap px-4 py-2">Parent or guardian</th>
@@ -123,9 +123,9 @@ function Content({ canCall }: { canCall: boolean }) {
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                 {data.results.map((row) => (
                                     <tr key={row.student}>
-                                        <td className="px-4 py-2">
-                                            <span className="font-medium">{row.name}</span>
-                                            <span className="block text-xs text-slate-400">{row.enrollment_id}{row.level ? `, ${row.level}${row.section ? ` ${row.section}` : ""}` : ""}</span>
+                                        <td className="px-4 py-2.5 sm:py-2 sticky left-0 bg-white dark:bg-slate-900 z-10 border-r border-slate-100 dark:border-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]">
+                                            <span className="font-medium text-slate-900 dark:text-white block truncate max-w-[130px] sm:max-w-none">{row.name}</span>
+                                            <span className="block text-xs text-slate-400 truncate max-w-[130px] sm:max-w-none">{row.enrollment_id}{row.level ? `, ${row.level}${row.section ? ` ${row.section}` : ""}` : ""}</span>
                                         </td>
                                         <td className="px-4 py-2 text-right">
                                             <span className="font-semibold">{money(row.outstanding)}</span>

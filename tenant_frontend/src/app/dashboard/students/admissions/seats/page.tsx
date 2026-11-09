@@ -48,7 +48,7 @@ function Content({ canEdit }: { canEdit: boolean }) {
                         <table className="w-full min-w-[34rem] text-sm">
                             <thead className="border-b border-slate-200 text-left text-xs uppercase text-slate-500 dark:border-slate-800">
                                 <tr>
-                                    <th className="px-4 py-2">Class</th>
+                                    <th className="px-4 py-2 sticky left-0 bg-white dark:bg-slate-900 z-10 border-r border-slate-100 dark:border-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]">Class</th>
                                     <th className="px-4 py-2">Seats</th>
                                     <th className="px-4 py-2 text-right">Taken</th>
                                     <th className="px-4 py-2 text-right">Free</th>
@@ -172,7 +172,7 @@ function SeatLine({ row, year, canEdit }: { row: SeatRow; year: string; canEdit:
     const [value, setValue] = useState(row.seats === null ? "" : String(row.seats));
     return (
         <tr>
-            <td className="whitespace-nowrap px-4 py-2.5 sm:py-2 font-medium">{row.level_name}</td>
+            <td className="whitespace-nowrap px-4 py-2.5 sm:py-2 font-medium sticky left-0 bg-white dark:bg-slate-900 z-10 border-r border-slate-100 dark:border-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]">{row.level_name}</td>
             <td className="px-4 py-2.5 sm:py-2">
                 {canEdit ? (
                     <span className="flex items-center gap-2">
@@ -209,12 +209,28 @@ function Table({ title, heads, rows }: { title: string; heads: string[]; rows: (
             <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
                 <table className="w-full min-w-[34rem] text-sm">
                     <thead className="border-b border-slate-200 text-left text-xs uppercase text-slate-500 dark:border-slate-800">
-                        <tr>{heads.map((h, i) => <th key={h} className={`px-4 py-2 ${i > 0 ? "text-right" : ""}`}>{h}</th>)}</tr>
+                        <tr>
+                            {heads.map((h, i) => (
+                                <th
+                                    key={h}
+                                    className={`px-4 py-2 ${i === 0 ? "sticky left-0 bg-white dark:bg-slate-900 z-10 border-r border-slate-100 dark:border-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]" : ""} ${i > 0 ? "text-right" : ""}`}
+                                >
+                                    {h}
+                                </th>
+                            ))}
+                        </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                         {rows.map((r) => (
                             <tr key={String(r[0])}>
-                                {r.map((cell, i) => <td key={i} className={`px-4 py-2 ${i > 0 ? "text-right" : "font-medium"}`}>{cell}</td>)}
+                                {r.map((cell, i) => (
+                                    <td
+                                        key={i}
+                                        className={`px-4 py-2.5 sm:py-2 ${i === 0 ? "sticky left-0 bg-white dark:bg-slate-900 z-10 border-r border-slate-100 dark:border-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)] font-medium" : "text-right"}`}
+                                    >
+                                        {cell}
+                                    </td>
+                                ))}
                             </tr>
                         ))}
                     </tbody>

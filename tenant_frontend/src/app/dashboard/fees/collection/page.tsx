@@ -58,7 +58,7 @@ function Content() {
                             <table className="w-full min-w-[38rem] text-sm">
                                 <thead className="border-b border-slate-200 text-left text-xs uppercase text-slate-500 dark:border-slate-800">
                                     <tr>
-                                        <th className="px-4 py-2">Month</th>
+                                        <th className="px-4 py-2 sticky left-0 bg-white dark:bg-slate-900 z-10 border-r border-slate-100 dark:border-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]">Month</th>
                                         <th className="px-4 py-2 text-right">Billed</th>
                                         <th className="px-4 py-2 text-right">Collected</th>
                                         <th className="px-4 py-2 text-right">Outstanding</th>
@@ -73,7 +73,7 @@ function Content() {
                                             onClick={() => setMonth(month === m.month ? "" : m.month)}
                                             className={`cursor-pointer transition-colors active:bg-indigo-100 dark:active:bg-indigo-900/40 ${month === m.month ? "bg-indigo-50 dark:bg-indigo-950/30" : "hover:bg-slate-50 dark:hover:bg-slate-800/50"}`}
                                         >
-                                            <td className="px-4 py-2.5 sm:py-2 font-medium">{monthName(m.month)}</td>
+                                            <td className="px-4 py-2.5 sm:py-2 font-medium sticky left-0 bg-white dark:bg-slate-900 z-10 border-r border-slate-100 dark:border-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]">{monthName(m.month)}</td>
                                             <td className="px-4 py-2.5 sm:py-2 text-right">{money(m.billed)}</td>
                                             <td className="px-4 py-2.5 sm:py-2 text-right">{money(m.collected)}</td>
                                             <td className="px-4 py-2.5 sm:py-2 text-right">{money(m.outstanding)}</td>
@@ -92,7 +92,7 @@ function Content() {
                             <table className="w-full min-w-[38rem] text-sm">
                                 <thead className="border-b border-slate-200 text-left text-xs uppercase text-slate-500 dark:border-slate-800">
                                     <tr>
-                                        <th className="px-4 py-2">Class</th>
+                                        <th className="px-4 py-2 sticky left-0 bg-white dark:bg-slate-900 z-10 border-r border-slate-100 dark:border-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]">Class</th>
                                         <th className="px-4 py-2 text-right">Billed</th>
                                         <th className="px-4 py-2 text-right">Collected</th>
                                         <th className="px-4 py-2 text-right">Outstanding</th>
@@ -102,11 +102,11 @@ function Content() {
                                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                     {data.by_class.map((c) => (
                                         <tr key={c.level}>
-                                            <td className="px-4 py-2 font-medium">{c.level}</td>
-                                            <td className="px-4 py-2 text-right">{money(c.billed)}</td>
-                                            <td className="px-4 py-2 text-right">{money(c.collected)}</td>
-                                            <td className="px-4 py-2 text-right">{money(c.outstanding)}</td>
-                                            <td className="px-4 py-2 text-right"><Rate line={c} /></td>
+                                            <td className="px-4 py-2.5 sm:py-2 font-medium sticky left-0 bg-white dark:bg-slate-900 z-10 border-r border-slate-100 dark:border-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]">{c.level}</td>
+                                            <td className="px-4 py-2.5 sm:py-2 text-right">{money(c.billed)}</td>
+                                            <td className="px-4 py-2.5 sm:py-2 text-right">{money(c.collected)}</td>
+                                            <td className="px-4 py-2.5 sm:py-2 text-right">{money(c.outstanding)}</td>
+                                            <td className="px-4 py-2.5 sm:py-2 text-right"><Rate line={c} /></td>
                                         </tr>
                                     ))}
                                 </tbody>
