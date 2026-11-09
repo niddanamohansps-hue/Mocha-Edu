@@ -101,8 +101,8 @@ function AllocationContent({ canManage }: { canManage: boolean }) {
                                 </span>
                                 <span className="flex gap-2">
                                     <Badge variant="outline">{sitting.seated} seated</Badge>
-                                    <Badge variant="outline">{sitting.rooms_used} rooms</Badge>
-                                    <Badge variant="outline">{sitting.invigilators} invigilators</Badge>
+                                    <Badge variant="outline">{sitting.rooms_used} {sitting.rooms_used === 1 ? "room" : "rooms"}</Badge>
+                                    <Badge variant="outline">{sitting.invigilators} {sitting.invigilators === 1 ? "invigilator" : "invigilators"}</Badge>
                                 </span>
                             </div>
                             <p className="mt-1 text-sm text-slate-500">

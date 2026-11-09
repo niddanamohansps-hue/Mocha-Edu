@@ -1641,6 +1641,7 @@ class RoomReportTests(HallAttendanceTests):
         with tenant_context(self.school):
             first = overview(self.owner)
             self.assertEqual(first.status_code, 200)
+            self.assertEqual([r["room"] for r in first.data].count("Hall"), 1)  # one row per room, not one per seated student
             hall = next(r for r in first.data if r["room"] == "Hall")
             self.assertFalse(hall["submitted"])
             self._report("post", self.invigilator.login_user, self._ids(scripts_collected=6, incidents="Phone found"))

@@ -193,7 +193,8 @@ def room_reports_overview(examination):
 
     rows = []
     for sitting in ExamSitting.objects.filter(examination=examination):
-        for room_id in ExamSeat.objects.filter(sitting=sitting).values_list("room_id", flat=True).distinct():
+        # order_by() clears the model's default ordering, which would otherwise make distinct() return one row per seat
+        for room_id in ExamSeat.objects.filter(sitting=sitting).order_by().values_list("room_id", flat=True).distinct():
             seats = ExamSeat.objects.filter(sitting=sitting, room_id=room_id)
             seated = seats.count()
             absent = seats.filter(hall_status="absent").count()
