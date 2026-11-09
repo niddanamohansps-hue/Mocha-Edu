@@ -17,10 +17,12 @@ import {
     Shield,
     GraduationCap,
     Briefcase,
+    Printer,
 } from "lucide-react";
 import { useCertificates } from "@/hooks/useCertificates";
 import { usePermissions } from "@/providers/PermissionProvider";
 import {
+    Certificate,
     CERTIFICATE_TYPE_LABELS,
     CertificateFilters,
     CertificateStatus,
@@ -28,6 +30,7 @@ import {
 } from "@/types/Certificates";
 import { CertificateStatusBadge } from "@/components/dashboard/certificates/CertificateStatusBadge";
 import { CertificateSettingsCard } from "@/components/dashboard/certificates/CertificateSettingsCard";
+import { PrintableCertificateModal } from "@/components/dashboard/certificates/PrintableCertificateModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -106,6 +109,7 @@ export default function CertificatesPage() {
 
     const [searchInput, setSearchInput] = useState("");
     const [debouncedSearch, setDebouncedSearch] = useState("");
+    const [printCert, setPrintCert] = useState<Certificate | null>(null);
 
     // Debounce search query by 300ms
     useEffect(() => {
@@ -355,19 +359,30 @@ export default function CertificatesPage() {
                                                 <CertificateStatusBadge status={c.status} />
                                             </TableCell>
 
-                                            {/* View Link */}
+                                            {/* Actions */}
                                             <TableCell className="py-3 pr-4 text-right">
-                                                <Button
-                                                    asChild
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className="h-8 px-2.5 text-xs text-slate-600 hover:text-indigo-600"
-                                                >
-                                                    <Link href={`/dashboard/certificates/${c.id}`}>
-                                                        <Eye className="w-3.5 h-3.5 mr-1" />
-                                                        <span>View Details</span>
-                                                    </Link>
-                                                </Button>
+                                                <div className="flex items-center justify-end gap-1">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => setPrintCert(c)}
+                                                        className="h-8 px-2 text-xs text-slate-600 hover:text-indigo-600 rounded-lg"
+                                                        title="Print Certificate"
+                                                    >
+                                                        <Printer className="w-3.5 h-3.5" />
+                                                    </Button>
+                                                    <Button
+                                                        asChild
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="h-8 px-2 text-xs text-slate-600 hover:text-indigo-600 rounded-lg"
+                                                    >
+                                                        <Link href={`/dashboard/certificates/${c.id}`}>
+                                                            <Eye className="w-3.5 h-3.5 mr-1" />
+                                                            <span>Details</span>
+                                                        </Link>
+                                                    </Button>
+                                                </div>
                                             </TableCell>
                                         </TableRow>
                                     );
@@ -389,6 +404,13 @@ export default function CertificatesPage() {
                     )}
                 </div>
             )}
+
+            {/* Official Printable Certificate Modal */}
+            <PrintableCertificateModal
+                isOpen={Boolean(printCert)}
+                onClose={() => setPrintCert(null)}
+                certificate={printCert}
+            />
         </div>
     );
 }
