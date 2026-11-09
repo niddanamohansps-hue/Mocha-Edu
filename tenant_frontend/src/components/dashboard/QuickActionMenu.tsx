@@ -93,7 +93,7 @@ export function QuickActionMenu() {
             <DropdownMenuTrigger asChild>
                 <button
                     type="button"
-                    className="flex items-center gap-1.5 px-3 py-1.5 h-9 bg-gradient-to-r from-sky-600 to-teal-600 hover:from-sky-500 hover:to-teal-500 text-white rounded-lg shadow-sm hover:shadow-md transition-all text-xs font-semibold cursor-pointer active:scale-95"
+                    className="flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 h-9 bg-gradient-to-r from-sky-600 to-teal-600 hover:from-sky-500 hover:to-teal-500 text-white rounded-lg shadow-sm hover:shadow-md transition-all text-xs font-semibold cursor-pointer active:scale-95"
                     aria-label="Quick Actions"
                 >
                     <Plus className="h-4 w-4 stroke-[2.5]" />

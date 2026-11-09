@@ -74,11 +74,11 @@ export function AcademicYearSelector() {
             <DropdownMenuTrigger asChild>
                 <button
                     type="button"
-                    className="flex items-center gap-2 px-2.5 py-1.5 h-9 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 rounded-lg shadow-xs hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-all text-xs font-medium text-slate-700 dark:text-slate-200 focus:outline-hidden focus:ring-2 focus:ring-sky-500/20"
+                    className="flex items-center gap-1 sm:gap-2 px-2 sm:px-2.5 py-1.5 h-9 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 rounded-lg shadow-xs hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-all text-xs font-medium text-slate-700 dark:text-slate-200 focus:outline-hidden focus:ring-2 focus:ring-sky-500/20"
                     aria-label="Select Academic Year"
                 >
-                    <Calendar className="h-4 w-4 text-sky-600 dark:text-sky-400 shrink-0" />
-                    <span className="font-semibold">{selectedYear?.name || "Select Year"}</span>
+                    <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-sky-600 dark:text-sky-400 shrink-0" />
+                    <span className="font-semibold truncate max-w-[62px] sm:max-w-none">{selectedYear?.name || "Year"}</span>
                     {selectedYear?.is_current ? (
                         <span className="hidden sm:inline-flex items-center px-1.5 py-0.5 text-[10px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-500/20 rounded">
                             Current
@@ -88,7 +88,7 @@ export function AcademicYearSelector() {
                             Past
                         </span>
                     )}
-                    <ChevronDown className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                    <ChevronDown className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-slate-400 shrink-0 hidden xs:inline" />
                 </button>
             </DropdownMenuTrigger>
 

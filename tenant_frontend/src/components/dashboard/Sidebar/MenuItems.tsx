@@ -187,76 +187,93 @@ export const getMenuItems = (
         });
     }
 
-    // 6.7 Examinations, in the order a school works through an exam: set up, prepare papers, exam day,
-    // then marks and results.
-    const examinationChildren: SidebarItemType[] = [];
-    // Set up
+    // 6.7 Examinations, grouped into 4 distinct phases so coordinators and teachers
+    // don't have to scroll through a flat 22-item list:
+    // 1. Setup & Rules, 2. Question Papers, 3. Exam Day Logistics, 4. Marks & Results
+    const setupChildren: SidebarItemType[] = [];
     if (can("view_examinations") || can("manage_examinations")) {
-        examinationChildren.push({ label: "Examinations", href: "/dashboard/examinations" });
+        setupChildren.push({ label: "Examinations", href: "/dashboard/examinations" });
     }
     if (can("manage_grading")) {
-        examinationChildren.push({ label: "Grading", href: "/dashboard/examinations/grading" });
+        setupChildren.push({ label: "Grading", href: "/dashboard/examinations/grading" });
     }
     if (can("manage_examinations") || can("view_examinations")) {
-        examinationChildren.push({ label: "Term Weightage", href: "/dashboard/examinations/term-weightage" });
+        setupChildren.push({ label: "Term Weightage", href: "/dashboard/examinations/term-weightage" });
     }
     if (can("manage_examinations") || can("enter_marks")) {
-        examinationChildren.push({ label: "Co-scholastic", href: "/dashboard/examinations/co-scholastic" });
+        setupChildren.push({ label: "Co-scholastic", href: "/dashboard/examinations/co-scholastic" });
     }
-    // Prepare papers
+
+    const questionChildren: SidebarItemType[] = [];
     if (can("view_question_bank") || can("create_questions") || can("review_questions") || can("manage_question_bank")) {
-        examinationChildren.push({ label: "Question Bank", href: "/dashboard/question-bank" });
+        questionChildren.push({ label: "Question Bank", href: "/dashboard/question-bank" });
     }
     if (can("review_questions")) {
-        examinationChildren.push({ label: "Questions to Review", href: "/dashboard/question-bank/review" });
+        questionChildren.push({ label: "Questions to Review", href: "/dashboard/question-bank/review" });
     }
     if (can("prepare_papers") || can("approve_papers")) {
-        examinationChildren.push({ label: "Question Papers", href: "/dashboard/question-bank/papers" });
+        questionChildren.push({ label: "Question Papers", href: "/dashboard/question-bank/papers" });
     }
-    // Exam day
+
+    const logisticsChildren: SidebarItemType[] = [];
     if (can("manage_exam_allocation") || can("view_examinations")) {
-        examinationChildren.push({ label: "Rooms & Invigilators", href: "/dashboard/examinations/allocation" });
+        logisticsChildren.push({ label: "Rooms & Invigilators", href: "/dashboard/examinations/allocation" });
     }
     if (can("manage_examinations") || can("manage_exam_allocation")) {
-        examinationChildren.push({ label: "Admit Cards", href: "/dashboard/examinations/admit-cards" });
+        logisticsChildren.push({ label: "Admit Cards", href: "/dashboard/examinations/admit-cards" });
     }
     if (user?.active_role === "staff" || user?.active_role === "instructor" || can("manage_exam_allocation")) {
-        examinationChildren.push({ label: "Exam Duties", href: "/dashboard/examinations/duties" });
+        logisticsChildren.push({ label: "Exam Duties", href: "/dashboard/examinations/duties" });
     }
     if (can("manage_exam_allocation")) {
-        examinationChildren.push({ label: "Room Reports", href: "/dashboard/examinations/room-reports" });
+        logisticsChildren.push({ label: "Room Reports", href: "/dashboard/examinations/room-reports" });
     }
     if (can("report_exam_malpractice") || can("decide_exam_malpractice")) {
-        examinationChildren.push({ label: "Malpractice", href: "/dashboard/examinations/malpractice" });
+        logisticsChildren.push({ label: "Malpractice", href: "/dashboard/examinations/malpractice" });
     }
-    // Marks and results
-    if (can("manage_examinations") || can("view_examinations")) {
-        examinationChildren.push({ label: "Marks Progress", href: "/dashboard/examinations/marks-progress" });
-        examinationChildren.push({ label: "Mark Sheets", href: "/dashboard/examinations/mark-sheets" });
-    }
+
+    const resultsChildren: SidebarItemType[] = [];
     if (can("enter_marks")) {
-        examinationChildren.push({ label: "Marks Entry", href: "/dashboard/examinations/marks" });
+        resultsChildren.push({ label: "Marks Entry", href: "/dashboard/examinations/marks" });
+    }
+    if (can("manage_examinations") || can("view_examinations")) {
+        resultsChildren.push({ label: "Marks Progress", href: "/dashboard/examinations/marks-progress" });
+        resultsChildren.push({ label: "Mark Sheets", href: "/dashboard/examinations/mark-sheets" });
     }
     if (can("moderate_exam_marks")) {
-        examinationChildren.push({ label: "Moderation", href: "/dashboard/examinations/moderation" });
+        resultsChildren.push({ label: "Moderation", href: "/dashboard/examinations/moderation" });
     }
     if (user?.active_role === "student") {
-        examinationChildren.push({ label: "My Exams", href: "/dashboard/examinations/my-exams" });
+        resultsChildren.push({ label: "My Exams", href: "/dashboard/examinations/my-exams" });
     }
     if (can("view_results") || user?.active_role === "student") {
-        examinationChildren.push({ label: "Results", href: "/dashboard/examinations/results" });
+        resultsChildren.push({ label: "Results", href: "/dashboard/examinations/results" });
     }
     if (can("view_results")) {
-        examinationChildren.push({ label: "Rank List", href: "/dashboard/examinations/rank-list" });
+        resultsChildren.push({ label: "Rank List", href: "/dashboard/examinations/rank-list" });
     }
     if (can("view_exam_reports")) {
-        examinationChildren.push({ label: "Analytics", href: "/dashboard/examinations/analytics" });
+        resultsChildren.push({ label: "Analytics", href: "/dashboard/examinations/analytics" });
     }
     if (can("manage_examinations") || can("view_examinations")) {
-        examinationChildren.push({ label: "Supplementary", href: "/dashboard/examinations/supplementary" });
+        resultsChildren.push({ label: "Supplementary", href: "/dashboard/examinations/supplementary" });
     }
     if (can("manage_marks") || can("view_results") || user?.active_role === "student") {
-        examinationChildren.push({ label: "Rechecks", href: "/dashboard/examinations/rechecks" });
+        resultsChildren.push({ label: "Rechecks", href: "/dashboard/examinations/rechecks" });
+    }
+
+    const examinationChildren: SidebarItemType[] = [];
+    if (setupChildren.length > 0) {
+        examinationChildren.push({ label: "Setup & Rules", children: setupChildren });
+    }
+    if (questionChildren.length > 0) {
+        examinationChildren.push({ label: "Question Papers", children: questionChildren });
+    }
+    if (logisticsChildren.length > 0) {
+        examinationChildren.push({ label: "Exam Day Logistics", children: logisticsChildren });
+    }
+    if (resultsChildren.length > 0) {
+        examinationChildren.push({ label: "Marks & Results", children: resultsChildren });
     }
 
     if (examinationChildren.length > 0) {
@@ -547,11 +564,13 @@ const CHILD_ORDER: Record<string, string[]> = {
     "Course Content": ["Study Materials", "Manage Content", "Assignments", "Grade Submissions"],
     Attendance: ["Mark Attendance", "History", "Reports", "Staff Attendance", "Attendance Settings"],
     Timetable: ["Timetable", "My Schedule", "Substitutions"],
-    Examinations: [
-        "Examinations", "Grading", "Term Weightage", "Co-scholastic",
-        "Question Bank", "Questions to Review", "Question Papers",
-        "Rooms & Invigilators", "Admit Cards", "Exam Duties", "Room Reports", "Malpractice",
-        "Marks Progress", "Mark Sheets", "Marks Entry", "Moderation", "My Exams", "Results", "Rank List", "Analytics", "Supplementary", "Rechecks",
+    Examinations: ["Setup & Rules", "Question Papers", "Exam Day Logistics", "Marks & Results"],
+    "Setup & Rules": ["Examinations", "Grading", "Term Weightage", "Co-scholastic"],
+    "Question Papers": ["Question Bank", "Questions to Review", "Question Papers"],
+    "Exam Day Logistics": ["Rooms & Invigilators", "Admit Cards", "Exam Duties", "Room Reports", "Malpractice"],
+    "Marks & Results": [
+        "Marks Entry", "Marks Progress", "Mark Sheets", "Moderation",
+        "My Exams", "Results", "Rank List", "Analytics", "Supplementary", "Rechecks",
     ],
     Fees: ["Student Fees / Collect Payment", "Fee Collection", "Fee Follow-ups", "Fee Dues", "Outstanding Report", "My Fees", "Fee Structures", "Payment Gateways"],
     Payroll: ["Payroll runs", "Salaries", "My payslips", "Setup"],
@@ -565,15 +584,20 @@ const CHILD_ORDER: Record<string, string[]> = {
 
 function orderChildren(item: SidebarItemType): SidebarItemType {
     const order = CHILD_ORDER[item.label];
-    if (!order || !item.children) return item;
-    const rank = (label: string) => {
-        const index = order.indexOf(label);
-        return index === -1 ? order.length : index;
-    };
-    const children = item.children
-        .map((child, index) => ({ child, index }))
-        .sort((x, y) => rank(x.child.label) - rank(y.child.label) || x.index - y.index)
-        .map(({ child }) => child);
+    let children = item.children;
+    if (order && children) {
+        const rank = (label: string) => {
+            const index = order.indexOf(label);
+            return index === -1 ? order.length : index;
+        };
+        children = children
+            .map((child, index) => ({ child, index }))
+            .sort((x, y) => rank(x.child.label) - rank(y.child.label) || x.index - y.index)
+            .map(({ child }) => child);
+    }
+    if (children) {
+        children = children.map(orderChildren);
+    }
     return { ...item, children };
 }
 
