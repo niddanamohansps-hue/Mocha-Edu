@@ -45,7 +45,7 @@ function Content({ canEdit }: { canEdit: boolean }) {
                 <h2 className="text-lg font-semibold">Seats by class</h2>
                 {seats.isLoading ? <LoadingState /> : (
                     <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-                        <table className="w-full text-sm">
+                        <table className="w-full min-w-[34rem] text-sm">
                             <thead className="border-b border-slate-200 text-left text-xs uppercase text-slate-500 dark:border-slate-800">
                                 <tr>
                                     <th className="px-4 py-2">Class</th>
@@ -157,7 +157,7 @@ function SeatLine({ row, year, canEdit }: { row: SeatRow; year: string; canEdit:
     const [value, setValue] = useState(row.seats === null ? "" : String(row.seats));
     return (
         <tr>
-            <td className="px-4 py-2 font-medium">{row.level_name}</td>
+            <td className="whitespace-nowrap px-4 py-2 font-medium">{row.level_name}</td>
             <td className="px-4 py-2">
                 {canEdit ? (
                     <span className="flex items-center gap-2">
@@ -191,7 +191,7 @@ function Table({ title, heads, rows }: { title: string; heads: string[]; rows: (
         <div className="space-y-2">
             <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">{title}</h3>
             <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-                <table className="w-full text-sm">
+                <table className="w-full min-w-[34rem] text-sm">
                     <thead className="border-b border-slate-200 text-left text-xs uppercase text-slate-500 dark:border-slate-800">
                         <tr>{heads.map((h, i) => <th key={h} className={`px-4 py-2 ${i > 0 ? "text-right" : ""}`}>{h}</th>)}</tr>
                     </thead>

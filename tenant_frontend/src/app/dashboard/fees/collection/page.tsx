@@ -55,7 +55,7 @@ function Content() {
                         <h2 className="text-lg font-semibold">By month</h2>
                         <p className="text-xs text-slate-500">Select a month to see it by class.</p>
                         <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-                            <table className="w-full text-sm">
+                            <table className="w-full min-w-[38rem] text-sm">
                                 <thead className="border-b border-slate-200 text-left text-xs uppercase text-slate-500 dark:border-slate-800">
                                     <tr>
                                         <th className="px-4 py-2">Month</th>
@@ -89,7 +89,7 @@ function Content() {
                     <section className="space-y-2">
                         <h2 className="text-lg font-semibold">By class {month ? `for ${monthName(month)}` : "for the whole year"}</h2>
                         <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-                            <table className="w-full text-sm">
+                            <table className="w-full min-w-[38rem] text-sm">
                                 <thead className="border-b border-slate-200 text-left text-xs uppercase text-slate-500 dark:border-slate-800">
                                     <tr>
                                         <th className="px-4 py-2">Class</th>
