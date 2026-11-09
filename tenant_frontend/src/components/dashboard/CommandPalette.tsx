@@ -172,8 +172,8 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
         const timer = setTimeout(async () => {
             try {
                 const [stuRes, staffRes] = await Promise.allSettled([
-                    axiosInstance.get(`/students/?search=${encodeURIComponent(query)}&page_size=4`),
-                    axiosInstance.get(`/staff/members/?search=${encodeURIComponent(query)}&page_size=4`),
+                    axiosInstance.get(`/students/list/?search=${encodeURIComponent(query)}&page_size=5`),
+                    axiosInstance.get(`/staff/members/?search=${encodeURIComponent(query)}&page_size=5`),
                 ]);
 
                 if (stuRes.status === "fulfilled") {
@@ -181,11 +181,11 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
                     setLiveStudents(
                         list.map((s: any) => ({
                             id: `stu-${s.id}`,
-                            title: `${s.profile?.first_name || ""} ${s.profile?.last_name || ""}`.trim() || s.enrollment_id,
+                            title: s.full_name || `${s.first_name || ""} ${s.last_name || ""}`.trim() || s.enrollment_id,
                             category: "students" as const,
-                            href: `/dashboard/students`,
-                            description: `Roll: ${s.enrollment_id} • Status: ${s.status}`,
-                            icon: User,
+                            href: `/dashboard/students/${s.id}`,
+                            description: `ID: ${s.enrollment_id} • ${s.level || "Grade Not Set"}${s.section ? ` (${s.section})` : ""}`,
+                            icon: GraduationCap,
                         }))
                     );
                 }
@@ -197,8 +197,8 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
                             id: `staff-${m.id}`,
                             title: `${m.profile_details?.first_name || ""} ${m.profile_details?.last_name || ""}`.trim() || m.employee_id,
                             category: "staff" as const,
-                            href: `/dashboard/staff`,
-                            description: `${m.designation} • ${m.department || "Faculty"}`,
+                            href: `/dashboard/staff/${m.id}`,
+                            description: `${m.designation || "Staff"} • ${m.department || "General"} (EMP: ${m.employee_id})`,
                             icon: Briefcase,
                         }))
                     );
