@@ -20,7 +20,9 @@ import {
     Sparkles,
     AlertCircle,
     Building2,
+    Printer,
 } from "lucide-react";
+import { ReceiptModal } from "@/components/dashboard/fees/ReceiptModal";
 import {
     useAssignStudentFee,
     useCancelStudentFee,
@@ -167,6 +169,7 @@ function CollectPaymentContent() {
     const [referenceNote, setReferenceNote] = useState("");
     const [cancelReason, setCancelReason] = useState<Record<string, string>>({});
     const [isAssignOpen, setIsAssignOpen] = useState(false);
+    const [receiptToPrint, setReceiptToPrint] = useState<string | null>(null);
 
     const activeFees = useMemo(
         () => feesData?.fees.filter((f) => f.status === "active") ?? [],
@@ -270,9 +273,12 @@ function CollectPaymentContent() {
                 allocations,
             },
             {
-                onSuccess: () => {
+                onSuccess: (data: any) => {
                     setSelectedAllocations({});
                     setReferenceNote("");
+                    if (data?.id) {
+                        setReceiptToPrint(data.id);
+                    }
                 },
             }
         );
@@ -899,8 +905,11 @@ function CollectPaymentContent() {
                                         <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                                             Reference Note
                                         </TableHead>
-                                        <TableHead className="text-right pr-5 text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                                        <TableHead className="text-right text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                                             Status
+                                        </TableHead>
+                                        <TableHead className="text-right pr-5 text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                                            Action
                                         </TableHead>
                                     </TableRow>
                                 </TableHeader>
@@ -933,7 +942,7 @@ function CollectPaymentContent() {
                                                     {p.reference_note || "—"}
                                                 </TableCell>
 
-                                                <TableCell className="text-right pr-5 py-3">
+                                                <TableCell className="text-right py-3">
                                                     <Badge
                                                         className={`text-[10px] font-semibold ${
                                                             p.status === "completed"
@@ -944,11 +953,23 @@ function CollectPaymentContent() {
                                                         {p.status === "completed" ? "Verified" : "Reversed"}
                                                     </Badge>
                                                 </TableCell>
+
+                                                <TableCell className="text-right pr-5 py-3">
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => setReceiptToPrint(p.id)}
+                                                        className="h-7 text-xs font-semibold px-2 rounded-lg gap-1 border-slate-200 dark:border-slate-800 hover:text-indigo-600 hover:border-indigo-300"
+                                                    >
+                                                        <Printer className="h-3 w-3" />
+                                                        <span>Receipt</span>
+                                                    </Button>
+                                                </TableCell>
                                             </TableRow>
                                         ))
                                     ) : (
                                         <TableRow>
-                                            <TableCell colSpan={6} className="h-28 text-center text-xs text-slate-500">
+                                            <TableCell colSpan={7} className="h-28 text-center text-xs text-slate-500">
                                                 No payment receipts have been recorded for this student yet.
                                             </TableCell>
                                         </TableRow>
@@ -959,6 +980,13 @@ function CollectPaymentContent() {
                     </div>
                 </div>
             )}
+
+            {/* Official Fee Receipt Modal */}
+            <ReceiptModal
+                isOpen={Boolean(receiptToPrint)}
+                onClose={() => setReceiptToPrint(null)}
+                paymentId={receiptToPrint}
+            />
         </div>
     );
 }
