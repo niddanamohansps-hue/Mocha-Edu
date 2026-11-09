@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
+import { apiBaseUrl } from "./apiBase"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -9,9 +10,9 @@ export function getMediaUrl(path: string | null | undefined) {
   if (!path) return null;
   if (path.startsWith("http") || path.startsWith("blob:")) return path;
 
-  // Get base URL without /api if configured that way, or just use the domain
-  // Assuming NEXT_PUBLIC_API_URL is like http://tenant.localhost:8000/api
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || '';
+  // Files must come from the school's own host: the backend finds the school from the host name, and a plain
+  // "localhost" is the platform site, which has no media route (the browser then blocks the reply as "not an image").
+  const baseUrl = apiBaseUrl().replace(/\/api$/, '');
 
   // Ensure path starts with /
   const cleanPath = path.startsWith('/') ? path : `/${path}`;
