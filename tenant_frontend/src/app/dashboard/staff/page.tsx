@@ -21,6 +21,7 @@ import {
     Building,
     Calendar,
     Shield,
+    Eye,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -352,7 +353,10 @@ export default function StaffPage() {
                                                     {initials}
                                                 </div>
                                                 <div className="min-w-0">
-                                                    <span className="font-semibold text-xs text-slate-900 dark:text-slate-100 block truncate">
+                                                    <span
+                                                        onClick={() => router.push(`/dashboard/staff/${member.id}`)}
+                                                        className="font-semibold text-xs text-slate-900 dark:text-slate-100 hover:text-sky-600 dark:hover:text-sky-400 cursor-pointer transition block truncate"
+                                                    >
                                                         {fullName}
                                                     </span>
                                                     <div className="flex items-center gap-2 mt-0.5">
@@ -440,6 +444,15 @@ export default function StaffPage() {
                                                     </Button>
                                                 </DropdownMenuTrigger>
                                                 <DropdownMenuContent align="end" className="w-48 p-1.5 rounded-xl border-slate-200 dark:border-slate-800 shadow-md">
+                                                    {/* View 360 Profile */}
+                                                    <DropdownMenuItem
+                                                        onClick={() => router.push(`/dashboard/staff/${member.id}`)}
+                                                        className="flex items-center gap-2 p-2 rounded-lg cursor-pointer text-xs focus:bg-sky-50 focus:text-sky-600 dark:focus:bg-sky-950/40"
+                                                    >
+                                                        <Eye className="h-4 w-4 text-sky-600" />
+                                                        <span>View 360 Profile</span>
+                                                    </DropdownMenuItem>
+
                                                     {canEdit && (
                                                         <DropdownMenuItem
                                                             onClick={() => router.push(`/dashboard/staff/edit/${member.id}`)}
