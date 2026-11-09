@@ -60,7 +60,7 @@ function Sheet({ sitting, room, data }: { sitting: string; room: string; data: i
                 <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setChoices(Object.fromEntries(data.rows.filter((r) => !statusOf(r)).map((r) => [r.student_id, "present" as const])))}
+                    onClick={() => setChoices((current) => ({ ...current, ...Object.fromEntries(data.rows.filter((r) => !statusOf(r)).map((r) => [r.student_id, "present" as const])) }))}
                 >
                     Mark everyone not yet marked as present
                 </Button>

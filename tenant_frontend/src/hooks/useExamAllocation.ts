@@ -305,7 +305,7 @@ export const useSaveHallAttendance = () => {
         onSuccess: (result) => {
             queryClient.invalidateQueries({ queryKey: [KEY] });
             queryClient.invalidateQueries({ queryKey: ["examinations"] });
-            toast.success(`Attendance saved: ${result.saved} students, ${result.absent} absent`);
+            toast.success(`Attendance saved: ${result.saved} ${result.saved === 1 ? "student" : "students"}, ${result.absent} absent`);
         },
         onError: (error: unknown) => toast.error(allocationError(error, "Could not save the attendance")),
     });
