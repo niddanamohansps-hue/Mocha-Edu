@@ -3,13 +3,14 @@
 import React, { useState } from "react";
 import {
     Dialog,
+    DialogBody,
     DialogContent,
     DialogHeader,
     DialogTitle,
+    DialogDescription,
     DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import {
     Select,
     SelectContent,
@@ -17,6 +18,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { FormFieldWrapper } from "@/components/ui/form-layout";
 import { useSections } from "@/hooks/useAcademics";
 import { useEnrollApplication } from "@/hooks/useAdmissions";
 import { AdmissionApplication } from "@/types/Admissions";
@@ -72,78 +74,83 @@ export default function EnrollDialog({
 
     return (
         <Dialog open={open} onOpenChange={handleClose}>
-            <DialogContent className="max-w-md rounded-3xl">
-                <DialogHeader>
-                    <DialogTitle className="text-xl font-bold flex items-center gap-2">
-                        <GraduationCap className="w-5 h-5 text-teal-600" />
+            <DialogContent className="max-w-md max-h-[90vh] p-0 flex flex-col overflow-hidden rounded-2xl">
+                <DialogHeader className="px-6 py-4.5 border-b border-slate-100 dark:border-slate-800 shrink-0">
+                    <DialogTitle className="text-lg font-bold flex items-center gap-2 text-slate-900 dark:text-white">
+                        <GraduationCap className="w-5 h-5 text-sky-600" />
                         Enroll Student
                     </DialogTitle>
+                    <DialogDescription className="text-xs text-slate-500">
+                        Generate official student enrollment record and allocate section.
+                    </DialogDescription>
                 </DialogHeader>
 
                 {enrolledResult ? (
-                    <div className="py-6 text-center space-y-4">
-                        <div className="w-16 h-16 bg-emerald-100 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400 rounded-full flex items-center justify-center mx-auto shadow-inner">
-                            <CheckCircle2 className="w-8 h-8" />
+                    <div className="p-6 text-center space-y-4">
+                        <div className="w-14 h-14 bg-emerald-100 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400 rounded-full flex items-center justify-center mx-auto shadow-inner">
+                            <CheckCircle2 className="w-7 h-7" />
                         </div>
                         <div>
-                            <h3 className="text-lg font-bold text-slate-800 dark:text-white">
+                            <h3 className="text-base font-bold text-slate-900 dark:text-white">
                                 Student Enrolled Successfully!
                             </h3>
-                            <p className="text-sm text-slate-500 mt-1">
+                            <p className="text-xs text-slate-500 mt-1">
                                 An active student profile and academic record have been created.
                             </p>
                         </div>
-                        <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200/80 dark:border-slate-800 inline-block font-mono text-xl font-bold text-teal-600 dark:text-teal-400 tracking-wider">
+                        <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200/80 dark:border-slate-800 inline-block font-mono text-lg font-bold text-sky-600 dark:text-sky-400 tracking-wider">
                             {enrolledResult.enrollment_id}
                         </div>
-                        <div>
+                        <div className="pt-2">
                             <Button
                                 onClick={handleClose}
-                                className="bg-teal-600 hover:bg-teal-700 text-white rounded-xl px-6"
+                                className="w-full bg-sky-600 hover:bg-sky-700 text-white"
                             >
                                 Done
                             </Button>
                         </div>
                     </div>
                 ) : (
-                    <div className="space-y-4 pt-2">
-                        <div className="p-4 rounded-2xl bg-teal-50 dark:bg-teal-950/40 border border-teal-100 dark:border-teal-900 text-sm space-y-1">
-                            <div className="font-bold text-teal-900 dark:text-teal-200">
-                                {application.first_name} {application.last_name}
+                    <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                        <DialogBody className="flex-1 overflow-y-auto px-6 py-5 [scrollbar-width:thin] space-y-4">
+                            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/70 dark:border-slate-800 text-sm">
+                                <div className="font-bold text-slate-900 dark:text-white">
+                                    {application.first_name} {application.last_name}
+                                </div>
+                                <div className="text-xs text-slate-500 mt-1 flex flex-wrap items-center gap-2">
+                                    <span>Target Grade: <strong className="text-slate-700 dark:text-slate-300">{application.level_name || application.level}</strong></span>
+                                    <span>•</span>
+                                    <span>Session: <strong className="text-slate-700 dark:text-slate-300">{application.academic_year}</strong></span>
+                                </div>
                             </div>
-                            <div className="text-xs text-teal-700 dark:text-teal-300">
-                                Application: {application.application_number}
-                            </div>
-                            <div className="text-xs text-teal-700 dark:text-teal-300">
-                                Grade: {application.level_name || application.level} · Year: {application.academic_year}
-                            </div>
-                        </div>
 
-                        <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 border border-amber-200/60 dark:border-amber-900/40 text-xs">
-                            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
-                            <span>
-                                This action is permanent and transactionally converts the applicant into an official active student in the school registry.
-                            </span>
-                        </div>
-
-                        <div className="space-y-1.5">
-                            <Label htmlFor="sectionSelect">Assign Section / Classroom (Optional)</Label>
-                            <Select value={sectionId} onValueChange={setSectionId}>
-                                <SelectTrigger id="sectionSelect">
-                                    <SelectValue placeholder="Select section (or unassigned)" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="none">No Section Assigned Yet</SelectItem>
-                                    {availableSections.map((s) => (
-                                        <SelectItem key={s.id} value={s.id}>
-                                            Section {s.name} (Capacity: {s.capacity || 40})
+                            <FormFieldWrapper label="Allocate Section / Division" htmlFor="sectionSelect" colSpan="full">
+                                <Select value={sectionId} onValueChange={setSectionId}>
+                                    <SelectTrigger id="sectionSelect">
+                                        <SelectValue placeholder="Select section (optional)" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="none">
+                                            <em>Unallocated (Assign Section Later)</em>
                                         </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
+                                        {availableSections.map((sec) => (
+                                            <SelectItem key={sec.id} value={sec.id}>
+                                                Section {sec.name} {sec.capacity ? `(Capacity: ${sec.capacity})` : ""}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </FormFieldWrapper>
 
-                        <DialogFooter className="gap-2 sm:gap-0 pt-4 border-t">
+                            {availableSections.length === 0 && (
+                                <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-xl flex items-start gap-2.5 text-xs text-amber-800 dark:text-amber-200">
+                                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+                                    <span>No active sections found for this grade level. The student can be enrolled unallocated and assigned later from the directory.</span>
+                                </div>
+                            )}
+                        </DialogBody>
+
+                        <DialogFooter className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-end gap-3 shrink-0">
                             <Button
                                 type="button"
                                 variant="outline"
@@ -153,10 +160,9 @@ export default function EnrollDialog({
                                 Cancel
                             </Button>
                             <Button
-                                type="button"
                                 onClick={handleEnroll}
                                 disabled={enrollMutation.isPending}
-                                className="bg-teal-600 hover:bg-teal-700 text-white font-semibold"
+                                className="bg-sky-600 hover:bg-sky-700 text-white min-w-[120px]"
                             >
                                 {enrollMutation.isPending && (
                                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -170,4 +176,3 @@ export default function EnrollDialog({
         </Dialog>
     );
 }
-

@@ -3,14 +3,15 @@
 import React, { useState, useEffect } from "react";
 import {
     Dialog,
+    DialogBody,
     DialogContent,
     DialogHeader,
     DialogTitle,
+    DialogDescription,
     DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
     Select,
@@ -19,6 +20,12 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import {
+    FormSection,
+    FormGrid,
+    FormGrid3,
+    FormFieldWrapper,
+} from "@/components/ui/form-layout";
 import { useAcademicLevels, useAcademicYears } from "@/hooks/useAcademics";
 import { useAcademicYear } from "@/providers/AcademicYearProvider";
 import { useCreateEnquiry, useUpdateEnquiry } from "@/hooks/useAdmissions";
@@ -136,230 +143,213 @@ export default function EnquiryDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl">
-                <DialogHeader>
-                    <DialogTitle className="text-xl font-bold">
+            <DialogContent className="max-w-2xl max-h-[90vh] p-0 flex flex-col overflow-hidden rounded-2xl">
+                <DialogHeader className="px-6 py-4.5 border-b border-slate-100 dark:border-slate-800 shrink-0">
+                    <DialogTitle className="text-lg font-bold text-slate-900 dark:text-white">
                         {isEdit ? `Edit Enquiry: ${enquiry?.enquiry_number}` : "New Admission Enquiry"}
                     </DialogTitle>
+                    <DialogDescription className="text-xs text-slate-500">
+                        Capture prospective student details, guardian contact, and admission follow-up status.
+                    </DialogDescription>
                 </DialogHeader>
 
-                <form onSubmit={handleSubmit} className="space-y-6 pt-2">
-                    {/* Prospective Student Details */}
-                    <div>
-                        <h4 className="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-3">
-                            Prospective Student
-                        </h4>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div className="space-y-1.5">
-                                <Label htmlFor="studentName">Student Full Name *</Label>
-                                <Input
-                                    id="studentName"
-                                    required
-                                    value={studentName}
-                                    onChange={(e) => setStudentName(e.target.value)}
-                                    placeholder="e.g. Aarav Sharma"
-                                />
+                <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                    <DialogBody className="flex-1 overflow-y-auto px-6 py-5 [scrollbar-width:thin] space-y-6">
+                        {/* Prospective Student Details */}
+                        <FormSection title="Prospective Student">
+                            <FormGrid>
+                                <FormFieldWrapper label="Student Full Name" htmlFor="studentName" required>
+                                    <Input
+                                        id="studentName"
+                                        required
+                                        value={studentName}
+                                        onChange={(e) => setStudentName(e.target.value)}
+                                        placeholder="e.g. Aarav Sharma"
+                                    />
+                                </FormFieldWrapper>
+
+                                <FormFieldWrapper label="Gender" htmlFor="gender">
+                                    <Select value={gender} onValueChange={setGender}>
+                                        <SelectTrigger id="gender">
+                                            <SelectValue placeholder="Select gender" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="male">Male</SelectItem>
+                                            <SelectItem value="female">Female</SelectItem>
+                                            <SelectItem value="other">Other</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </FormFieldWrapper>
+
+                                <FormFieldWrapper label="Date of Birth" htmlFor="dob">
+                                    <Input
+                                        id="dob"
+                                        type="date"
+                                        value={dateOfBirth}
+                                        onChange={(e) => setDateOfBirth(e.target.value)}
+                                    />
+                                </FormFieldWrapper>
+
+                                <FormFieldWrapper label="Preferred Grade Level" htmlFor="preferredLevel">
+                                    <Select
+                                        value={preferredLevel}
+                                        onValueChange={setPreferredLevel}
+                                    >
+                                        <SelectTrigger id="preferredLevel">
+                                            <SelectValue placeholder="Select grade" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {levels.map((lvl) => (
+                                                <SelectItem key={lvl.id} value={lvl.id}>
+                                                    {lvl.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </FormFieldWrapper>
+                            </FormGrid>
+                        </FormSection>
+
+                        {/* Guardian Information */}
+                        <FormSection title="Guardian Details">
+                            <FormGrid>
+                                <FormFieldWrapper label="Guardian Full Name" htmlFor="guardianName" required>
+                                    <Input
+                                        id="guardianName"
+                                        required
+                                        value={guardianName}
+                                        onChange={(e) => setGuardianName(e.target.value)}
+                                        placeholder="e.g. Rajesh Sharma"
+                                    />
+                                </FormFieldWrapper>
+
+                                <FormFieldWrapper label="Relationship" htmlFor="guardianRelationship">
+                                    <Select
+                                        value={guardianRelationship}
+                                        onValueChange={setGuardianRelationship}
+                                    >
+                                        <SelectTrigger id="guardianRelationship">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="father">Father</SelectItem>
+                                            <SelectItem value="mother">Mother</SelectItem>
+                                            <SelectItem value="guardian">Guardian</SelectItem>
+                                            <SelectItem value="other">Other</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </FormFieldWrapper>
+
+                                <FormFieldWrapper label="Contact Phone" htmlFor="guardianPhone" required>
+                                    <Input
+                                        id="guardianPhone"
+                                        required
+                                        value={guardianPhone}
+                                        onChange={(e) => setGuardianPhone(e.target.value)}
+                                        placeholder="e.g. +91 98765 43210"
+                                    />
+                                </FormFieldWrapper>
+
+                                <FormFieldWrapper label="Email Address" htmlFor="guardianEmail">
+                                    <Input
+                                        id="guardianEmail"
+                                        type="email"
+                                        value={guardianEmail}
+                                        onChange={(e) => setGuardianEmail(e.target.value)}
+                                        placeholder="e.g. parent@example.com"
+                                    />
+                                </FormFieldWrapper>
+                            </FormGrid>
+                        </FormSection>
+
+                        {/* Academic & Source Tracking */}
+                        <FormSection title="Academic & Source Details">
+                            <FormGrid3>
+                                <FormFieldWrapper label="Academic Year" htmlFor="academicYear">
+                                    <Input
+                                        id="academicYear"
+                                        value={academicYear}
+                                        onChange={(e) => setAcademicYear(e.target.value)}
+                                        placeholder="e.g. 2026-27"
+                                    />
+                                </FormFieldWrapper>
+
+                                <FormFieldWrapper label="Lead Source" htmlFor="source">
+                                    <Select value={source} onValueChange={(v) => setSource(v as EnquirySource)}>
+                                        <SelectTrigger id="source">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="walk_in">Walk-in</SelectItem>
+                                            <SelectItem value="website">Website</SelectItem>
+                                            <SelectItem value="phone">Phone Call</SelectItem>
+                                            <SelectItem value="referral">Referral</SelectItem>
+                                            <SelectItem value="campaign">Social / Campaign</SelectItem>
+                                            <SelectItem value="other">Other</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </FormFieldWrapper>
+
+                                <FormFieldWrapper label="Enquiry Status" htmlFor="status">
+                                    <Select value={status} onValueChange={(v) => setStatus(v as EnquiryStatus)}>
+                                        <SelectTrigger id="status">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="new">New</SelectItem>
+                                            <SelectItem value="contacted">Contacted</SelectItem>
+                                            <SelectItem value="qualified">Qualified</SelectItem>
+                                            <SelectItem value="converted">Converted</SelectItem>
+                                            <SelectItem value="closed">Closed / Lost</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </FormFieldWrapper>
+                            </FormGrid3>
+
+                            <FormGrid className="mt-4">
+                                <FormFieldWrapper label="Previous School (Optional)" htmlFor="previousSchool">
+                                    <Input
+                                        id="previousSchool"
+                                        value={previousSchool}
+                                        onChange={(e) => setPreviousSchool(e.target.value)}
+                                        placeholder="e.g. Little Star Play School"
+                                    />
+                                </FormFieldWrapper>
+
+                                <FormFieldWrapper label="Next Follow-up Date" htmlFor="followUpDate">
+                                    <Input
+                                        id="followUpDate"
+                                        type="date"
+                                        value={followUpDate}
+                                        onChange={(e) => setFollowUpDate(e.target.value)}
+                                    />
+                                </FormFieldWrapper>
+                            </FormGrid>
+
+                            <div className="space-y-4 mt-4">
+                                <FormFieldWrapper label="Current Residential Address" htmlFor="address" colSpan="full">
+                                    <Input
+                                        id="address"
+                                        value={address}
+                                        onChange={(e) => setAddress(e.target.value)}
+                                        placeholder="City, locality or address"
+                                    />
+                                </FormFieldWrapper>
+
+                                <FormFieldWrapper label="Internal Discussion / Notes" htmlFor="notes" colSpan="full">
+                                    <Textarea
+                                        id="notes"
+                                        rows={3}
+                                        value={notes}
+                                        onChange={(e) => setNotes(e.target.value)}
+                                        placeholder="Notes on guardian queries, visit schedules, transport needs..."
+                                    />
+                                </FormFieldWrapper>
                             </div>
+                        </FormSection>
+                    </DialogBody>
 
-                            <div className="space-y-1.5">
-                                <Label htmlFor="gender">Gender</Label>
-                                <Select value={gender} onValueChange={setGender}>
-                                    <SelectTrigger id="gender">
-                                        <SelectValue placeholder="Select gender" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="male">Male</SelectItem>
-                                        <SelectItem value="female">Female</SelectItem>
-                                        <SelectItem value="other">Other</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div className="space-y-1.5">
-                                <Label htmlFor="dob">Date of Birth</Label>
-                                <Input
-                                    id="dob"
-                                    type="date"
-                                    value={dateOfBirth}
-                                    onChange={(e) => setDateOfBirth(e.target.value)}
-                                />
-                            </div>
-
-                            <div className="space-y-1.5">
-                                <Label htmlFor="preferredLevel">Preferred Grade Level</Label>
-                                <Select
-                                    value={preferredLevel}
-                                    onValueChange={setPreferredLevel}
-                                >
-                                    <SelectTrigger id="preferredLevel">
-                                        <SelectValue placeholder="Select grade" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {levels.map((lvl) => (
-                                            <SelectItem key={lvl.id} value={lvl.id}>
-                                                {lvl.name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Guardian Information */}
-                    <div>
-                        <h4 className="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-3">
-                            Guardian Details
-                        </h4>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div className="space-y-1.5">
-                                <Label htmlFor="guardianName">Guardian Full Name *</Label>
-                                <Input
-                                    id="guardianName"
-                                    required
-                                    value={guardianName}
-                                    onChange={(e) => setGuardianName(e.target.value)}
-                                    placeholder="e.g. Rajesh Sharma"
-                                />
-                            </div>
-
-                            <div className="space-y-1.5">
-                                <Label htmlFor="guardianRelationship">Relationship</Label>
-                                <Select
-                                    value={guardianRelationship}
-                                    onValueChange={setGuardianRelationship}
-                                >
-                                    <SelectTrigger id="guardianRelationship">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="father">Father</SelectItem>
-                                        <SelectItem value="mother">Mother</SelectItem>
-                                        <SelectItem value="guardian">Guardian</SelectItem>
-                                        <SelectItem value="other">Other</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div className="space-y-1.5">
-                                <Label htmlFor="guardianPhone">Contact Phone *</Label>
-                                <Input
-                                    id="guardianPhone"
-                                    required
-                                    value={guardianPhone}
-                                    onChange={(e) => setGuardianPhone(e.target.value)}
-                                    placeholder="e.g. +91 98765 43210"
-                                />
-                            </div>
-
-                            <div className="space-y-1.5">
-                                <Label htmlFor="guardianEmail">Email Address</Label>
-                                <Input
-                                    id="guardianEmail"
-                                    type="email"
-                                    value={guardianEmail}
-                                    onChange={(e) => setGuardianEmail(e.target.value)}
-                                    placeholder="e.g. parent@example.com"
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Academic & Source Tracking */}
-                    <div>
-                        <h4 className="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-3">
-                            Academic & Source Details
-                        </h4>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                            <div className="space-y-1.5">
-                                <Label htmlFor="academicYear">Academic Year</Label>
-                                <Input
-                                    id="academicYear"
-                                    value={academicYear}
-                                    onChange={(e) => setAcademicYear(e.target.value)}
-                                    placeholder="e.g. 2026-27"
-                                />
-                            </div>
-
-                            <div className="space-y-1.5">
-                                <Label htmlFor="source">Lead Source</Label>
-                                <Select value={source} onValueChange={(v) => setSource(v as EnquirySource)}>
-                                    <SelectTrigger id="source">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="walk_in">Walk-in</SelectItem>
-                                        <SelectItem value="website">Website</SelectItem>
-                                        <SelectItem value="phone">Phone Call</SelectItem>
-                                        <SelectItem value="referral">Referral</SelectItem>
-                                        <SelectItem value="campaign">Social / Campaign</SelectItem>
-                                        <SelectItem value="other">Other</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div className="space-y-1.5">
-                                <Label htmlFor="status">Enquiry Status</Label>
-                                <Select value={status} onValueChange={(v) => setStatus(v as EnquiryStatus)}>
-                                    <SelectTrigger id="status">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="new">New</SelectItem>
-                                        <SelectItem value="contacted">Contacted</SelectItem>
-                                        <SelectItem value="qualified">Qualified</SelectItem>
-                                        <SelectItem value="converted">Converted</SelectItem>
-                                        <SelectItem value="closed">Closed / Lost</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
-                            <div className="space-y-1.5">
-                                <Label htmlFor="previousSchool">Previous School (Optional)</Label>
-                                <Input
-                                    id="previousSchool"
-                                    value={previousSchool}
-                                    onChange={(e) => setPreviousSchool(e.target.value)}
-                                    placeholder="e.g. Little Star Play School"
-                                />
-                            </div>
-
-                            <div className="space-y-1.5">
-                                <Label htmlFor="followUpDate">Next Follow-up Date</Label>
-                                <Input
-                                    id="followUpDate"
-                                    type="date"
-                                    value={followUpDate}
-                                    onChange={(e) => setFollowUpDate(e.target.value)}
-                                />
-                            </div>
-                        </div>
-
-                        <div className="space-y-1.5 mt-4">
-                            <Label htmlFor="address">Current Residential Address</Label>
-                            <Input
-                                id="address"
-                                value={address}
-                                onChange={(e) => setAddress(e.target.value)}
-                                placeholder="City, locality or address"
-                            />
-                        </div>
-
-                        <div className="space-y-1.5 mt-4">
-                            <Label htmlFor="notes">Internal Discussion / Notes</Label>
-                            <Textarea
-                                id="notes"
-                                rows={3}
-                                value={notes}
-                                onChange={(e) => setNotes(e.target.value)}
-                                placeholder="Notes on guardian queries, visit schedules, transport needs..."
-                            />
-                        </div>
-                    </div>
-
-                    <DialogFooter className="gap-2 sm:gap-0 pt-4 border-t">
+                    <DialogFooter className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-end gap-3 shrink-0">
                         <Button
                             type="button"
                             variant="outline"
@@ -368,7 +358,7 @@ export default function EnquiryDialog({
                         >
                             Cancel
                         </Button>
-                        <Button type="submit" disabled={isPending} className="bg-blue-600 hover:bg-blue-700 text-white">
+                        <Button type="submit" disabled={isPending} className="bg-sky-600 hover:bg-sky-700 text-white">
                             {isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                             {isEdit ? "Save Changes" : "Create Enquiry"}
                         </Button>
@@ -378,4 +368,3 @@ export default function EnquiryDialog({
         </Dialog>
     );
 }
-

@@ -568,7 +568,7 @@ function CollectPaymentContent() {
                                         value={assignForm.fee_head}
                                         onValueChange={(v) => setAssignForm((f) => ({ ...f, fee_head: v }))}
                                     >
-                                        <SelectTrigger className="h-9 text-xs rounded-lg border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+                                        <SelectTrigger className="h-[42px] text-xs rounded-lg border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
                                             <SelectValue placeholder="Select fee type" />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -592,7 +592,7 @@ function CollectPaymentContent() {
                                         placeholder="0.00"
                                         value={assignForm.amount_due}
                                         onChange={(e) => setAssignForm((f) => ({ ...f, amount_due: e.target.value }))}
-                                        className="h-9 text-xs rounded-lg border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
+                                        className="h-[42px] text-xs rounded-lg border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
                                     />
                                 </div>
 
@@ -605,14 +605,14 @@ function CollectPaymentContent() {
                                         type="date"
                                         value={assignForm.due_date}
                                         onChange={(e) => setAssignForm((f) => ({ ...f, due_date: e.target.value }))}
-                                        className="h-9 text-xs rounded-lg border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
+                                        className="h-[42px] text-xs rounded-lg border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
                                     />
                                 </div>
 
                                 <Button
                                     type="submit"
                                     disabled={assigning || !assignForm.fee_head || !assignForm.amount_due}
-                                    className="h-9 text-xs font-semibold rounded-lg bg-sky-600 hover:bg-sky-500 text-white cursor-pointer"
+                                    className="h-[42px] text-xs font-semibold rounded-lg bg-sky-600 hover:bg-sky-500 text-white cursor-pointer"
                                 >
                                     {assigning ? <LoaderCircle className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Plus className="w-3.5 h-3.5 mr-1.5" />}
                                     Assign to Student
@@ -822,7 +822,7 @@ function CollectPaymentContent() {
                                         Payment Method <span className="text-rose-500">*</span>
                                     </Label>
                                     <Select value={method} onValueChange={(v) => setMethod(v as PaymentMethod)}>
-                                        <SelectTrigger className="h-9.5 text-xs rounded-lg border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+                                        <SelectTrigger className="h-[42px] text-xs rounded-lg border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -844,14 +844,14 @@ function CollectPaymentContent() {
                                         placeholder="e.g. UPI Ref #893412 or Cheque #102938"
                                         value={referenceNote}
                                         onChange={(e) => setReferenceNote(e.target.value)}
-                                        className="h-9.5 text-xs rounded-lg border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
+                                        className="h-[42px] text-xs rounded-lg border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
                                     />
                                 </div>
 
                                 <Button
                                     onClick={handleRecordPayment}
                                     disabled={recording || totalAllocated <= 0}
-                                    className="h-9.5 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white gap-2 shadow-sm transition active:scale-95 cursor-pointer"
+                                    className="h-[42px] text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white gap-2 shadow-sm transition active:scale-95 cursor-pointer"
                                 >
                                     {recording ? (
                                         <>

@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import {
     Dialog,
+    DialogBody,
     DialogContent,
     DialogDescription,
     DialogFooter,
@@ -14,7 +15,6 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
     Select,
     SelectContent,
@@ -22,6 +22,12 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import {
+    FormSection,
+    FormGrid,
+    FormGrid3,
+    FormFieldWrapper,
+} from "@/components/ui/form-layout";
 import { Loader2 } from "lucide-react";
 import { useCreateParent, useUpdateParent } from "@/hooks/useFamilies";
 import type { Parent, ParentFormData } from "@/types/Families";
@@ -153,199 +159,206 @@ export function ParentFormDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl">
-                <DialogHeader>
-                    <DialogTitle className="text-xl font-bold">
+            <DialogContent className="max-w-2xl max-h-[90vh] p-0 flex flex-col overflow-hidden rounded-2xl">
+                <DialogHeader className="px-6 py-4.5 border-b border-slate-100 dark:border-slate-800 shrink-0">
+                    <DialogTitle className="text-lg font-bold text-slate-900 dark:text-white">
                         {isEdit ? "Edit Parent Details" : "Add New Parent / Guardian"}
                     </DialogTitle>
-                    <DialogDescription>
+                    <DialogDescription className="text-xs text-slate-500">
                         {isEdit
                             ? "Update contact information, profile data, and employment details."
                             : "Create a new parent profile. You can link students directly after saving."}
                     </DialogDescription>
                 </DialogHeader>
 
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pt-2">
-                    {/* Primary Name Details */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="space-y-1.5">
-                            <Label htmlFor="first_name" className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                First Name <span className="text-red-500">*</span>
-                            </Label>
-                            <Input
-                                id="first_name"
-                                placeholder="e.g. Ramesh"
-                                {...form.register("first_name")}
-                                className="rounded-xl"
-                            />
-                            {form.formState.errors.first_name && (
-                                <p className="text-xs text-red-500">{form.formState.errors.first_name.message}</p>
-                            )}
-                        </div>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                    <DialogBody className="flex-1 overflow-y-auto px-6 py-5 [scrollbar-width:thin] space-y-6">
+                        {/* Primary Name Details */}
+                        <FormSection title="1. Personal Identification">
+                            <FormGrid3>
+                                <FormFieldWrapper
+                                    label="First Name"
+                                    htmlFor="first_name"
+                                    required
+                                    error={form.formState.errors.first_name?.message}
+                                >
+                                    <Input
+                                        id="first_name"
+                                        placeholder="e.g. Ramesh"
+                                        {...form.register("first_name")}
+                                    />
+                                </FormFieldWrapper>
 
-                        <div className="space-y-1.5">
-                            <Label htmlFor="middle_name" className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                Middle Name
-                            </Label>
-                            <Input
-                                id="middle_name"
-                                placeholder="e.g. Kumar"
-                                {...form.register("middle_name")}
-                                className="rounded-xl"
-                            />
-                        </div>
+                                <FormFieldWrapper
+                                    label="Middle Name"
+                                    htmlFor="middle_name"
+                                    error={form.formState.errors.middle_name?.message}
+                                >
+                                    <Input
+                                        id="middle_name"
+                                        placeholder="e.g. Kumar"
+                                        {...form.register("middle_name")}
+                                    />
+                                </FormFieldWrapper>
 
-                        <div className="space-y-1.5">
-                            <Label htmlFor="last_name" className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                Last Name <span className="text-red-500">*</span>
-                            </Label>
-                            <Input
-                                id="last_name"
-                                placeholder="e.g. Sharma"
-                                {...form.register("last_name")}
-                                className="rounded-xl"
-                            />
-                            {form.formState.errors.last_name && (
-                                <p className="text-xs text-red-500">{form.formState.errors.last_name.message}</p>
-                            )}
-                        </div>
-                    </div>
+                                <FormFieldWrapper
+                                    label="Last Name"
+                                    htmlFor="last_name"
+                                    required
+                                    error={form.formState.errors.last_name?.message}
+                                >
+                                    <Input
+                                        id="last_name"
+                                        placeholder="e.g. Sharma"
+                                        {...form.register("last_name")}
+                                    />
+                                </FormFieldWrapper>
+                            </FormGrid3>
+                        </FormSection>
 
-                    {/* Contact & Gender */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="space-y-1.5">
-                            <Label htmlFor="phone" className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                Phone Number
-                            </Label>
-                            <Input
-                                id="phone"
-                                placeholder="e.g. 9876543210"
-                                {...form.register("phone")}
-                                className="rounded-xl"
-                            />
-                            {form.formState.errors.phone && (
-                                <p className="text-xs text-red-500">{form.formState.errors.phone.message}</p>
-                            )}
-                        </div>
+                        {/* Contact & Gender */}
+                        <FormSection title="2. Contact Information">
+                            <FormGrid3>
+                                <FormFieldWrapper
+                                    label="Phone Number"
+                                    htmlFor="phone"
+                                    error={form.formState.errors.phone?.message}
+                                >
+                                    <Input
+                                        id="phone"
+                                        placeholder="e.g. 9876543210"
+                                        {...form.register("phone")}
+                                    />
+                                </FormFieldWrapper>
 
-                        <div className="space-y-1.5">
-                            <Label htmlFor="email" className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                Email Address
-                            </Label>
-                            <Input
-                                id="email"
-                                type="email"
-                                placeholder="e.g. ramesh@example.com"
-                                {...form.register("email")}
-                                className="rounded-xl"
-                            />
-                            {form.formState.errors.email && (
-                                <p className="text-xs text-red-500">{form.formState.errors.email.message}</p>
-                            )}
-                        </div>
+                                <FormFieldWrapper
+                                    label="Email Address"
+                                    htmlFor="email"
+                                    error={form.formState.errors.email?.message}
+                                >
+                                    <Input
+                                        id="email"
+                                        type="email"
+                                        placeholder="e.g. ramesh@example.com"
+                                        {...form.register("email")}
+                                    />
+                                </FormFieldWrapper>
 
-                        <div className="space-y-1.5">
-                            <Label htmlFor="gender" className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                Gender
-                            </Label>
-                            <Controller
-                                control={form.control}
-                                name="gender"
-                                render={({ field }) => (
-                                    <Select
-                                        value={field.value || "male"}
-                                        onValueChange={field.onChange}
-                                    >
-                                        <SelectTrigger id="gender" className="rounded-xl">
-                                            <SelectValue placeholder="Select gender" />
-                                        </SelectTrigger>
-                                        <SelectContent className="rounded-xl">
-                                            <SelectItem value="male">Male</SelectItem>
-                                            <SelectItem value="female">Female</SelectItem>
-                                            <SelectItem value="other">Other</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                )}
-                            />
-                        </div>
-                    </div>
+                                <FormFieldWrapper
+                                    label="Gender"
+                                    htmlFor="gender"
+                                >
+                                    <Controller
+                                        control={form.control}
+                                        name="gender"
+                                        render={({ field }) => (
+                                            <Select
+                                                value={field.value || "male"}
+                                                onValueChange={field.onChange}
+                                            >
+                                                <SelectTrigger id="gender">
+                                                    <SelectValue placeholder="Select gender" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="male">Male</SelectItem>
+                                                    <SelectItem value="female">Female</SelectItem>
+                                                    <SelectItem value="other">Other</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        )}
+                                    />
+                                </FormFieldWrapper>
+                            </FormGrid3>
 
-                    {/* Residential Address */}
-                    <div className="space-y-1.5">
-                        <Label htmlFor="address" className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                            Residential Address
-                        </Label>
-                        <Input
-                            id="address"
-                            placeholder="House / Street / City / PIN"
-                            {...form.register("address")}
-                            className="rounded-xl"
-                        />
-                    </div>
+                            <div className="mt-4">
+                                <FormFieldWrapper
+                                    label="Residential Address"
+                                    htmlFor="address"
+                                    colSpan="full"
+                                    error={form.formState.errors.address?.message}
+                                >
+                                    <Input
+                                        id="address"
+                                        placeholder="House / Street / City / PIN"
+                                        {...form.register("address")}
+                                    />
+                                </FormFieldWrapper>
+                            </div>
+                        </FormSection>
 
-                    {/* Occupation & Employment */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="space-y-1.5">
-                            <Label htmlFor="occupation" className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                Occupation
-                            </Label>
-                            <Input
-                                id="occupation"
-                                placeholder="e.g. Software Engineer"
-                                {...form.register("occupation")}
-                                className="rounded-xl"
-                            />
-                        </div>
+                        {/* Occupation & Employment */}
+                        <FormSection title="3. Occupation & Communication Preferences">
+                            <FormGrid3>
+                                <FormFieldWrapper
+                                    label="Occupation"
+                                    htmlFor="occupation"
+                                    error={form.formState.errors.occupation?.message}
+                                >
+                                    <Input
+                                        id="occupation"
+                                        placeholder="e.g. Software Engineer"
+                                        {...form.register("occupation")}
+                                    />
+                                </FormFieldWrapper>
 
-                        <div className="space-y-1.5">
-                            <Label htmlFor="office_address" className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                Office Address
-                            </Label>
-                            <Input
-                                id="office_address"
-                                placeholder="e.g. Tech Park, Block B"
-                                {...form.register("office_address")}
-                                className="rounded-xl"
-                            />
-                        </div>
+                                <FormFieldWrapper
+                                    label="Office Address"
+                                    htmlFor="office_address"
+                                    error={form.formState.errors.office_address?.message}
+                                >
+                                    <Input
+                                        id="office_address"
+                                        placeholder="e.g. Tech Park, Block B"
+                                        {...form.register("office_address")}
+                                    />
+                                </FormFieldWrapper>
 
-                        <div className="space-y-1.5">
-                            <Label htmlFor="income_level" className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                Income Level
-                            </Label>
-                            <Input
-                                id="income_level"
-                                placeholder="e.g. Middle / Upper Middle"
-                                {...form.register("income_level")}
-                                className="rounded-xl"
-                            />
-                        </div>
+                                <FormFieldWrapper
+                                    label="Income Level"
+                                    htmlFor="income_level"
+                                    error={form.formState.errors.income_level?.message}
+                                >
+                                    <Input
+                                        id="income_level"
+                                        placeholder="e.g. Middle / Upper Middle"
+                                        {...form.register("income_level")}
+                                    />
+                                </FormFieldWrapper>
+                            </FormGrid3>
 
-                        <label className="md:col-span-3 flex items-start gap-3 rounded-xl border border-slate-200 p-3 text-sm dark:border-slate-800">
-                            <input type="checkbox" className="mt-1" {...form.register("whatsapp_opt_in")} />
-                            <span>
-                                <span className="font-medium">Send fee reminders and absence alerts on WhatsApp</span>
-                                <span className="block text-xs text-slate-500">
-                                    Tick only if the parent has agreed. Messages go to the phone number above; a number is needed.
-                                </span>
-                            </span>
-                        </label>
-                    </div>
+                            <div className="mt-4">
+                                <label className="flex items-start gap-3 rounded-xl border border-slate-200 dark:border-slate-800 p-3.5 text-sm bg-slate-50/60 dark:bg-slate-900/60 hover:bg-slate-100/60 dark:hover:bg-slate-800/40 transition-colors cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        className="mt-1 h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+                                        {...form.register("whatsapp_opt_in")}
+                                    />
+                                    <div className="space-y-0.5">
+                                        <span className="font-semibold text-slate-800 dark:text-slate-200">
+                                            Send fee reminders and absence alerts on WhatsApp
+                                        </span>
+                                        <span className="block text-xs text-slate-400">
+                                            Tick only if the parent has agreed. Messages will be dispatched to the verified phone number above.
+                                        </span>
+                                    </div>
+                                </label>
+                            </div>
+                        </FormSection>
+                    </DialogBody>
 
-                    <DialogFooter className="gap-2 pt-4">
+                    <DialogFooter className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-end gap-3 shrink-0">
                         <Button
                             type="button"
                             variant="outline"
                             onClick={() => onOpenChange(false)}
                             disabled={isSubmitting}
-                            className="rounded-xl"
                         >
                             Cancel
                         </Button>
                         <Button
                             type="submit"
                             disabled={isSubmitting}
-                            className="rounded-xl min-w-[120px]"
+                            className="bg-sky-600 hover:bg-sky-700 text-white min-w-[120px]"
                         >
                             {isSubmitting ? (
                                 <>
@@ -364,4 +377,3 @@ export function ParentFormDialog({
         </Dialog>
     );
 }
-

@@ -3,14 +3,15 @@
 import React, { useState } from "react";
 import {
     Dialog,
+    DialogBody,
     DialogContent,
     DialogHeader,
     DialogTitle,
+    DialogDescription,
     DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
     Select,
@@ -19,6 +20,12 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import {
+    FormSection,
+    FormGrid,
+    FormGrid3,
+    FormFieldWrapper,
+} from "@/components/ui/form-layout";
 import { useAcademicLevels, useAcademicYears } from "@/hooks/useAcademics";
 import { useAcademicYear } from "@/providers/AcademicYearProvider";
 import { useCreateApplication } from "@/hooks/useAdmissions";
@@ -100,7 +107,7 @@ export default function NewApplicationDialog({
         createMutation.mutate(payload, {
             onSuccess: () => {
                 onOpenChange(false);
-                // reset form
+                // Reset form fields
                 setFirstName("");
                 setMiddleName("");
                 setLastName("");
@@ -125,269 +132,254 @@ export default function NewApplicationDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto rounded-3xl">
-                <DialogHeader>
-                    <DialogTitle className="text-xl font-bold">
+            <DialogContent className="max-w-4xl max-h-[90vh] p-0 flex flex-col overflow-hidden rounded-2xl">
+                <DialogHeader className="px-6 py-4.5 border-b border-slate-100 dark:border-slate-800 shrink-0">
+                    <DialogTitle className="text-lg font-bold text-slate-900 dark:text-white">
                         New Admission Application
                     </DialogTitle>
+                    <DialogDescription className="text-xs text-slate-500">
+                        Register a new student application with personal, guardian, and placement details.
+                    </DialogDescription>
                 </DialogHeader>
 
-                <form onSubmit={handleSubmit} className="space-y-6 pt-2">
-                    {/* Section 1: Prospective Student */}
-                    <div>
-                        <h4 className="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-3">
-                            1. Student Personal Information
-                        </h4>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                            <div className="space-y-1.5">
-                                <Label htmlFor="appFirstName">First Name *</Label>
-                                <Input
-                                    id="appFirstName"
-                                    required
-                                    value={firstName}
-                                    onChange={(e) => setFirstName(e.target.value)}
-                                    placeholder="e.g. Diya"
-                                />
-                            </div>
-                            <div className="space-y-1.5">
-                                <Label htmlFor="appMiddleName">Middle Name</Label>
-                                <Input
-                                    id="appMiddleName"
-                                    value={middleName}
-                                    onChange={(e) => setMiddleName(e.target.value)}
-                                />
-                            </div>
-                            <div className="space-y-1.5">
-                                <Label htmlFor="appLastName">Last Name *</Label>
-                                <Input
-                                    id="appLastName"
-                                    required
-                                    value={lastName}
-                                    onChange={(e) => setLastName(e.target.value)}
-                                    placeholder="e.g. Patel"
-                                />
-                            </div>
-                        </div>
+                <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                    <DialogBody className="flex-1 overflow-y-auto px-6 py-5 [scrollbar-width:thin] space-y-6">
+                        {/* Section 1: Prospective Student */}
+                        <FormSection title="1. Student Personal Information">
+                            <FormGrid3>
+                                <FormFieldWrapper label="First Name" htmlFor="appFirstName" required>
+                                    <Input
+                                        id="appFirstName"
+                                        required
+                                        value={firstName}
+                                        onChange={(e) => setFirstName(e.target.value)}
+                                        placeholder="e.g. Diya"
+                                    />
+                                </FormFieldWrapper>
+                                <FormFieldWrapper label="Middle Name" htmlFor="appMiddleName">
+                                    <Input
+                                        id="appMiddleName"
+                                        value={middleName}
+                                        onChange={(e) => setMiddleName(e.target.value)}
+                                    />
+                                </FormFieldWrapper>
+                                <FormFieldWrapper label="Last Name" htmlFor="appLastName" required>
+                                    <Input
+                                        id="appLastName"
+                                        required
+                                        value={lastName}
+                                        onChange={(e) => setLastName(e.target.value)}
+                                        placeholder="e.g. Patel"
+                                    />
+                                </FormFieldWrapper>
+                            </FormGrid3>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
-                            <div className="space-y-1.5">
-                                <Label htmlFor="appDob">Date of Birth *</Label>
-                                <Input
-                                    id="appDob"
-                                    required
-                                    type="date"
-                                    value={dateOfBirth}
-                                    onChange={(e) => setDateOfBirth(e.target.value)}
-                                />
-                            </div>
-                            <div className="space-y-1.5">
-                                <Label htmlFor="appGender">Gender *</Label>
-                                <Select
-                                    value={gender}
-                                    onValueChange={(v) => setGender(v as "male" | "female" | "other")}
-                                >
-                                    <SelectTrigger id="appGender">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="male">Male</SelectItem>
-                                        <SelectItem value="female">Female</SelectItem>
-                                        <SelectItem value="other">Other</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div className="space-y-1.5">
-                                <Label htmlFor="appPhone">Student Phone</Label>
-                                <Input
-                                    id="appPhone"
-                                    value={phone}
-                                    onChange={(e) => setPhone(e.target.value)}
-                                    placeholder="Optional"
-                                />
-                            </div>
-                        </div>
+                            <FormGrid3 className="mt-4">
+                                <FormFieldWrapper label="Date of Birth" htmlFor="appDob" required>
+                                    <Input
+                                        id="appDob"
+                                        required
+                                        type="date"
+                                        value={dateOfBirth}
+                                        onChange={(e) => setDateOfBirth(e.target.value)}
+                                    />
+                                </FormFieldWrapper>
+                                <FormFieldWrapper label="Gender" htmlFor="appGender" required>
+                                    <Select
+                                        value={gender}
+                                        onValueChange={(v) => setGender(v as "male" | "female" | "other")}
+                                    >
+                                        <SelectTrigger id="appGender">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="male">Male</SelectItem>
+                                            <SelectItem value="female">Female</SelectItem>
+                                            <SelectItem value="other">Other</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </FormFieldWrapper>
+                                <FormFieldWrapper label="Student Phone" htmlFor="appPhone">
+                                    <Input
+                                        id="appPhone"
+                                        value={phone}
+                                        onChange={(e) => setPhone(e.target.value)}
+                                        placeholder="Optional"
+                                    />
+                                </FormFieldWrapper>
+                            </FormGrid3>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
-                            <div className="space-y-1.5">
-                                <Label htmlFor="appPrevSchool">Previous School</Label>
-                                <Input
-                                    id="appPrevSchool"
-                                    value={previousSchool}
-                                    onChange={(e) => setPreviousSchool(e.target.value)}
-                                    placeholder="e.g. Modern Public School"
-                                />
-                            </div>
-                            <div className="space-y-1.5">
-                                <Label htmlFor="appLastGrade">Last Class / Grade Passed</Label>
-                                <Input
-                                    id="appLastGrade"
-                                    value={lastGradePassed}
-                                    onChange={(e) => setLastGradePassed(e.target.value)}
-                                    placeholder="e.g. Grade 4"
-                                />
-                            </div>
-                        </div>
+                            <FormGrid className="mt-4">
+                                <FormFieldWrapper label="Previous School" htmlFor="appPrevSchool">
+                                    <Input
+                                        id="appPrevSchool"
+                                        value={previousSchool}
+                                        onChange={(e) => setPreviousSchool(e.target.value)}
+                                        placeholder="e.g. Modern Public School"
+                                    />
+                                </FormFieldWrapper>
+                                <FormFieldWrapper label="Last Class / Grade Passed" htmlFor="appLastGrade">
+                                    <Input
+                                        id="appLastGrade"
+                                        value={lastGradePassed}
+                                        onChange={(e) => setLastGradePassed(e.target.value)}
+                                        placeholder="e.g. Grade 4"
+                                    />
+                                </FormFieldWrapper>
+                            </FormGrid>
 
-                        <div className="space-y-1.5 mt-4">
-                            <Label htmlFor="appAddress">Residential Address *</Label>
-                            <Input
-                                id="appAddress"
-                                required
-                                value={address}
-                                onChange={(e) => setAddress(e.target.value)}
-                                placeholder="Complete street, area, city, pincode"
-                            />
-                        </div>
-                    </div>
+                            <div className="mt-4">
+                                <FormFieldWrapper label="Residential Address" htmlFor="appAddress" required colSpan="full">
+                                    <Input
+                                        id="appAddress"
+                                        required
+                                        value={address}
+                                        onChange={(e) => setAddress(e.target.value)}
+                                        placeholder="Complete street, area, city, pincode"
+                                    />
+                                </FormFieldWrapper>
+                            </div>
+                        </FormSection>
 
-                    {/* Section 2: Guardian Details */}
-                    <div>
-                        <h4 className="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-3">
-                            2. Primary Guardian Details
-                        </h4>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                            <div className="space-y-1.5">
-                                <Label htmlFor="gFirstName">Guardian First Name *</Label>
-                                <Input
-                                    id="gFirstName"
-                                    required
-                                    value={guardianFirstName}
-                                    onChange={(e) => setGuardianFirstName(e.target.value)}
-                                    placeholder="e.g. Suresh"
-                                />
-                            </div>
-                            <div className="space-y-1.5">
-                                <Label htmlFor="gLastName">Guardian Last Name *</Label>
-                                <Input
-                                    id="gLastName"
-                                    required
-                                    value={guardianLastName}
-                                    onChange={(e) => setGuardianLastName(e.target.value)}
-                                    placeholder="e.g. Patel"
-                                />
-                            </div>
-                            <div className="space-y-1.5">
-                                <Label htmlFor="gRel">Relationship *</Label>
-                                <Select
-                                    value={guardianRelationship}
-                                    onValueChange={setGuardianRelationship}
-                                >
-                                    <SelectTrigger id="gRel">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="father">Father</SelectItem>
-                                        <SelectItem value="mother">Mother</SelectItem>
-                                        <SelectItem value="guardian">Legal Guardian</SelectItem>
-                                        <SelectItem value="other">Other</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        </div>
+                        {/* Section 2: Guardian Details */}
+                        <FormSection title="2. Primary Guardian Details">
+                            <FormGrid3>
+                                <FormFieldWrapper label="Guardian First Name" htmlFor="gFirstName" required>
+                                    <Input
+                                        id="gFirstName"
+                                        required
+                                        value={guardianFirstName}
+                                        onChange={(e) => setGuardianFirstName(e.target.value)}
+                                        placeholder="e.g. Suresh"
+                                    />
+                                </FormFieldWrapper>
+                                <FormFieldWrapper label="Guardian Last Name" htmlFor="gLastName" required>
+                                    <Input
+                                        id="gLastName"
+                                        required
+                                        value={guardianLastName}
+                                        onChange={(e) => setGuardianLastName(e.target.value)}
+                                        placeholder="e.g. Patel"
+                                    />
+                                </FormFieldWrapper>
+                                <FormFieldWrapper label="Relationship" htmlFor="gRel" required>
+                                    <Select
+                                        value={guardianRelationship}
+                                        onValueChange={setGuardianRelationship}
+                                    >
+                                        <SelectTrigger id="gRel">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="father">Father</SelectItem>
+                                            <SelectItem value="mother">Mother</SelectItem>
+                                            <SelectItem value="guardian">Legal Guardian</SelectItem>
+                                            <SelectItem value="other">Other</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </FormFieldWrapper>
+                            </FormGrid3>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
-                            <div className="space-y-1.5">
-                                <Label htmlFor="gPhone">Guardian Phone *</Label>
-                                <Input
-                                    id="gPhone"
-                                    required
-                                    value={guardianPhone}
-                                    onChange={(e) => setGuardianPhone(e.target.value)}
-                                    placeholder="e.g. +91 98112 23344"
-                                />
-                            </div>
-                            <div className="space-y-1.5">
-                                <Label htmlFor="gEmail">Guardian Email</Label>
-                                <Input
-                                    id="gEmail"
-                                    type="email"
-                                    value={guardianEmail}
-                                    onChange={(e) => setGuardianEmail(e.target.value)}
-                                    placeholder="e.g. guardian@example.com"
-                                />
-                            </div>
-                            <div className="space-y-1.5">
-                                <Label htmlFor="gOcc">Occupation</Label>
-                                <Input
-                                    id="gOcc"
-                                    value={guardianOccupation}
-                                    onChange={(e) => setGuardianOccupation(e.target.value)}
-                                    placeholder="e.g. Architect"
-                                />
-                            </div>
-                        </div>
+                            <FormGrid3 className="mt-4">
+                                <FormFieldWrapper label="Guardian Phone" htmlFor="gPhone" required>
+                                    <Input
+                                        id="gPhone"
+                                        required
+                                        value={guardianPhone}
+                                        onChange={(e) => setGuardianPhone(e.target.value)}
+                                        placeholder="e.g. +91 98112 23344"
+                                    />
+                                </FormFieldWrapper>
+                                <FormFieldWrapper label="Guardian Email" htmlFor="gEmail">
+                                    <Input
+                                        id="gEmail"
+                                        type="email"
+                                        value={guardianEmail}
+                                        onChange={(e) => setGuardianEmail(e.target.value)}
+                                        placeholder="e.g. guardian@example.com"
+                                    />
+                                </FormFieldWrapper>
+                                <FormFieldWrapper label="Occupation" htmlFor="gOcc">
+                                    <Input
+                                        id="gOcc"
+                                        value={guardianOccupation}
+                                        onChange={(e) => setGuardianOccupation(e.target.value)}
+                                        placeholder="e.g. Architect"
+                                    />
+                                </FormFieldWrapper>
+                            </FormGrid3>
 
-                        {/* Optional Secondary Guardian */}
-                        <div className="mt-4 p-4 rounded-2xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 space-y-3">
-                            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                Secondary Contact / Co-Guardian (Optional)
-                            </span>
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                <Input aria-label="Co-Guardian Name"
-                                    placeholder="Co-Guardian Name"
-                                    value={secondaryName}
-                                    onChange={(e) => setSecondaryName(e.target.value)}
-                                />
-                                <Input aria-label="Relationship (e.g. Mother)"
-                                    placeholder="Relationship (e.g. Mother)"
-                                    value={secondaryRel}
-                                    onChange={(e) => setSecondaryRel(e.target.value)}
-                                />
-                                <Input aria-label="Contact Phone"
-                                    placeholder="Contact Phone"
-                                    value={secondaryPhone}
-                                    onChange={(e) => setSecondaryPhone(e.target.value)}
-                                />
+                            {/* Optional Secondary Guardian */}
+                            <div className="mt-4 p-4 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 space-y-3">
+                                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                                    Secondary Contact / Co-Guardian (Optional)
+                                </span>
+                                <FormGrid3>
+                                    <Input
+                                        aria-label="Co-Guardian Name"
+                                        placeholder="Co-Guardian Name"
+                                        value={secondaryName}
+                                        onChange={(e) => setSecondaryName(e.target.value)}
+                                    />
+                                    <Input
+                                        aria-label="Relationship (e.g. Mother)"
+                                        placeholder="Relationship (e.g. Mother)"
+                                        value={secondaryRel}
+                                        onChange={(e) => setSecondaryRel(e.target.value)}
+                                    />
+                                    <Input
+                                        aria-label="Contact Phone"
+                                        placeholder="Contact Phone"
+                                        value={secondaryPhone}
+                                        onChange={(e) => setSecondaryPhone(e.target.value)}
+                                    />
+                                </FormGrid3>
                             </div>
-                        </div>
-                    </div>
+                        </FormSection>
 
-                    {/* Section 3: Academic Placement */}
-                    <div>
-                        <h4 className="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-3">
-                            3. Grade Level & Academic Year
-                        </h4>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div className="space-y-1.5">
-                                <Label htmlFor="appLevel">Grade Level *</Label>
-                                <Select value={level} onValueChange={setLevel} required>
-                                    <SelectTrigger id="appLevel">
-                                        <SelectValue placeholder="Select target grade level" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {levels.map((lvl) => (
-                                            <SelectItem key={lvl.id} value={lvl.id}>
-                                                {lvl.name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                        {/* Section 3: Academic Placement */}
+                        <FormSection title="3. Grade Level & Academic Year">
+                            <FormGrid>
+                                <FormFieldWrapper label="Grade Level" htmlFor="appLevel" required>
+                                    <Select value={level} onValueChange={setLevel} required>
+                                        <SelectTrigger id="appLevel">
+                                            <SelectValue placeholder="Select target grade level" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {levels.map((lvl) => (
+                                                <SelectItem key={lvl.id} value={lvl.id}>
+                                                    {lvl.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </FormFieldWrapper>
+                                <FormFieldWrapper label="Academic Year" htmlFor="appYear" required>
+                                    <Input
+                                        id="appYear"
+                                        required
+                                        value={academicYear}
+                                        onChange={(e) => setAcademicYear(e.target.value)}
+                                        placeholder="e.g. 2026-27"
+                                    />
+                                </FormFieldWrapper>
+                            </FormGrid>
+
+                            <div className="mt-4">
+                                <FormFieldWrapper label="Notes / Special Requirements" htmlFor="appNotes" colSpan="full">
+                                    <Textarea
+                                        id="appNotes"
+                                        rows={3}
+                                        value={notes}
+                                        onChange={(e) => setNotes(e.target.value)}
+                                        placeholder="Additional requirements or special remarks..."
+                                    />
+                                </FormFieldWrapper>
                             </div>
-                            <div className="space-y-1.5">
-                                <Label htmlFor="appYear">Academic Year *</Label>
-                                <Input
-                                    id="appYear"
-                                    required
-                                    value={academicYear}
-                                    onChange={(e) => setAcademicYear(e.target.value)}
-                                    placeholder="e.g. 2026-27"
-                                />
-                            </div>
-                        </div>
+                        </FormSection>
+                    </DialogBody>
 
-                        <div className="space-y-1.5 mt-4">
-                            <Label htmlFor="appNotes">Notes / Special Requirements</Label>
-                            <Textarea
-                                id="appNotes"
-                                rows={2}
-                                value={notes}
-                                onChange={(e) => setNotes(e.target.value)}
-                                placeholder="Additional requirements or special remarks..."
-                            />
-                        </div>
-                    </div>
-
-                    <DialogFooter className="gap-2 sm:gap-0 pt-4 border-t">
+                    <DialogFooter className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-end gap-3 shrink-0">
                         <Button
                             type="button"
                             variant="outline"
@@ -399,7 +391,7 @@ export default function NewApplicationDialog({
                         <Button
                             type="submit"
                             disabled={createMutation.isPending || !level}
-                            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+                            className="bg-sky-600 hover:bg-sky-700 text-white font-semibold"
                         >
                             {createMutation.isPending && (
                                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -412,4 +404,3 @@ export default function NewApplicationDialog({
         </Dialog>
     );
 }
-
