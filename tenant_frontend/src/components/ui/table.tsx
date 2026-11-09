@@ -8,7 +8,7 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
     <div
       data-slot="table-container"
-      className="relative w-full overflow-x-auto"
+      className="relative w-full overflow-x-auto [scrollbar-width:thin]"
     >
       <table
         data-slot="table"
@@ -23,7 +23,7 @@ function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
   return (
     <thead
       data-slot="table-header"
-      className={cn("[&_tr]:border-b bg-slate-00 dark:bg-slate-800", className)}
+      className={cn("[&_tr]:border-b bg-slate-50/90 dark:bg-slate-800/70 backdrop-blur-xs", className)}
       {...props}
     />
   )
@@ -57,7 +57,7 @@ function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
     <tr
       data-slot="table-row"
       className={cn(
-        "hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors",
+        "hover:bg-slate-50/80 dark:hover:bg-slate-800/50 data-[state=selected]:bg-slate-100 dark:data-[state=selected]:bg-slate-800 border-b border-slate-100 dark:border-slate-800/80 transition-colors",
         className
       )}
       {...props}
@@ -70,9 +70,18 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
     <th
       data-slot="table-head"
       className={cn(
-        "text-foreground h-10 px-2.5 sm:px-2 text-left align-middle font-medium whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
+        "text-slate-600 dark:text-slate-300 h-11 px-3.5 sm:px-4 text-left align-middle text-xs font-semibold uppercase tracking-wider whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
         className
       )}
+      {...props}
+    />
+  )
+}
+
+function TableHeadNumeric({ className, ...props }: React.ComponentProps<typeof TableHead>) {
+  return (
+    <TableHead
+      className={cn("text-right", className)}
       {...props}
     />
   )
@@ -83,9 +92,36 @@ function TableCell({ className, ...props }: React.ComponentProps<"td">) {
     <td
       data-slot="table-cell"
       className={cn(
-        "p-2.5 sm:p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
+        "px-3.5 sm:px-4 py-3 align-middle text-sm text-slate-700 dark:text-slate-300 whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
         className
       )}
+      {...props}
+    />
+  )
+}
+
+function TableCellNumeric({ className, ...props }: React.ComponentProps<typeof TableCell>) {
+  return (
+    <TableCell
+      className={cn("text-right font-mono tabular-nums text-slate-900 dark:text-slate-100 font-medium", className)}
+      {...props}
+    />
+  )
+}
+
+function TableCellBadge({ className, ...props }: React.ComponentProps<typeof TableCell>) {
+  return (
+    <TableCell
+      className={cn("text-center", className)}
+      {...props}
+    />
+  )
+}
+
+function TableCellAction({ className, ...props }: React.ComponentProps<typeof TableCell>) {
+  return (
+    <TableCell
+      className={cn("text-right whitespace-nowrap", className)}
       {...props}
     />
   )
@@ -110,7 +146,11 @@ export {
   TableBody,
   TableFooter,
   TableHead,
+  TableHeadNumeric,
   TableRow,
   TableCell,
+  TableCellNumeric,
+  TableCellBadge,
+  TableCellAction,
   TableCaption,
 }

@@ -26,6 +26,7 @@ import {
     CheckCircle2,
     Clock,
     Shield,
+    Eye,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -518,7 +519,7 @@ export default function StudentsPage() {
                                                 <div className="min-w-0">
                                                     <div className="flex items-center gap-1.5 flex-wrap">
                                                         <span
-                                                            onClick={() => router.push(`/dashboard/students/edit/${student.id}`)}
+                                                            onClick={() => router.push(`/dashboard/students/${student.id}`)}
                                                             className="font-semibold text-xs text-slate-900 dark:text-slate-100 hover:text-sky-600 dark:hover:text-sky-400 cursor-pointer transition truncate"
                                                         >
                                                             {student.full_name}
@@ -613,6 +614,15 @@ export default function StudentsPage() {
                                                     </Button>
                                                 </DropdownMenuTrigger>
                                                 <DropdownMenuContent align="end" className="w-48 p-1.5 rounded-xl shadow-lg">
+                                                    {/* View 360 Profile */}
+                                                    <DropdownMenuItem
+                                                        onClick={() => router.push(`/dashboard/students/${student.id}`)}
+                                                        className="flex items-center gap-2 p-2 rounded-lg cursor-pointer text-xs focus:bg-sky-50 focus:text-sky-600 dark:focus:bg-sky-950/40"
+                                                    >
+                                                        <Eye className="h-4 w-4 text-sky-600" />
+                                                        <span>View 360 Profile</span>
+                                                    </DropdownMenuItem>
+
                                                     {/* Collect Fees Direct Shortcut */}
                                                     <DropdownMenuItem
                                                         onClick={() => router.push(`/dashboard/fees/collect?search=${student.enrollment_id}`)}

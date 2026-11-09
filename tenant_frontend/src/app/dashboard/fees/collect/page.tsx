@@ -628,16 +628,16 @@ function CollectPaymentContent() {
                                         <TableHead className="py-3.5 pl-5 text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                                             Fee Head &amp; Schedule
                                         </TableHead>
-                                        <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                                        <TableHead className="text-right text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                                             Amount Due
                                         </TableHead>
-                                        <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                                        <TableHead className="text-right text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                                             Paid
                                         </TableHead>
-                                        <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                                        <TableHead className="text-right text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                                             Outstanding
                                         </TableHead>
-                                        <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                                        <TableHead className="text-center text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                                             Status
                                         </TableHead>
                                         <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider w-44">
@@ -669,15 +669,15 @@ function CollectPaymentContent() {
                                                         </div>
                                                     </TableCell>
 
-                                                    <TableCell className="py-3 text-xs font-medium text-slate-700 dark:text-slate-300">
+                                                    <TableCell className="py-3 text-right text-xs font-mono tabular-nums text-slate-700 dark:text-slate-300">
                                                         {formatIndianCurrency(fee.amount_due)}
                                                     </TableCell>
 
-                                                    <TableCell className="py-3 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                                                    <TableCell className="py-3 text-right text-xs font-mono tabular-nums font-semibold text-emerald-600 dark:text-emerald-400">
                                                         {formatIndianCurrency(fee.amount_paid)}
                                                     </TableCell>
 
-                                                    <TableCell className="py-3 text-xs font-bold text-slate-900 dark:text-slate-100">
+                                                    <TableCell className="py-3 text-right text-xs font-mono tabular-nums font-bold text-slate-900 dark:text-slate-100">
                                                         {outstanding > 0 ? (
                                                             <span className="text-rose-600 dark:text-rose-400">
                                                                 {formatIndianCurrency(fee.outstanding_balance)}
@@ -689,7 +689,7 @@ function CollectPaymentContent() {
                                                         )}
                                                     </TableCell>
 
-                                                    <TableCell className="py-3">
+                                                    <TableCell className="py-3 text-center">
                                                         {fee.status === "active" ? (
                                                             outstanding === 0 ? (
                                                                 <Badge className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300/80 font-semibold text-[10px]">
@@ -890,7 +890,7 @@ function CollectPaymentContent() {
                                         <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                                             Date
                                         </TableHead>
-                                        <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                                        <TableHead className="text-right text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                                             Amount Paid
                                         </TableHead>
                                         <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
@@ -921,7 +921,7 @@ function CollectPaymentContent() {
                                                     {formatDate(p.created_at)}
                                                 </TableCell>
 
-                                                <TableCell className="py-3 text-xs font-bold text-slate-900 dark:text-white font-mono">
+                                                <TableCell className="py-3 text-right text-xs font-bold text-slate-900 dark:text-white font-mono tabular-nums">
                                                     {formatIndianCurrency(p.amount)}
                                                 </TableCell>
 
