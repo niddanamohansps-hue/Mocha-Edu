@@ -71,14 +71,14 @@ function Content() {
                                         <tr
                                             key={m.month}
                                             onClick={() => setMonth(month === m.month ? "" : m.month)}
-                                            className={`cursor-pointer ${month === m.month ? "bg-indigo-50 dark:bg-indigo-950/30" : ""}`}
+                                            className={`cursor-pointer transition-colors active:bg-indigo-100 dark:active:bg-indigo-900/40 ${month === m.month ? "bg-indigo-50 dark:bg-indigo-950/30" : "hover:bg-slate-50 dark:hover:bg-slate-800/50"}`}
                                         >
-                                            <td className="px-4 py-2 font-medium">{monthName(m.month)}</td>
-                                            <td className="px-4 py-2 text-right">{money(m.billed)}</td>
-                                            <td className="px-4 py-2 text-right">{money(m.collected)}</td>
-                                            <td className="px-4 py-2 text-right">{money(m.outstanding)}</td>
-                                            <td className="px-4 py-2 text-right"><Rate line={m} /></td>
-                                            <td className="px-4 py-2 text-right">{money(m.received)}</td>
+                                            <td className="px-4 py-2.5 sm:py-2 font-medium">{monthName(m.month)}</td>
+                                            <td className="px-4 py-2.5 sm:py-2 text-right">{money(m.billed)}</td>
+                                            <td className="px-4 py-2.5 sm:py-2 text-right">{money(m.collected)}</td>
+                                            <td className="px-4 py-2.5 sm:py-2 text-right">{money(m.outstanding)}</td>
+                                            <td className="px-4 py-2.5 sm:py-2 text-right"><Rate line={m} /></td>
+                                            <td className="px-4 py-2.5 sm:py-2 text-right">{money(m.received)}</td>
                                         </tr>
                                     ))}
                                 </tbody>

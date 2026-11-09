@@ -135,23 +135,23 @@ function Content({ canCall }: { canCall: boolean }) {
                                                 </>
                                             ) : <span className="text-xs text-slate-400">Not yet due</span>}
                                         </td>
-                                        <td className="px-4 py-2">
+                                        <td className="px-4 py-2.5 sm:py-2">
                                             {row.guardian_name || row.guardian_phone ? (
                                                 <>
                                                     {row.guardian_name}
                                                     {row.guardian_phone && (
-                                                        <a className="block text-indigo-700 underline" href={`tel:${row.guardian_phone}`}>{row.guardian_phone}</a>
+                                                        <a className="inline-flex items-center py-1 text-xs sm:text-sm text-indigo-700 dark:text-indigo-400 font-medium underline active:text-indigo-900" href={`tel:${row.guardian_phone}`}>{row.guardian_phone}</a>
                                                     )}
                                                 </>
                                             ) : <span className="text-xs text-slate-400">No guardian on file</span>}
                                         </td>
-                                        <td className="px-4 py-2 text-xs">
+                                        <td className="px-4 py-2.5 sm:py-2 text-xs">
                                             {row.last_call_at ? new Date(row.last_call_at).toLocaleDateString() : <span className="text-slate-400">Never called</span>}
                                             <PromiseBadge promise={row.promise} />
                                         </td>
                                         {canCall && (
-                                            <td className="px-4 py-2 text-right">
-                                                <Button size="sm" variant="outline" onClick={() => setCalling(row)}>Record call</Button>
+                                            <td className="px-4 py-2.5 sm:py-2 text-right">
+                                                <Button size="sm" variant="outline" className="min-h-[38px] sm:min-h-0 font-medium" onClick={() => setCalling(row)}>Record call</Button>
                                             </td>
                                         )}
                                     </tr>
@@ -159,11 +159,11 @@ function Content({ canCall }: { canCall: boolean }) {
                             </tbody>
                         </table>
                     </div>
-                    <div className="flex items-center justify-between text-sm text-slate-500">
+                    <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-slate-500">
                         <span>{data.count} students, page {page} of {pages}</span>
                         <span className="flex gap-2">
-                            <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</Button>
-                            <Button size="sm" variant="outline" disabled={page >= pages} onClick={() => setPage(page + 1)}>Next</Button>
+                            <Button size="sm" variant="outline" className="min-h-[38px] sm:min-h-0 px-4" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</Button>
+                            <Button size="sm" variant="outline" className="min-h-[38px] sm:min-h-0 px-4" disabled={page >= pages} onClick={() => setPage(page + 1)}>Next</Button>
                         </span>
                     </div>
                 </>

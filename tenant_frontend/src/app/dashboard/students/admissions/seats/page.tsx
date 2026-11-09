@@ -108,16 +108,18 @@ function Picker({
         <div className="space-y-2 rounded-xl border border-slate-200 p-3 dark:border-slate-800">
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-sm font-medium">{title}{hint && <span className="ml-2 text-xs font-normal text-slate-500">{hint}</span>}</span>
-                <Button size="sm" variant="outline" disabled={pending || !changed} onClick={() => onSave(picked)}>Save</Button>
+                <Button size="sm" variant="outline" className="min-h-[38px] sm:min-h-0 px-4 font-semibold" disabled={pending || !changed} onClick={() => onSave(picked)}>Save</Button>
             </div>
-            <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+            <div className="flex flex-wrap gap-2 text-sm">
                 {types.map((t) => (
-                    <label key={t.value} className="flex items-center gap-1.5">
+                    <label key={t.value} className="flex items-center gap-2 py-1.5 px-2.5 rounded-lg border border-transparent hover:border-slate-200 dark:hover:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition cursor-pointer select-none">
                         <input
-                            type="checkbox" checked={picked.includes(t.value)}
+                            type="checkbox"
+                            className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500 cursor-pointer"
+                            checked={picked.includes(t.value)}
                             onChange={(e) => setPicked((cur) => (e.target.checked ? [...cur, t.value] : cur.filter((v) => v !== t.value)))}
                         />
-                        {t.label}
+                        <span>{t.label}</span>
                     </label>
                 ))}
             </div>
@@ -157,16 +159,17 @@ function SeatLine({ row, year, canEdit }: { row: SeatRow; year: string; canEdit:
     const [value, setValue] = useState(row.seats === null ? "" : String(row.seats));
     return (
         <tr>
-            <td className="whitespace-nowrap px-4 py-2 font-medium">{row.level_name}</td>
-            <td className="px-4 py-2">
+            <td className="whitespace-nowrap px-4 py-2.5 sm:py-2 font-medium">{row.level_name}</td>
+            <td className="px-4 py-2.5 sm:py-2">
                 {canEdit ? (
                     <span className="flex items-center gap-2">
                         <Input
-                            type="number" min={0} className="h-8 w-24" placeholder="No limit" value={value}
+                            type="number" min={0} className="h-9 sm:h-8 w-28 sm:w-24 text-sm" placeholder="No limit" value={value}
                             onChange={(e) => setValue(e.target.value)}
                         />
                         <Button
                             size="sm" variant="outline"
+                            className="min-h-[38px] sm:min-h-0 px-3.5 font-semibold"
                             disabled={save.isPending || value === "" || Number(value) === row.seats}
                             onClick={() => save.mutate({ academic_year: year, level: row.level, seats: Number(value) })}
                         >
@@ -175,13 +178,13 @@ function SeatLine({ row, year, canEdit }: { row: SeatRow; year: string; canEdit:
                     </span>
                 ) : row.seats ?? "No limit"}
             </td>
-            <td className="px-4 py-2 text-right">
+            <td className="px-4 py-2.5 sm:py-2 text-right">
                 {row.taken}
                 {row.over_by > 0 && <Badge variant="destructive" className="ml-2">{row.over_by} over</Badge>}
             </td>
-            <td className="px-4 py-2 text-right">{row.free ?? "-"}</td>
-            <td className="px-4 py-2 text-right">{row.waitlisted}</td>
-            <td className="px-4 py-2 text-right">{row.in_progress}</td>
+            <td className="px-4 py-2.5 sm:py-2 text-right">{row.free ?? "-"}</td>
+            <td className="px-4 py-2.5 sm:py-2 text-right">{row.waitlisted}</td>
+            <td className="px-4 py-2.5 sm:py-2 text-right">{row.in_progress}</td>
         </tr>
     );
 }
