@@ -3,10 +3,12 @@
 import React, { useState } from "react";
 import {
     Dialog,
+    DialogBody,
     DialogContent,
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
+import { ModalHeader } from "@/components/ui/modal-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -252,26 +254,22 @@ export default function ApplicationDetailDrawer({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto rounded-3xl p-6 sm:p-8">
+            <DialogContent className="max-w-4xl max-h-[90vh] p-0 flex flex-col overflow-hidden rounded-2xl" showCloseButton={false}>
                 {isLoading || !application ? (
-                    <div className="h-64 flex flex-col items-center justify-center">
+                    <div className="h-64 flex flex-col items-center justify-center p-6">
                         <DialogTitle className="sr-only">Loading application</DialogTitle>
-                        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                        <Loader2 className="w-8 h-8 animate-spin text-sky-600" />
                         <span className="text-sm text-slate-500 mt-2">Loading application...</span>
                     </div>
                 ) : (
-                    <div className="space-y-6">
-                        {/* Header Banner */}
-                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-6 border-b border-slate-100 dark:border-slate-800">
-                            <div>
-                                <div className="flex items-center gap-3">
-                                    <h2 className="text-2xl font-black text-slate-800 dark:text-white">
-                                        {application.first_name} {application.middle_name} {application.last_name}
-                                    </h2>
-                                    {getStatusBadge(application.status)}
-                                </div>
-                                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 mt-1 font-medium">
-                                    <span className="font-mono text-blue-600 dark:text-blue-400 font-bold">
+                    <>
+                        {/* Standardized Fixed Header */}
+                        <ModalHeader
+                            title={`${application.first_name} ${application.middle_name ? application.middle_name + " " : ""}${application.last_name}`}
+                            badge={getStatusBadge(application.status)}
+                            metadata={
+                                <>
+                                    <span className="font-mono text-sky-600 dark:text-sky-400 font-bold">
                                         {application.application_number}
                                     </span>
                                     <span>·</span>
@@ -286,38 +284,41 @@ export default function ApplicationDetailDrawer({
                                             </span>
                                         </>
                                     )}
+                                </>
+                            }
+                            actions={
+                                <div className="flex items-center gap-2 mr-1">
+                                    {canDecide && !isEnrolled && currentStatus !== "rejected" && (
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => setDecisionOpen(true)}
+                                            className="rounded-lg h-9 font-medium text-xs text-slate-700 dark:text-slate-200"
+                                        >
+                                            <Shield className="w-3.5 h-3.5 mr-1 text-sky-600" />
+                                            Make Decision
+                                        </Button>
+                                    )}
+
+                                    {canEnroll && canTakeEnrollmentAction && (
+                                        <Button
+                                            size="sm"
+                                            onClick={() => setEnrollOpen(true)}
+                                            className="bg-sky-600 hover:bg-sky-700 text-white rounded-lg h-9 font-medium text-xs shadow-xs"
+                                        >
+                                            <GraduationCap className="w-3.5 h-3.5 mr-1" />
+                                            Enroll Student
+                                        </Button>
+                                    )}
                                 </div>
-                            </div>
+                            }
+                            onClose={() => onOpenChange(false)}
+                        />
 
-                            {/* Action Buttons */}
-                            <div className="flex flex-wrap items-center gap-2">
-                                {canDecide && !isEnrolled && currentStatus !== "rejected" && (
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => setDecisionOpen(true)}
-                                        className="rounded-xl font-semibold text-slate-700 dark:text-slate-200"
-                                    >
-                                        <Shield className="w-4 h-4 mr-1.5 text-blue-600" />
-                                        Make Decision
-                                    </Button>
-                                )}
-
-                                {canEnroll && canTakeEnrollmentAction && (
-                                    <Button
-                                        size="sm"
-                                        onClick={() => setEnrollOpen(true)}
-                                        className="bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-semibold shadow-xs"
-                                    >
-                                        <GraduationCap className="w-4 h-4 mr-1.5" />
-                                        Enroll Student
-                                    </Button>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Lifecycle Status Bar & Reviewer Controls */}
-                        <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 flex flex-wrap items-center justify-between gap-4">
+                        {/* Independently Scrollable Body */}
+                        <DialogBody className="flex-1 overflow-y-auto px-6 py-5 [scrollbar-width:thin] space-y-6">
+                            {/* Lifecycle Status Bar & Reviewer Controls */}
+                            <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 flex flex-wrap items-center justify-between gap-4">
                             <div className="flex items-center gap-3">
                                 <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                                     Assign Reviewer:
@@ -846,7 +847,8 @@ export default function ApplicationDetailDrawer({
                                 </div>
                             </TabsContent>
                         </Tabs>
-                    </div>
+                    </DialogBody>
+                </>
                 )}
             </DialogContent>
 

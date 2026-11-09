@@ -14,11 +14,13 @@ import { openRazorpayCheckout, submitGatewayForm } from "@/lib/payments";
 import { GatewayPayload } from "@/types/Fees";
 import {
     Dialog,
+    DialogBody,
     DialogContent,
     DialogDescription,
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
+import { ModalHeader } from "@/components/ui/modal-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -167,17 +169,14 @@ export function PaymentReviewModal({
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && !isSubmitting && onClose()}>
-            <DialogContent className="max-w-xl p-0 overflow-hidden sm:rounded-2xl flex flex-col gap-0">
-                <DialogHeader className="shrink-0 p-6 pb-2 border-b border-slate-100 dark:border-slate-800">
-                    <DialogTitle className="text-xl font-bold flex items-center gap-2">
-                        <ShieldCheck className="h-5 w-5 text-emerald-600" />
-                        Review Online Fee Payment
-                    </DialogTitle>
-                    <DialogDescription className="text-xs text-slate-500">
-                        {studentName ? `Paying fees for ${studentName}. ` : ""}
-                        Confirm fee allocations and proceed to the payment gateway.
-                    </DialogDescription>
-                </DialogHeader>
+            <DialogContent className="max-w-xl max-h-[90vh] p-0 overflow-hidden rounded-2xl flex flex-col gap-0" showCloseButton={false}>
+                <ModalHeader
+                    icon={<ShieldCheck className="h-5 w-5 text-emerald-600" />}
+                    title="Review Online Fee Payment"
+                    subtitle={studentName ? `Paying fees for ${studentName}` : undefined}
+                    metadata={<span>Confirm fee allocations and proceed to the payment gateway</span>}
+                    onClose={onClose}
+                />
 
                 {isRedirecting ? (
                     <div className="py-20 flex flex-col items-center justify-center text-center p-6 space-y-4">
@@ -196,7 +195,7 @@ export function PaymentReviewModal({
                         </p>
                     </div>
                 ) : (
-                    <div className="flex-1 min-h-0 p-6 space-y-6 overflow-y-auto">
+                    <DialogBody className="flex-1 min-h-0 p-6 space-y-6 overflow-y-auto [scrollbar-width:thin]">
                         {/* Selected Fee Heads List */}
                         <div className="space-y-3">
                             <Label className="text-xs font-bold uppercase text-slate-500 tracking-wider">
@@ -316,7 +315,7 @@ export function PaymentReviewModal({
                                 for school reconciliation to prevent duplicate charges or accounting discrepancies.
                             </p>
                         </div>
-                    </div>
+                    </DialogBody>
                 )}
 
                 {!isRedirecting && (

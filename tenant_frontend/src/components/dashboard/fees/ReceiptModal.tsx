@@ -6,10 +6,12 @@ import { Loader2, Printer, X, CheckCircle2, AlertTriangle } from "lucide-react";
 import { usePaymentReceipt } from "@/hooks/useFees";
 import {
     Dialog,
+    DialogBody,
     DialogContent,
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
+import { ModalHeader } from "@/components/ui/modal-header";
 import { Button } from "@/components/ui/button";
 
 interface ReceiptModalProps {
@@ -28,17 +30,28 @@ export function ReceiptModal({ paymentId, isOpen, onClose }: ReceiptModalProps) 
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="max-w-2xl p-0 overflow-hidden sm:rounded-2xl">
-                <DialogHeader className="p-6 pb-2 border-b border-slate-100 dark:border-slate-800 flex flex-wrap flex-row items-center justify-between gap-2">
-                    <div>
-                        <DialogTitle className="text-xl font-bold">Payment Receipt</DialogTitle>
-                        <p className="text-xs text-slate-500 mt-1">
-                            Official school fee transaction receipt
-                        </p>
-                    </div>
-                </DialogHeader>
+            <DialogContent className="max-w-2xl max-h-[90vh] p-0 flex flex-col overflow-hidden rounded-2xl" showCloseButton={false}>
+                <ModalHeader
+                    title="Payment Receipt"
+                    subtitle="Official school fee transaction receipt"
+                    metadata={payment ? <span className="font-mono">#{payment.receipt_number || payment.id.slice(0, 8)}</span> : undefined}
+                    actions={
+                        payment ? (
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={handlePrint}
+                                className="rounded-lg h-9 font-medium text-xs gap-1.5 print:hidden"
+                            >
+                                <Printer className="h-3.5 w-3.5" />
+                                Print
+                            </Button>
+                        ) : undefined
+                    }
+                    onClose={onClose}
+                />
 
-                <div className="p-6 max-h-[75vh] overflow-y-auto">
+                <DialogBody className="flex-1 overflow-y-auto px-6 py-5 [scrollbar-width:thin] space-y-6">
                     {isLoading ? (
                         <div className="flex flex-col items-center justify-center py-16 text-slate-500">
                             <Loader2 className="h-8 w-8 animate-spin text-indigo-600 mb-3" />
@@ -177,16 +190,17 @@ export function ReceiptModal({ paymentId, isOpen, onClose }: ReceiptModalProps) 
                             </div>
                         </div>
                     )}
-                </div>
+                </DialogBody>
 
-                <div className="p-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3 print:hidden">
-                    <Button variant="outline" onClick={onClose}>
+                <div className="px-6 py-3.5 bg-slate-50 dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3 print:hidden shrink-0">
+                    <Button variant="outline" size="sm" onClick={onClose} className="rounded-lg h-9">
                         Close
                     </Button>
                     {payment && (
                         <Button
+                            size="sm"
                             onClick={handlePrint}
-                            className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2"
+                            className="bg-sky-600 hover:bg-sky-700 text-white gap-2 rounded-lg h-9"
                         >
                             <Printer className="h-4 w-4" />
                             Print Receipt

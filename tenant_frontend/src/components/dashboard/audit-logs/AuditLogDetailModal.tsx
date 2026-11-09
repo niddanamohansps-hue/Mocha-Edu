@@ -3,12 +3,14 @@
 import React from "react";
 import {
     Dialog,
+    DialogBody,
     DialogContent,
     DialogHeader,
     DialogTitle,
     DialogDescription,
     DialogFooter,
 } from "@/components/ui/dialog";
+import { ModalHeader } from "@/components/ui/modal-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AuditLogItem } from "@/types/AuditLog";
@@ -48,25 +50,20 @@ export function AuditLogDetailModal({ log, isOpen, onClose }: AuditLogDetailModa
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader className="space-y-2 border-b border-slate-200 dark:border-slate-800 pb-4">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                            <Shield className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-                            <DialogTitle className="text-xl font-bold font-mono tracking-tight text-slate-900 dark:text-white">
-                                {log.action}
-                            </DialogTitle>
-                        </div>
+            <DialogContent className="max-w-2xl max-h-[90vh] p-0 flex flex-col overflow-hidden rounded-2xl" showCloseButton={false}>
+                <ModalHeader
+                    icon={<Shield className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />}
+                    title={log.action}
+                    badge={
                         <Badge variant={getActionBadgeVariant(log.action)} className="font-mono text-xs">
                             {log.model_name}
                         </Badge>
-                    </div>
-                    <DialogDescription className="text-xs text-slate-500 font-mono">
-                        Event ID: {log.id}
-                    </DialogDescription>
-                </DialogHeader>
+                    }
+                    metadata={<span className="font-mono text-xs text-slate-500">Event ID: {log.id}</span>}
+                    onClose={onClose}
+                />
 
-                <div className="py-4 space-y-5">
+                <DialogBody className="flex-1 overflow-y-auto px-6 py-5 [scrollbar-width:thin] space-y-5">
                     {/* Event Metadata Grid */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                         <div className="flex items-start gap-2 p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800">
@@ -139,10 +136,10 @@ export function AuditLogDetailModal({ log, isOpen, onClose }: AuditLogDetailModa
                     <div className="border-t border-slate-200 dark:border-slate-800 pt-4">
                         <AuditLogChangesViewer changes={log.changes} />
                     </div>
-                </div>
+                </DialogBody>
 
-                <DialogFooter className="border-t border-slate-200 dark:border-slate-800 pt-3">
-                    <Button variant="outline" onClick={onClose}>
+                <DialogFooter className="px-6 py-3.5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 shrink-0">
+                    <Button variant="outline" size="sm" onClick={onClose} className="rounded-lg h-9">
                         Close
                     </Button>
                 </DialogFooter>

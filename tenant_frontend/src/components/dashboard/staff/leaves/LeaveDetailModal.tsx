@@ -5,12 +5,14 @@ import { LeaveApplication } from "@/types/Leave";
 import { useCancelLeave, useLeaveApplicationDetail } from "@/hooks/useStaffLeaves";
 import {
     Dialog,
+    DialogBody,
     DialogContent,
     DialogDescription,
     DialogFooter,
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
+import { ModalHeader } from "@/components/ui/modal-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -75,27 +77,31 @@ export function LeaveDetailModal({
 
     return (
         <Dialog open={!!applicationId} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                        <DialogTitle className="flex items-center gap-2">
-                            <Calendar className="w-5 h-5 text-indigo-600" />
-                            Leave Application Details
-                        </DialogTitle>
-                        {app && getStatusBadge(app.status)}
-                    </div>
-                    <DialogDescription>
-                        Application #{app?.id.slice(0, 8)} • Submitted on{" "}
-                        {app?.applied_at ? format(new Date(app.applied_at), "MMM d, yyyy") : ""}
-                    </DialogDescription>
-                </DialogHeader>
+            <DialogContent className="sm:max-w-xl max-h-[90vh] p-0 flex flex-col overflow-hidden rounded-2xl" showCloseButton={false}>
+                <ModalHeader
+                    icon={<Calendar className="w-5 h-5" />}
+                    title={app?.staff_name || "Leave Application Details"}
+                    badge={app ? getStatusBadge(app.status) : undefined}
+                    subtitle={app?.leave_type_name}
+                    metadata={
+                        app ? (
+                            <>
+                                <span className="font-mono">#{app.id.slice(0, 8)}</span>
+                                <span>•</span>
+                                <span>Submitted on {app.applied_at ? format(new Date(app.applied_at), "MMM d, yyyy") : ""}</span>
+                            </>
+                        ) : undefined
+                    }
+                    onClose={onClose}
+                />
 
-                {isLoading || !app ? (
-                    <div className="py-12 flex justify-center items-center">
-                        <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
-                    </div>
-                ) : (
-                    <div className="space-y-4 pt-2">
+                <DialogBody className="flex-1 overflow-y-auto px-6 py-5 [scrollbar-width:thin] space-y-4">
+                    {isLoading || !app ? (
+                        <div className="py-12 flex justify-center items-center">
+                            <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
                         {/* Staff Profile Overview */}
                         <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex flex-wrap items-center justify-between gap-2">
                             <div>
@@ -281,6 +287,7 @@ export function LeaveDetailModal({
                         </DialogFooter>
                     </div>
                 )}
+                </DialogBody>
             </DialogContent>
         </Dialog>
     );

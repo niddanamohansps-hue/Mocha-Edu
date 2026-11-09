@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ModalHeader } from "@/components/ui/modal-header";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -60,13 +61,26 @@ export function ApplicantDialog({
 
     return (
         <Dialog open onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                    <DialogTitle className="flex items-center gap-3">
-                        {applicant.full_name}
-                        <Badge variant="outline">{stageLabel(applicant.stage)}</Badge>
-                    </DialogTitle>
-                </DialogHeader>
+            <DialogContent className="max-w-2xl max-h-[90vh] p-0 flex flex-col overflow-hidden rounded-2xl" showCloseButton={false}>
+                <ModalHeader
+                    title={applicant.full_name}
+                    badge={<Badge variant="outline">{stageLabel(applicant.stage)}</Badge>}
+                    subtitle={applicant.opening_title}
+                    metadata={
+                        <>
+                            <span>{applicant.experience_years} yrs exp</span>
+                            {applicant.email && (
+                                <>
+                                    <span>•</span>
+                                    <span>{applicant.email}</span>
+                                </>
+                            )}
+                        </>
+                    }
+                    onClose={onClose}
+                />
+
+                <DialogBody className="flex-1 overflow-y-auto px-6 py-5 [scrollbar-width:thin] space-y-6">
 
                 <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
                     <span className="text-slate-500">Applied for</span>
@@ -352,6 +366,7 @@ export function ApplicantDialog({
                         ))}
                     </ul>
                 </section>
+                </DialogBody>
             </DialogContent>
         </Dialog>
     );

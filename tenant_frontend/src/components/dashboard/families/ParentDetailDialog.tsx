@@ -3,12 +3,14 @@
 import React, { useState } from "react";
 import {
     Dialog,
+    DialogBody,
     DialogContent,
     DialogDescription,
     DialogFooter,
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
+import { ModalHeader } from "@/components/ui/modal-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -66,35 +68,31 @@ export function ParentDetailDialog({
     return (
         <>
             <Dialog open={open} onOpenChange={onOpenChange}>
-                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl">
-                    <DialogHeader>
-                        <div className="flex items-start justify-between gap-4">
-                            <div>
-                                <DialogTitle className="text-2xl font-bold flex items-center gap-2">
-                                    {fullName || "Parent Details"}
-                                </DialogTitle>
-                                <DialogDescription className="mt-1">
-                                    Overview of profile, contact channels, and enrolled children.
-                                </DialogDescription>
-                            </div>
-                            {canEdit && parent && (
+                <DialogContent className="max-w-2xl max-h-[90vh] p-0 flex flex-col overflow-hidden rounded-2xl" showCloseButton={false}>
+                    <ModalHeader
+                        title={fullName || "Parent Details"}
+                        subtitle="Overview of profile, contact channels, and enrolled children."
+                        actions={
+                            canEdit && parent ? (
                                 <Button
                                     variant="outline"
                                     size="sm"
                                     onClick={() => setIsEditOpen(true)}
-                                    className="rounded-xl h-9"
+                                    className="rounded-lg h-9 font-medium text-xs text-slate-700 dark:text-slate-200"
                                 >
-                                    <Pencil className="h-3.5 w-3.5 mr-1.5" />
+                                    <Pencil className="h-3.5 w-3.5 mr-1.5 text-sky-600" />
                                     Edit
                                 </Button>
-                            )}
-                        </div>
-                    </DialogHeader>
+                            ) : undefined
+                        }
+                        onClose={() => onOpenChange(false)}
+                    />
 
-                    {isLoading ? (
-                        <div className="py-16 text-center text-slate-400">Loading parent details...</div>
-                    ) : parent ? (
-                        <div className="space-y-6 pt-2">
+                    <DialogBody className="flex-1 overflow-y-auto px-6 py-5 [scrollbar-width:thin] space-y-6">
+                        {isLoading ? (
+                            <div className="py-16 text-center text-slate-400">Loading parent details...</div>
+                        ) : parent ? (
+                            <div className="space-y-6">
                             {/* Account Status Banner */}
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40">
                                 <div className="flex items-center gap-3">
@@ -283,12 +281,13 @@ export function ParentDetailDialog({
                             </div>
                         </div>
                     ) : null}
+                    </DialogBody>
 
-                    <DialogFooter className="pt-4">
+                    <DialogFooter className="px-6 py-3.5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 shrink-0">
                         <Button
                             variant="outline"
                             onClick={() => onOpenChange(false)}
-                            className="rounded-xl w-full sm:w-auto"
+                            className="rounded-lg h-9 w-full sm:w-auto font-medium text-xs"
                         >
                             Close
                         </Button>

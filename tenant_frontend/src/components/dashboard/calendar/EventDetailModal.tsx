@@ -3,11 +3,13 @@
 import React from "react";
 import {
     Dialog,
+    DialogBody,
     DialogContent,
     DialogHeader,
     DialogTitle,
     DialogFooter,
 } from "@/components/ui/dialog";
+import { ModalHeader } from "@/components/ui/modal-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CalendarEventItem } from "@/types/Calendar";
@@ -118,35 +120,39 @@ export function EventDetailModal({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-xl">
-                <DialogHeader className="space-y-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                        <Badge variant="outline" className={getCategoryBadgeClass(event.event_type)}>
-                            {event.event_type_display || event.event_type}
-                        </Badge>
-                        {event.is_holiday && (
-                            <Badge className="bg-red-500 hover:bg-red-600 text-white flex items-center gap-1">
-                                <Sparkles className="h-3 w-3" /> Holiday
+            <DialogContent className="max-w-xl max-h-[90vh] p-0 flex flex-col overflow-hidden rounded-2xl" showCloseButton={false}>
+                <ModalHeader
+                    title={event.title}
+                    badge={
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                            <Badge variant="outline" className={getCategoryBadgeClass(event.event_type)}>
+                                {event.event_type_display || event.event_type}
                             </Badge>
-                        )}
-                        <Badge
-                            variant={
-                                event.status === "published"
-                                    ? "default"
-                                    : event.status === "cancelled"
-                                    ? "destructive"
-                                    : "secondary"
-                            }
-                        >
-                            {event.status_display || event.status}
-                        </Badge>
-                    </div>
-                    <DialogTitle className="text-xl font-bold text-slate-900 dark:text-slate-50">
-                        {event.title}
-                    </DialogTitle>
-                </DialogHeader>
+                            {event.is_holiday && (
+                                <Badge className="bg-red-500 hover:bg-red-600 text-white flex items-center gap-1">
+                                    <Sparkles className="h-3 w-3" /> Holiday
+                                </Badge>
+                            )}
+                            <Badge
+                                variant={
+                                    event.status === "published"
+                                        ? "default"
+                                        : event.status === "cancelled"
+                                        ? "destructive"
+                                        : "secondary"
+                                }
+                            >
+                                {event.status_display || event.status}
+                            </Badge>
+                        </div>
+                    }
+                    subtitle={formatDateDisplay(event.start_date, event.end_date)}
+                    metadata={<span>{formatTimeDisplay()}</span>}
+                    onClose={() => onOpenChange(false)}
+                />
 
-                <div className="space-y-4 py-2 text-sm text-slate-700 dark:text-slate-300">
+                <DialogBody className="flex-1 overflow-y-auto px-6 py-5 [scrollbar-width:thin] space-y-4">
+                    <div className="space-y-4 text-sm text-slate-700 dark:text-slate-300">
                     <div className="flex items-start gap-3">
                         <CalendarIcon className="h-4 w-4 text-slate-500 mt-0.5 shrink-0" />
                         <div>
@@ -201,8 +207,9 @@ export function EventDetailModal({
                         {event.created_at ? format(parseISO(event.created_at), "PPp") : "—"}
                     </div>
                 </div>
+                </DialogBody>
 
-                <DialogFooter className="flex flex-col sm:flex-row justify-between gap-2 border-t border-slate-100 dark:border-slate-800 pt-3">
+                <DialogFooter className="px-6 py-3.5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 shrink-0 flex flex-col sm:flex-row justify-between gap-2">
                     <div className="flex items-center gap-2">
                         {canManage && (
                             <>

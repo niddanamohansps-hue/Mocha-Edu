@@ -77,10 +77,10 @@ export function SlideOverDrawer({
                         <button
                             type="button"
                             onClick={onClose}
-                            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                            className="h-9 w-9 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 cursor-pointer shrink-0"
                             aria-label="Close drawer"
                         >
-                            <X className="h-5 w-5" />
+                            <X className="h-4.5 w-4.5" />
                         </button>
                     </div>
 
