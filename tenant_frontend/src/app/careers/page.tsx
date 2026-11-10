@@ -8,7 +8,6 @@ import axiosInstance from "@/lib/axios";
 import { recruitmentError } from "@/hooks/useRecruitment";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
 interface Receipt {
@@ -224,10 +223,12 @@ function ApplyForm({ opening, onBack, onDone }: { opening: PublicOpening; onBack
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
+    // The <label> wraps its input, so the two are tied together: screen readers announce the label, and
+    // tapping the label focuses the box.
     return (
-        <div className="grid gap-1.5">
-            <Label>{label}</Label>
+        <label className="grid gap-1.5">
+            <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 tracking-tight">{label}</span>
             {children}
-        </div>
+        </label>
     );
 }
