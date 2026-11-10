@@ -16,7 +16,7 @@ from rest_framework.views import APIView
 from roles.permissions import HasPermission
 
 from .request_metrics import summary
-from .tasks import HEARTBEAT_KEY
+from .tasks import heartbeat_key
 
 # The heartbeat runs every minute; older than this means the worker or the scheduler has stopped.
 HEARTBEAT_STALE_AFTER = timedelta(minutes=3)
@@ -43,7 +43,7 @@ def _cache():
 
 
 def _background_jobs():
-    raw = cache.get(HEARTBEAT_KEY)
+    raw = cache.get(heartbeat_key())
     if not raw:
         return {"status": "down", "last_seen": None}
     seen = datetime.fromisoformat(raw)

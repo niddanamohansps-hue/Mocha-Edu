@@ -17,7 +17,7 @@ from config.monitoring import MASK, _scrub
 
 from . import request_metrics
 from .request_metrics import BUCKETS_MS, _bucket, _percentile, readable_route, record, summary
-from .tasks import HEARTBEAT_KEY, heartbeat
+from .tasks import heartbeat, heartbeat_key
 
 
 class PercentileTests(SimpleTestCase):
@@ -182,6 +182,19 @@ class RedisTelemetryTests(SimpleTestCase):
         self.assertEqual(self.redis.round_trips >= 1, True)
 
 
+class HeartbeatIsolationTests(SimpleTestCase):
+    def test_a_worker_in_one_environment_never_makes_another_look_healthy(self):
+        from .system_health import _background_jobs
+
+        cache.clear()
+        with override_settings(DEPLOYMENT_ENVIRONMENT="staging"):
+            heartbeat()
+            self.assertEqual(_background_jobs()["status"], "ok")
+        with override_settings(DEPLOYMENT_ENVIRONMENT="production"):
+            self.assertEqual(_background_jobs()["status"], "down")
+        cache.clear()
+
+
 class ReadableRouteTests(SimpleTestCase):
     def test_router_regex_is_shown_as_a_plain_path(self):
         self.assertEqual(readable_route("api/academics/^academic-years/$"), "api/academics/academic-years/")
@@ -256,7 +269,7 @@ class SystemHealthApiTests(TransactionTestCase):
         heartbeat()
         response = self._client("sh_operator").get("/api/system-health/", HTTP_HOST=self.DOMAIN)
         self.assertEqual(response.data["services"]["background_jobs"]["status"], "ok")
-        self.assertIsNotNone(cache.get(HEARTBEAT_KEY))
+        self.assertIsNotNone(cache.get(heartbeat_key()))
 
     def test_needs_the_permission(self):
         response = self._client("sh_clerk").get("/api/system-health/", HTTP_HOST=self.DOMAIN)
