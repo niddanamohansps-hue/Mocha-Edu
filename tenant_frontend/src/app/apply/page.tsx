@@ -107,12 +107,10 @@ export default function PublicApplyPage() {
                 setSelectedYearId(cur.id);
                 setEnqYearId(cur.id);
             }
-            if (info.levels?.length > 0 && !selectedLevelId) {
-                setSelectedLevelId(info.levels[0].id);
-                setEnqLevelId(info.levels[0].id);
-            }
+            // The class is never pre-chosen: a family applying for Class 5 must not slip through as the first
+            // class in the list. The application cannot move past this step until one is picked.
         }
-    }, [info, selectedYearId, selectedLevelId]);
+    }, [info, selectedYearId]);
 
     const handleCopy = (text: string, isToken: boolean) => {
         navigator.clipboard.writeText(text);
@@ -180,7 +178,7 @@ export default function PublicApplyPage() {
             guardian_relationship: enqRelationship,
             guardian_phone: enqPhone.trim(),
             guardian_email: enqEmail.trim() || undefined,
-            preferred_level: enqLevelId,
+            preferred_level: enqLevelId || undefined,
             academic_year_ref: enqYearId,
             notes: enqNotes.trim() || undefined,
             consent: true,
@@ -473,7 +471,7 @@ export default function PublicApplyPage() {
                                         <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">
                                             Applying Grade / Level <span className="text-red-500">*</span>
                                         </Label>
-                                        <Select value={enqLevelId} onValueChange={setEnqLevelId}>
+                                        <Select value={enqLevelId || undefined} onValueChange={setEnqLevelId}>
                                             <SelectTrigger className="rounded-xl h-11">
                                                 <SelectValue placeholder="Select Grade" />
                                             </SelectTrigger>
@@ -890,7 +888,7 @@ export default function PublicApplyPage() {
                                                 <Label className="text-xs font-bold">
                                                     Grade / Academic Level <span className="text-red-500">*</span>
                                                 </Label>
-                                                <Select value={selectedLevelId} onValueChange={setSelectedLevelId}>
+                                                <Select value={selectedLevelId || undefined} onValueChange={setSelectedLevelId}>
                                                     <SelectTrigger className="rounded-xl h-11">
                                                         <SelectValue placeholder="Select Grade" />
                                                     </SelectTrigger>

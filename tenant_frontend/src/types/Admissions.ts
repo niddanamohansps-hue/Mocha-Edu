@@ -249,7 +249,8 @@ export interface PublicEnquiryPayload {
     address?: string;
     previous_school?: string;
     academic_year_ref?: string;
-    preferred_level: string;
+    /** Optional: a family may enquire before deciding the class. */
+    preferred_level?: string;
     notes?: string;
     consent: boolean;
 }
