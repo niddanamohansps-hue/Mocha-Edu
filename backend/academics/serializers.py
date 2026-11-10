@@ -95,6 +95,7 @@ class AcademicYearSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         instance = AcademicYear(
+            pk=getattr(self.instance, "pk", None),
             name=attrs.get("name", getattr(self.instance, "name", "")),
             start_date=attrs.get("start_date", getattr(self.instance, "start_date", None)),
             end_date=attrs.get("end_date", getattr(self.instance, "end_date", None)),
@@ -103,6 +104,18 @@ class AcademicYearSerializer(serializers.ModelSerializer):
             instance.clean()
         except DjangoValidationError as exc:
             raise serializers.ValidationError(exc.message_dict)
+        # Two sessions may not share a day: attendance, fees and exams are filed by the date's academic year.
+        # Checked here (inside the school's schema) rather than in clean(), which validates the year on its own.
+        clash = (
+            AcademicYear.objects.filter(start_date__lte=instance.end_date, end_date__gte=instance.start_date)
+            .exclude(pk=instance.pk)
+            .order_by("start_date")
+            .first()
+        )
+        if clash:
+            raise serializers.ValidationError(
+                {"start_date": f"These dates overlap {clash.name} ({clash.start_date:%d %b %Y} – {clash.end_date:%d %b %Y})."}
+            )
         return attrs
 
     def validate_name(self, value):

@@ -18,7 +18,7 @@ const SEGMENT_LABEL_MAP: Record<string, string> = {
     library: "Library",
     staff: "Staff",
     faculty: "Faculty",
-    academics: "Academics",
+    academics: "Academic Structure",
     "course-content": "Course Content",
     "parent-portal": "Parent Portal",
     "front-office": "Front Office",

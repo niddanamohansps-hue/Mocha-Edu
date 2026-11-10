@@ -592,6 +592,22 @@ class AcademicYearApiTests(AcademicsFixtureMixin, TransactionTestCase):
         self.assertEqual(reversed_.status_code, 400)
         self.assertIn("end_date", equal.data)
 
+    def test_overlapping_years_are_rejected_but_back_to_back_years_are_fine(self):
+        client = self._client_as(self.manager, self.DOMAIN)
+        # starts on 10 Mar 2028, three weeks before 2027-28 ends (31 Mar 2028)
+        overlap = client.post(
+            self.BASE, self._body(start_date="2028-03-10", end_date="2029-03-31"), HTTP_HOST=self.DOMAIN, format="json"
+        )
+        self.assertEqual(overlap.status_code, 400)
+        self.assertIn("2027-28", str(overlap.data["start_date"]))
+        # the day after 2027-28 ends is fine
+        self.assertEqual(client.post(self.BASE, self._body(), HTTP_HOST=self.DOMAIN, format="json").status_code, 201)
+        # editing a year never clashes with itself
+        same = client.patch(
+            f"{self.BASE}{self.a_2627.id}/", {"start_date": "2026-04-02"}, HTTP_HOST=self.DOMAIN, format="json"
+        )
+        self.assertEqual(same.status_code, 200, same.data)
+
     # --- Update -------------------------------------------------------------------
 
     def test_authorized_update_succeeds(self):

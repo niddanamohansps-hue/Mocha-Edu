@@ -78,7 +78,7 @@ export default function AcademicsPage() {
     return (
         <div className="flex flex-col gap-6">
             <div>
-                <h1 className="text-3xl font-bold tracking-tight">Academics</h1>
+                <h1 className="text-3xl font-bold tracking-tight">Academic Structure</h1>
                 <p className="text-muted-foreground">
                     Manage your institution's academic structure, curriculum, sessions, and classes.
                 </p>

@@ -54,6 +54,8 @@ import { AcademicYear } from "@/types/Academics";
 export default function AcademicYearsTab() {
     const { can, isOwner } = usePermissions();
     const { data: years = [], isLoading, isError, refetch } = useAcademicYears();
+    // The school's local date as YYYY-MM-DD, compared with each year's start/end (also YYYY-MM-DD).
+    const today = new Date().toLocaleDateString("en-CA");
     const { mutate: createYear, isPending: isCreating } = useCreateAcademicYear();
     const { mutate: updateYear, isPending: isUpdating } = useUpdateAcademicYear();
     const { mutate: deleteYear, isPending: isDeleting } = useDeleteAcademicYear();
@@ -212,12 +214,19 @@ export default function AcademicYearsTab() {
                                                 <Star className="h-3 w-3 fill-emerald-600 text-emerald-600" />
                                                 <span>Current Year</span>
                                             </Badge>
+                                        ) : year.start_date > today ? (
+                                            <Badge
+                                                variant="outline"
+                                                className="border-sky-300 bg-sky-50 text-sky-700 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-300 font-medium"
+                                            >
+                                                Upcoming
+                                            </Badge>
                                         ) : (
                                             <Badge
                                                 variant="outline"
                                                 className="border-slate-200 text-slate-500 dark:border-slate-800 dark:text-slate-400 font-normal"
                                             >
-                                                Past / Inactive
+                                                {year.end_date < today ? "Past" : "Not current"}
                                             </Badge>
                                         )}
                                     </TableCell>
