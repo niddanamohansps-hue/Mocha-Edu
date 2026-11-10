@@ -28,6 +28,7 @@ import {
     useCancelStudentFee,
     useFeeHeads,
     useRecordPayment,
+    useReversePayment,
     useStudentFees,
     useStudentPayments,
 } from "@/hooks/useFees";
@@ -168,6 +169,9 @@ function CollectPaymentContent() {
     const [method, setMethod] = useState<PaymentMethod>("cash");
     const [referenceNote, setReferenceNote] = useState("");
     const [cancelReason, setCancelReason] = useState<Record<string, string>>({});
+    // A payment recorded by mistake is reversed (never deleted): the reversal is its own receipt row.
+    const [reverseReason, setReverseReason] = useState<Record<string, string>>({});
+    const { mutate: reversePayment, isPending: reversing } = useReversePayment();
     const [isAssignOpen, setIsAssignOpen] = useState(false);
     const [receiptToPrint, setReceiptToPrint] = useState<string | null>(null);
 
@@ -252,6 +256,19 @@ function CollectPaymentContent() {
             return;
         }
         cancelFee({ studentId, feeId, cancellationReason: reason });
+    };
+
+    const handleReverse = (paymentId: string, receipt: string) => {
+        const reason = (reverseReason[paymentId] ?? "").trim();
+        if (!reason) {
+            toast.error("Enter why this payment is being reversed first");
+            return;
+        }
+        if (!window.confirm(`Reverse payment ${receipt}? Its amount goes back to the student's dues. This cannot be undone.`)) return;
+        reversePayment(
+            { paymentId, reason },
+            { onSuccess: () => setReverseReason((prev) => ({ ...prev, [paymentId]: "" })) }
+        );
     };
 
     const handleRecordPayment = () => {
@@ -955,6 +972,29 @@ function CollectPaymentContent() {
                                                 </TableCell>
 
                                                 <TableCell className="text-right pr-5 py-3">
+                                                    <div className="flex items-center justify-end gap-1.5">
+                                                    {canCollect && p.status === "completed" && !p.reverses && !p.is_reversed && (
+                                                        <>
+                                                            <Input
+                                                                placeholder="Reason"
+                                                                aria-label={`Reason for reversing ${p.receipt_number}`}
+                                                                value={reverseReason[p.id] ?? ""}
+                                                                onChange={(e) => setReverseReason((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                                                                className="h-7 text-[11px] w-24 rounded-md border-slate-200 dark:border-slate-800"
+                                                            />
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                disabled={reversing}
+                                                                onClick={() => handleReverse(p.id, p.receipt_number)}
+                                                                className="h-7 text-xs font-semibold px-2 rounded-lg gap-1 text-rose-600 border-rose-200 hover:bg-rose-50 hover:text-rose-700"
+                                                                title="Reverse this payment"
+                                                            >
+                                                                <RotateCcw className="h-3 w-3" />
+                                                                <span>Reverse</span>
+                                                            </Button>
+                                                        </>
+                                                    )}
                                                     <Button
                                                         variant="outline"
                                                         size="sm"
@@ -964,6 +1004,7 @@ function CollectPaymentContent() {
                                                         <Printer className="h-3 w-3" />
                                                         <span>Receipt</span>
                                                     </Button>
+                                                    </div>
                                                 </TableCell>
                                             </TableRow>
                                         ))

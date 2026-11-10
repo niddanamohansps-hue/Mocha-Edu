@@ -45,6 +45,8 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { TableShell } from "@/components/common/table/TableShell";
+import { StudentPicker } from "@/components/common/StudentPicker";
+import type { Student } from "@/hooks/useStudents";
 
 const AVATAR_PALETTES = [
     { bg: "bg-sky-100 dark:bg-sky-950/70", text: "text-sky-700 dark:text-sky-300", border: "border-sky-300/60 dark:border-sky-800" },
@@ -127,6 +129,7 @@ export default function FrontOfficePage() {
         remarks: "",
     });
 
+    const [gatePassStudent, setGatePassStudent] = useState<Student | null>(null);
     const [gatePassForm, setGatePassForm] = useState({
         student: "",
         reason_category: "illness",
@@ -181,6 +184,7 @@ export default function FrontOfficePage() {
         if (!gatePassForm.student || !gatePassForm.picked_up_by_name || !gatePassForm.picked_up_by_phone) return;
         await createGatePass.mutateAsync(gatePassForm);
         setIsGatePassModalOpen(false);
+        setGatePassStudent(null);
         setGatePassForm({
             student: "",
             reason_category: "illness",
@@ -1020,17 +1024,20 @@ export default function FrontOfficePage() {
                         </h2>
                         <form onSubmit={handleCreateGatePass} className="space-y-3.5">
                             <div>
-                                <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                    Student ID / UUID *
+                                <label htmlFor="gp-student" className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                                    Student *
                                 </label>
-                                <input
-                                    type="text"
-                                    required
-                                    placeholder="Paste Student UUID from Student Directory"
-                                    value={gatePassForm.student}
-                                    onChange={(e) => setGatePassForm({ ...gatePassForm, student: e.target.value })}
-                                    className="w-full mt-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm font-mono"
-                                />
+                                <div className="mt-1">
+                                    <StudentPicker
+                                        id="gp-student"
+                                        required
+                                        value={gatePassStudent}
+                                        onChange={(student) => {
+                                            setGatePassStudent(student);
+                                            setGatePassForm({ ...gatePassForm, student: student?.id ?? "" });
+                                        }}
+                                    />
+                                </div>
                             </div>
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
