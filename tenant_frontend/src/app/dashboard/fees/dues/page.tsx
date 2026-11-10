@@ -173,7 +173,7 @@ function Content({ canCall }: { canCall: boolean }) {
                                             <div>
                                                 <div className="font-medium text-xs text-slate-800 dark:text-slate-200">{row.guardian_name}</div>
                                                 {row.guardian_phone && (
-                                                    <a className="inline-flex items-center text-xs text-indigo-600 dark:text-indigo-400 font-medium hover:underline" href={`tel:${row.guardian_phone}`}>{row.guardian_phone}</a>
+                                                    <a className="inline-flex items-center py-1 text-xs sm:text-sm text-indigo-600 dark:text-indigo-400 font-medium hover:underline" href={`tel:${row.guardian_phone}`}>{row.guardian_phone}</a>
                                                 )}
                                             </div>
                                         ) : <span className="text-xs text-slate-400">No guardian on file</span>}

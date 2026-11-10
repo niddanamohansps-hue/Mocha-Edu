@@ -54,7 +54,7 @@ function SupplementaryContent({ canManage }: { canManage: boolean }) {
                 </p>
             </div>
 
-            <select className={selectClass} value={originalId} onChange={(e) => setOriginalId(e.target.value)}>
+            <select aria-label="Published examination" className={selectClass} value={originalId} onChange={(e) => setOriginalId(e.target.value)}>
                 <option value="">Choose a published examination</option>
                 {eligible.map((exam) => <option key={exam.id} value={exam.id}>{exam.name}</option>)}
             </select>
@@ -69,23 +69,23 @@ function SupplementaryContent({ canManage }: { canManage: boolean }) {
                         <h2 className="text-lg font-semibold">Start a supplementary examination for {original?.name}</h2>
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                             <div className="grid gap-1.5">
-                                <Label>Name</Label>
-                                <Input value={name} placeholder={`Supplementary ${original?.name ?? ""}`} onChange={(e) => setName(e.target.value)} />
+                                <Label htmlFor="supp-name">Name</Label>
+                                <Input id="supp-name" value={name} placeholder={`Supplementary ${original?.name ?? ""}`} onChange={(e) => setName(e.target.value)} />
                             </div>
                             <div className="grid gap-1.5">
-                                <Label>Exam type</Label>
-                                <select className={selectClass} value={typeId} onChange={(e) => setTypeId(e.target.value)}>
+                                <Label htmlFor="supp-type">Exam type</Label>
+                                <select id="supp-type" className={selectClass} value={typeId} onChange={(e) => setTypeId(e.target.value)}>
                                     <option value="">Choose</option>
                                     {types.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                                 </select>
                             </div>
                             <div className="grid gap-1.5">
-                                <Label>From</Label>
-                                <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+                                <Label htmlFor="supp-from">From</Label>
+                                <Input id="supp-from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
                             </div>
                             <div className="grid gap-1.5">
-                                <Label>To</Label>
-                                <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+                                <Label htmlFor="supp-to">To</Label>
+                                <Input id="supp-to" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
                             </div>
                         </div>
                         <Button
