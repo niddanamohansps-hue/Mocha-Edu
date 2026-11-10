@@ -645,7 +645,7 @@ export default function AdmissionWizard({ studentId }: AdmissionWizardProps) {
 
                                 <div className="flex items-center justify-between pb-2 border-b border-white/20">
                                     <div className="text-[10px] font-bold tracking-widest uppercase opacity-90">
-                                        School Sansar ERP
+                                        EduSekai
                                     </div>
                                     <Badge className="bg-white/20 hover:bg-white/30 text-white text-[9px] py-0 border-none font-semibold">
                                         {watchedAcademicYear}

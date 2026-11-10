@@ -1,7 +1,7 @@
 import { ParentPortalNav } from "@/components/parent-portal/ParentPortalNav";
 
 export const metadata = {
-    title: "Parent Portal | School Sansar ERP",
+    title: "Parent Portal | EduSekai",
     description: "Parent portal command center for attendance, online fees, report cards, timetable, and parent-teacher meetings.",
 };
 

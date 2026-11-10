@@ -84,7 +84,7 @@ const KINDS: KindConfig[] = [
         label: "Opening Fee Balances",
         permission: "manage_fee_structures",
         icon: Receipt,
-        help: "Import past balances and pending dues carried forward into School Sansar. Fee heads must already be created.",
+        help: "Import past balances and pending dues carried forward into EduSekai. Fee heads must already be created.",
         details: "Students must already exist in the database (matching admission numbers) before mapping fee arrears.",
         viewRoute: "/dashboard/fees",
         viewLabel: "Go to Fees Desk",

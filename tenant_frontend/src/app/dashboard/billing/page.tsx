@@ -185,7 +185,7 @@ export default function BillingPage() {
                         </Badge>
                     </div>
                     <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                        Manage your school&apos;s School Sansar cloud subscription, automated renewal mandates, and official GST tax invoices.
+                        Manage your school&apos;s EduSekai cloud subscription, automated renewal mandates, and official GST tax invoices.
                     </p>
                 </div>
 
@@ -209,7 +209,7 @@ export default function BillingPage() {
             {!sub ? (
                 <div className="p-8 rounded-2xl border border-slate-200 dark:border-slate-800 text-center space-y-3 bg-white dark:bg-slate-900">
                     <p className="text-sm text-slate-500">
-                        No active subscription tier found for this school campus. Please contact School Sansar support to assign a plan.
+                        No active subscription tier found for this school campus. Please contact EduSekai support to assign a plan.
                     </p>
                 </div>
             ) : (
@@ -251,7 +251,7 @@ export default function BillingPage() {
                                     )}
                                 </div>
                                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                                    School Sansar Managed Cloud Hosting & Institutional ERP
+                                    EduSekai Managed Cloud Hosting & Institutional ERP
                                 </p>
                             </div>
 
