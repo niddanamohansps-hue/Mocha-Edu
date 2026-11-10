@@ -5,30 +5,31 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive cursor-pointer touch-manipulation select-none active:scale-[0.98]",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive cursor-pointer touch-manipulation select-none active:scale-[0.98]",
   {
     variants: {
       variant: {
-        default: "bg-sky-600 hover:bg-teal-600 shadow-lg shadow-sky-500/25 hover:shadow-xl hover:shadow-teal-500/30 hover:scale-[1.03] active:scale-100 transition-all text-base font-bold text-white duration-300 ease-out",
+        default:
+          "bg-sky-600 hover:bg-sky-700 dark:bg-sky-600 dark:hover:bg-sky-500 text-white font-semibold shadow-2xs transition-colors duration-150",
         destructive:
-          "bg-destructive text-white hover:bg-destructive/90 hover:scale-[1.03] active:scale-100 transition-all duration-300 ease-out focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
+          "bg-destructive text-white hover:bg-destructive/90 font-semibold shadow-2xs transition-colors duration-150 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/90",
         outline:
-          "border bg-background shadow-lg hover:bg-accent hover:text-accent-foreground hover:scale-[1.03] active:scale-100 transition-all duration-300 ease-out dark:bg-input/30 dark:border-input dark:hover:bg-input/50 border-[#1A82C4] text-[#1A82C4]",
+          "border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/80 hover:text-slate-900 dark:hover:text-white font-medium shadow-2xs transition-colors duration-150",
         secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80 hover:scale-[1.03] active:scale-100 transition-all duration-300 ease-out",
+          "bg-slate-100 text-slate-800 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700 font-medium shadow-2xs transition-colors duration-150",
         ghost:
-          "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50 transition-colors duration-200",
-        link: "text-primary underline-offset-4 hover:underline",
+          "text-slate-600 dark:text-slate-400 hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-slate-100 font-medium transition-colors duration-150",
+        link: "text-sky-600 dark:text-sky-400 underline-offset-4 hover:underline font-medium p-0 h-auto",
       },
       size: {
-        default: "min-h-[42px] sm:min-h-0 h-10 sm:h-9 px-4 py-2 has-[>svg]:px-3",
-        sm: "min-h-[38px] sm:min-h-0 h-9 sm:h-8 rounded-md gap-1.5 px-3.5 sm:px-3 has-[>svg]:px-2.5 text-xs sm:text-xs",
-        lg: "min-h-[46px] sm:min-h-0 h-11 sm:h-10 rounded-md px-6 has-[>svg]:px-4",
-        xl: "min-h-[50px] sm:min-h-0 h-12 rounded-md px-8 has-[>svg]:px-4",
-        xxl: "min-h-[58px] sm:min-h-0 h-14 rounded-md px-10 has-[>svg]:px-4",
-        icon: "size-10 sm:size-9",
-        "icon-sm": "size-9 sm:size-8",
-        "icon-lg": "size-11 sm:size-10",
+        default: "h-9 px-4 py-2 has-[>svg]:px-3 text-xs sm:text-sm",
+        sm: "h-8 rounded-lg gap-1.5 px-3 has-[>svg]:px-2.5 text-xs",
+        lg: "h-10 rounded-lg px-6 has-[>svg]:px-4 text-sm font-semibold",
+        xl: "h-12 rounded-lg px-8 has-[>svg]:px-4 text-base font-semibold",
+        xxl: "h-14 rounded-lg px-10 has-[>svg]:px-4 text-base font-semibold",
+        icon: "size-9 rounded-lg",
+        "icon-sm": "size-8 rounded-lg",
+        "icon-lg": "size-10 rounded-lg",
       },
     },
     defaultVariants: {

@@ -1,34 +1,21 @@
-import { cn } from "@/lib/utils";
+import React from "react";
+import { StatusBadge as UIStatusBadge, StatusBadgeProps as UIStatusBadgeProps, StatusBadgeVariant } from "@/components/ui/StatusBadge";
 
-export interface StatusBadgeProps {
+export type { StatusBadgeVariant };
+
+export interface StatusBadgeProps extends UIStatusBadgeProps {
     /** Text shown inside the pill, e.g. "Active", the raw status string, or a display label. */
-    label: React.ReactNode;
-    /** Color/border classes for this status - fully caller-supplied, since different
-     * status systems in this app (fee status, payment status, submission status,
-     * account-access status) are semantically different and must not share one
-     * hardcoded color mapping. See each feature's own status->class logic. */
+    label?: React.ReactNode;
+    /** Color/border classes for this status. */
     className?: string;
-    /** Optional icon rendered before the label. Include its own spacing (e.g. "mr-1" or "h-3 w-3 mr-1"). */
+    /** Optional icon rendered before the label. */
     icon?: React.ReactNode;
 }
 
 /**
- * Domain-agnostic status pill. Centralizes the repeated
- * `text-xs font-semibold px-2 py-1 rounded-full` shape that was previously
- * hand-rolled per feature (fees, staff, course-content submissions, ...) -
- * it does not know or decide what colors a given status means. Callers keep
- * owning their own status->color mapping and pass it in via `className`.
+ * Domain-agnostic status pill, re-exporting the centralized semantic StatusBadge.
+ * Backward-compatible with existing callers passing custom className and icon.
  */
-export function StatusBadge({ label, className, icon }: StatusBadgeProps) {
-    return (
-        <span
-            className={cn(
-                "inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold whitespace-nowrap",
-                className
-            )}
-        >
-            {icon}
-            {label}
-        </span>
-    );
+export function StatusBadge(props: StatusBadgeProps) {
+    return <UIStatusBadge {...props} />;
 }

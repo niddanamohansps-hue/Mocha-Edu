@@ -18,8 +18,17 @@ export function getAvatarStyle(name?: string | null) {
     return AVATAR_PALETTES[index];
 }
 
-export function getInitials(name?: string | null, fallback = "ST") {
-    if (!name || typeof name !== "string") return fallback;
+export function getInitials(nameOrFirst?: string | null, lastOrFallback: string = "ST") {
+    if (!nameOrFirst && !lastOrFallback) return "ST";
+    // Check if called as getInitials(firstName, lastName)
+    if (nameOrFirst && lastOrFallback && lastOrFallback !== "ST" && !nameOrFirst.includes(" ") && !lastOrFallback.includes(" ")) {
+        const first = nameOrFirst.trim()[0] || "";
+        const last = lastOrFallback.trim()[0] || "";
+        const combined = `${first}${last}`.toUpperCase();
+        if (combined) return combined;
+    }
+    const name = nameOrFirst || (lastOrFallback !== "ST" ? lastOrFallback : "");
+    if (!name || typeof name !== "string") return lastOrFallback || "ST";
     const parts = name.trim().split(/\s+/).filter(Boolean);
     if (parts.length >= 2) {
         return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
@@ -30,6 +39,6 @@ export function getInitials(name?: string | null, fallback = "ST") {
     if (parts.length === 1 && parts[0].length === 1) {
         return parts[0].toUpperCase();
     }
-    return fallback;
+    return lastOrFallback || "ST";
 }
 
