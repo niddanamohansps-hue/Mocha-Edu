@@ -113,7 +113,7 @@ export const getMenuItems = (
 
     if (academicChildren.length > 0) {
         menuItems.push({
-            label: "Academics",
+            label: "School Setup",
             icon: GraduationCap,
             children: academicChildren
         });
@@ -172,7 +172,7 @@ export const getMenuItems = (
     // 6.6 Timetable
     const timetableChildren: SidebarItemType[] = [];
     if (can("view_timetable")) {
-        timetableChildren.push({ label: "Timetable", href: "/dashboard/timetable" });
+        timetableChildren.push({ label: "Class Timetable", href: "/dashboard/timetable" });
         timetableChildren.push({ label: "My Schedule", href: "/dashboard/timetable/my-schedule" });
     }
     if (can("manage_substitutions")) {
@@ -192,7 +192,7 @@ export const getMenuItems = (
     // 1. Setup & Rules, 2. Question Papers, 3. Exam Day Logistics, 4. Marks & Results
     const setupChildren: SidebarItemType[] = [];
     if (can("view_examinations") || can("manage_examinations")) {
-        setupChildren.push({ label: "Examinations", href: "/dashboard/examinations" });
+        setupChildren.push({ label: "Exam Schedule", href: "/dashboard/examinations" });
     }
     if (can("manage_grading")) {
         setupChildren.push({ label: "Grading", href: "/dashboard/examinations/grading" });
@@ -212,7 +212,7 @@ export const getMenuItems = (
         questionChildren.push({ label: "Questions to Review", href: "/dashboard/question-bank/review" });
     }
     if (can("prepare_papers") || can("approve_papers")) {
-        questionChildren.push({ label: "Question Papers", href: "/dashboard/question-bank/papers" });
+        questionChildren.push({ label: "Paper Builder", href: "/dashboard/question-bank/papers" });
     }
 
     const logisticsChildren: SidebarItemType[] = [];
@@ -544,12 +544,12 @@ export const getMenuItems = (
  */
 const MENU_ORDER: { group: string; labels: string[] }[] = [
     { group: "Overview", labels: ["Dashboard"] },
-    { group: "People", labels: ["Student Management", "Staff", "Portal Access", "Parent Portal"] },
-    { group: "Academics", labels: ["Academics", "Course Content", "Timetable", "Attendance", "Examinations", "Certificates", "Homework"] },
+    { group: "People", labels: ["Student Management", "Staff", "Parent Portal"] },
+    { group: "Academics", labels: ["School Setup", "Course Content", "Timetable", "Attendance", "Examinations", "Homework"] },
     { group: "Communication", labels: ["Announcements", "PTM Meetings"] },
     { group: "Finance", labels: ["Fees", "Expenses & Cashbook", "Payroll"] },
-    { group: "Operations", labels: ["Front Office", "Inventory", "Transport", "Library"] },
-    { group: "Admin", labels: ["Administration"] },
+    { group: "Operations", labels: ["Front Office", "Certificates", "Inventory", "Transport", "Library"] },
+    { group: "Admin", labels: ["Administration", "Portal Access"] },
 ];
 
 /**
@@ -560,14 +560,14 @@ const MENU_ORDER: { group: string; labels: string[] }[] = [
 const CHILD_ORDER: Record<string, string[]> = {
     "Student Management": ["Student Directory", "Admissions", "Admission Follow-ups", "Seats & Admissions Report", "Parents & Guardians", "Promotion & Transfer"],
     Staff: ["Staff Directory", "Faculty Directory", "Recruitment", "My Interviews", "Joining Documents", "Leave Management"],
-    Academics: ["Academic Structure", "Academic Calendar", "Homework"],
-    "Course Content": ["Study Materials", "Manage Content", "Assignments", "Grade Submissions"],
+    "School Setup": ["Academic Structure", "Academic Calendar"],
+    "Course Content": ["Study Materials", "Manage Content", "Assignments", "Homework", "Grade Submissions"],
     Attendance: ["Mark Attendance", "History", "Reports", "Staff Attendance", "Attendance Settings"],
-    Timetable: ["Timetable", "My Schedule", "Substitutions"],
+    Timetable: ["Class Timetable", "My Schedule", "Substitutions"],
     "Portal Access": ["Student Portal", "Staff Portal", "Parent Accounts"],
     Examinations: ["Setup & Rules", "Question Papers", "Exam Day Logistics", "Marks & Results"],
-    "Setup & Rules": ["Examinations", "Grading", "Term Weightage", "Co-scholastic"],
-    "Question Papers": ["Question Bank", "Questions to Review", "Question Papers"],
+    "Setup & Rules": ["Exam Schedule", "Grading", "Term Weightage", "Co-scholastic"],
+    "Question Papers": ["Question Bank", "Questions to Review", "Paper Builder"],
     "Exam Day Logistics": ["Rooms & Invigilators", "Admit Cards", "Exam Duties", "Room Reports", "Malpractice"],
     "Marks & Results": [
         "Marks Entry", "Marks Progress", "Mark Sheets", "Moderation",
@@ -618,11 +618,12 @@ function organiseMenu(items: SidebarItemType[]): SidebarItemType[] {
         }
     }
 
-    // Homework is part of the academic day: a link under Academics when that group exists.
+    // Homework is daily classwork: it sits beside Assignments in Course Content (or under School Setup when the
+    // user has no Course Content), and stays a link of its own when neither group is visible.
     const homework = menu.find((i) => i.label === "Homework" && i.href);
-    const academics = menu.find((i) => i.label === "Academics");
-    if (homework && academics) {
-        academics.children = [...(academics.children ?? []), { label: "Homework", href: homework.href }];
+    const home = menu.find((i) => i.label === "Course Content") ?? menu.find((i) => i.label === "School Setup");
+    if (homework && home) {
+        home.children = [...(home.children ?? []), { label: "Homework", href: homework.href }];
         menu = menu.filter((i) => i !== homework);
     }
 
