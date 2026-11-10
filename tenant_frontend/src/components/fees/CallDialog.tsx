@@ -77,7 +77,18 @@ export function CallDialog({ row, onClose }: { row: DueRow; onClose: () => void 
                 <ModalHeader
                     icon={<PhoneCall className="w-5 h-5 text-sky-600" />}
                     title={`Record Fee Follow-up Call: ${row.name}`}
-                    subtitle={`₹${money(row.outstanding)} outstanding. Contact: ${row.guardian_name}${row.guardian_phone ? ` (${row.guardian_phone})` : ""}`}
+                    subtitle={
+                        <>
+                            ₹{money(row.outstanding)} outstanding. Contact: {row.guardian_name}
+                            {row.guardian_phone && (
+                                <> (
+                                    <a className="text-sky-600 hover:underline" href={`tel:${row.guardian_phone}`}>
+                                        {row.guardian_phone}
+                                    </a>
+                                )</>
+                            )}
+                        </>
+                    }
                     onClose={onClose}
                 />
 
