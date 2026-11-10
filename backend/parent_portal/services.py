@@ -73,6 +73,13 @@ def get_child_for_parent(parent, student_id):
     """
     from families.models import StudentParentRelation
 
+    # A malformed id is "not your child" like any other: same answer, and never a server error.
+    try:
+        student_id = StudentParentRelation._meta.get_field("student").target_field.to_python(student_id)
+    except (DjangoValidationError, ValueError, TypeError):
+        return None
+    if student_id is None:
+        return None
     relation = (
         StudentParentRelation.objects.filter(parent=parent, student_id=student_id)
         .select_related("student__profile")

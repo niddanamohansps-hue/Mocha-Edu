@@ -10,6 +10,7 @@ from django.conf import settings
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.http import FileResponse, Http404, HttpResponse
 from django.shortcuts import get_object_or_404
+from core.query_params import model_param
 from rest_framework import status, viewsets
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -140,16 +141,16 @@ class StaffLeaveBalanceListView(APIView):
 
         qs = StaffLeaveBalance.objects.select_related("staff__profile", "leave_type").order_by("staff__profile__first_name")
 
-        staff_id = request.query_params.get("staff")
-        if staff_id:
+        staff_id = model_param(request, "staff", qs.model, "staff")
+        if staff_id is not None:
             qs = qs.filter(staff_id=staff_id)
 
         academic_year = request.query_params.get("academic_year")
         if academic_year:
             qs = qs.filter(academic_year=academic_year)
 
-        leave_type_id = request.query_params.get("leave_type")
-        if leave_type_id:
+        leave_type_id = model_param(request, "leave_type", qs.model, "leave_type")
+        if leave_type_id is not None:
             qs = qs.filter(leave_type_id=leave_type_id)
 
         paginator = self.pagination_class()
@@ -360,8 +361,8 @@ class ApproverInboxView(APIView):
         if status_filter:
             qs = qs.filter(status=status_filter)
 
-        staff_id = request.query_params.get("staff")
-        if staff_id:
+        staff_id = model_param(request, "staff", qs.model, "staff")
+        if staff_id is not None:
             qs = qs.filter(staff_id=staff_id)
 
         paginator = self.pagination_class()

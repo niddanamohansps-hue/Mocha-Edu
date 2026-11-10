@@ -1,6 +1,7 @@
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.http import Http404
 from django.shortcuts import get_object_or_404
+from core.query_params import model_param, object_or_404, object_param
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -44,12 +45,12 @@ class ExamSittingViewSet(viewsets.ViewSet):
         return get_object_or_404(ExamSitting.objects.select_related("examination"), pk=pk)
 
     def list(self, request):
-        examination = get_object_or_404(Examination, pk=request.query_params.get("examination"))
+        examination = object_param(request, "examination", Examination)
         return Response([allocation.sitting_summary(s) for s in ExamSitting.objects.filter(examination=examination)])
 
     @action(detail=False, methods=["post"], url_path="sync")
     def sync(self, request):
-        examination = get_object_or_404(Examination, pk=request.data.get("examination"))
+        examination = object_or_404(Examination, request.data.get("examination"), "examination")
         return Response([allocation.sitting_summary(s) for s in allocation.sync_sittings(examination)])
 
     def retrieve(self, request, pk=None):
@@ -106,7 +107,7 @@ class ExamInvigilationViewSet(viewsets.ViewSet):
     @action(detail=True, methods=["post"], url_path="replace")
     def replace(self, request, pk=None):
         duty = get_object_or_404(ExamInvigilation.objects.select_related("sitting__examination"), pk=pk)
-        staff = get_object_or_404(StaffMember.objects.select_related("profile"), pk=request.data.get("staff"))
+        staff = object_or_404(StaffMember.objects.select_related("profile"), request.data.get("staff"), "staff")
         try:
             allocation.replace_invigilator(duty, staff, request)
         except allocation.AllocationError as exc:
@@ -123,7 +124,7 @@ class DutyRosterView(APIView):
         return [IsAuthenticated(), HasPermission("view_examinations")]
 
     def get(self, request):
-        examination = get_object_or_404(Examination, pk=request.query_params.get("examination"))
+        examination = object_param(request, "examination", Examination)
         return Response(allocation.duty_rows(ExamInvigilation.objects.filter(sitting__examination=examination)))
 
 
@@ -148,8 +149,8 @@ class AdmitCardsView(APIView):
     def get(self, request):
         from academics.models import Section
 
-        examination = get_object_or_404(Examination, pk=request.query_params.get("examination"))
-        section = get_object_or_404(Section.objects.select_related("level"), pk=request.query_params.get("section"))
+        examination = object_param(request, "examination", Examination)
+        section = object_param(request, "section", Section.objects.select_related("level"))
         return Response(allocation.build_admit_cards(examination, section))
 
 
@@ -162,7 +163,7 @@ class MarksProgressView(APIView):
     def get(self, request):
         from .progress import schedule_progress
 
-        examination = get_object_or_404(Examination, pk=request.query_params.get("examination"))
+        examination = object_param(request, "examination", Examination)
         return Response(schedule_progress(examination))
 
 
@@ -177,12 +178,11 @@ class RankListView(APIView):
 
         from .ranking import rank_list
 
-        examination = get_object_or_404(Examination, pk=request.query_params.get("examination"))
+        examination = object_param(request, "examination", Examination)
         section = (
-            get_object_or_404(Section.objects.select_related("level"), pk=request.query_params["section"])
-            if request.query_params.get("section") else None
+            object_param(request, "section", Section.objects.select_related("level"), required=False)
         )
-        level = get_object_or_404(AcademicLevel, pk=request.query_params["level"]) if request.query_params.get("level") else None
+        level = object_param(request, "level", AcademicLevel, required=False)
         try:
             return Response(
                 rank_list(
@@ -218,7 +218,7 @@ class MyAdmitCardView(APIView):
         student = get_student_for_user(request.user)
         if student is None:
             raise Http404()
-        examination = get_object_or_404(Examination, pk=request.query_params.get("examination"))
+        examination = object_param(request, "examination", Examination)
         data = admit_card_for(examination, student)
         if data is None:
             raise Http404()  # not announced yet, or no papers: the same answer, so nothing is revealed
@@ -230,8 +230,8 @@ def _scope(request):
     from academics.models import AcademicLevel, Section
 
     params = request.query_params
-    section = get_object_or_404(Section.objects.select_related("level"), pk=params["section"]) if params.get("section") else None
-    level = get_object_or_404(AcademicLevel, pk=params["level"]) if params.get("level") else None
+    section = object_or_404(Section.objects.select_related("level"), params.get("section"), "section", required=False)
+    level = object_or_404(AcademicLevel, params.get("level"), "level", required=False)
     return section, level
 
 
@@ -252,7 +252,7 @@ class AnalyticsView(_ReportView):
     def get(self, request):
         from .analytics import exam_analytics
 
-        examination = get_object_or_404(Examination, pk=request.query_params.get("examination"))
+        examination = object_param(request, "examination", Examination)
         section, level = _scope(request)
         return self._run(request, lambda: exam_analytics(examination, section=section, level=level))
 
@@ -261,8 +261,8 @@ class AnalyticsCompareView(_ReportView):
     def get(self, request):
         from .analytics import compare_examinations
 
-        examination = get_object_or_404(Examination, pk=request.query_params.get("examination"))
-        other = get_object_or_404(Examination, pk=request.query_params.get("other"))
+        examination = object_param(request, "examination", Examination)
+        other = object_param(request, "other", Examination)
         section, level = _scope(request)
         return self._run(request, lambda: compare_examinations(examination, other, section=section, level=level))
 
@@ -271,7 +271,7 @@ class WeakStudentsView(_ReportView):
     def get(self, request):
         from .analytics import weak_students
 
-        examination = get_object_or_404(Examination, pk=request.query_params.get("examination"))
+        examination = object_param(request, "examination", Examination)
         section, level = _scope(request)
         margin = _int(request.query_params.get("margin"), 5)
         return self._run(request, lambda: weak_students(examination, section=section, level=level, margin=margin))
@@ -343,9 +343,11 @@ class MalpracticeViewSet(viewsets.ViewSet):
         from .malpractice import case_data
 
         qs = self._queryset(request)
-        for key in ("examination", "status"):
-            if request.query_params.get(key):
-                qs = qs.filter(**{key: request.query_params[key]})
+        examination_id = model_param(request, "examination", Examination)
+        if examination_id is not None:
+            qs = qs.filter(examination=examination_id)
+        if request.query_params.get("status"):
+            qs = qs.filter(status=request.query_params["status"])
         return Response([case_data(c) for c in qs])
 
     def retrieve(self, request, pk=None):
@@ -360,8 +362,8 @@ class MalpracticeViewSet(viewsets.ViewSet):
         from .models import ExamSchedule
 
         data = request.data
-        schedule = get_object_or_404(ExamSchedule.objects.select_related("examination", "subject", "section__level"), pk=data.get("schedule"))
-        student = get_object_or_404(Student.objects.select_related("profile"), pk=data.get("student"))
+        schedule = object_or_404(ExamSchedule.objects.select_related("examination", "subject", "section__level"), data.get("schedule"), "schedule")
+        student = object_or_404(Student.objects.select_related("profile"), data.get("student"), "student")
         try:
             case = report_case(
                 schedule, student, description=data.get("description"), evidence_notes=data.get("evidence_notes", ""),
@@ -404,8 +406,8 @@ class HallAttendanceView(APIView):
     def _context(self, request, data):
         from timetable.models import Room
 
-        sitting = get_object_or_404(ExamSitting.objects.select_related("examination"), pk=data.get("sitting"))
-        room = get_object_or_404(Room, pk=data.get("room"))
+        sitting = object_or_404(ExamSitting.objects.select_related("examination"), data.get("sitting"), "sitting")
+        room = object_or_404(Room, data.get("room"), "room")
         from .hall import may_mark
 
         manager = HasPermission("manage_exam_allocation")().has_permission(request, self)
@@ -443,10 +445,10 @@ class SupplementaryView(APIView):
 
         params = request.query_params
         if params.get("original"):
-            original = get_object_or_404(Examination, pk=params["original"])
+            original = object_or_404(Examination, params["original"], "original")
             found = Examination.objects.filter(supplementary_of=original).first()
             return Response({"supplementary": candidates_data(found) if found else None})
-        examination = get_object_or_404(Examination, pk=params.get("examination"), supplementary_of__isnull=False)
+        examination = object_or_404(Examination, params.get("examination"), "examination", supplementary_of__isnull=False)
         return Response(candidates_data(examination))
 
     def post(self, request):
@@ -456,8 +458,8 @@ class SupplementaryView(APIView):
         from .supplementary import SupplementaryError, candidates_data, start_supplementary
 
         data = request.data
-        original = get_object_or_404(Examination, pk=data.get("original"))
-        exam_type = get_object_or_404(ExamType, pk=data.get("exam_type"))
+        original = object_or_404(Examination, data.get("original"), "original")
+        exam_type = object_or_404(ExamType, data.get("exam_type"), "exam_type")
         try:
             start, end = (date.fromisoformat(data.get(k) or "") for k in ("start_date", "end_date"))
         except ValueError:
@@ -504,5 +506,5 @@ class RoomReportsOverviewView(APIView):
     def get(self, request):
         from .hall import room_reports_overview
 
-        examination = get_object_or_404(Examination, pk=request.query_params.get("examination"))
+        examination = object_param(request, "examination", Examination)
         return Response(room_reports_overview(examination))

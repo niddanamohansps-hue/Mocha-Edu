@@ -1,6 +1,7 @@
 from django.db.models import Count, Prefetch
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from core.query_params import date_param, int_param, model_param
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -50,7 +51,7 @@ class SectionRosterView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        target_date = request.query_params.get("date") or timezone.localdate().isoformat()
+        target_date = (date_param(request, "date") or timezone.localdate()).isoformat()
 
         roster = get_section_roster(section_id)
         # prefetch_related (not select_related) on the reverse student_records
@@ -279,8 +280,8 @@ class StudentAttendanceHistoryView(APIView):
                 )
 
         qs = StudentAttendance.objects.filter(student=student).select_related("session")
-        start_date = request.query_params.get("start_date")
-        end_date = request.query_params.get("end_date")
+        start_date = date_param(request, "start_date")
+        end_date = date_param(request, "end_date")
         if start_date:
             qs = qs.filter(session__date__gte=start_date)
         if end_date:
@@ -322,11 +323,11 @@ class SectionAttendanceSummaryView(APIView):
             )
 
         qs = StudentAttendance.objects.filter(session__section_id=section_id)
-        month = request.query_params.get("month")
-        year = request.query_params.get("year")
-        if year:
+        month = int_param(request, "month")
+        year = int_param(request, "year")
+        if year is not None:
             qs = qs.filter(session__date__year=year)
-        if month:
+        if month is not None:
             qs = qs.filter(session__date__month=month)
 
         counts = dict(qs.values_list("status").annotate(total=Count("id")))
@@ -340,7 +341,7 @@ class BelowThresholdReportView(APIView):
     permission_classes = [IsAuthenticated, HasPermission("view_attendance_reports")]
 
     def get(self, request):
-        section_id = request.query_params.get("section")
+        section_id = model_param(request, "section", AttendanceSession, "section")
         academic_year = request.query_params.get("academic_year")
 
         if section_id and not user_can_access_section(request, section_id):
@@ -388,7 +389,7 @@ class TenantAttendanceSummaryView(APIView):
     permission_classes = [IsAuthenticated, HasPermission("view_attendance_reports")]
 
     def get(self, request):
-        target_date = request.query_params.get("date") or timezone.localdate().isoformat()
+        target_date = (date_param(request, "date") or timezone.localdate()).isoformat()
 
         counts = dict(
             StudentAttendance.objects.filter(session__date=target_date)
@@ -433,8 +434,8 @@ class StaffAttendanceHistoryView(APIView):
 
     def get(self, request, staff_id):
         qs = StaffAttendance.objects.filter(staff_id=staff_id).select_related("staff__profile").order_by("-date")
-        start_date = request.query_params.get("start_date")
-        end_date = request.query_params.get("end_date")
+        start_date = date_param(request, "start_date")
+        end_date = date_param(request, "end_date")
         if start_date:
             qs = qs.filter(date__gte=start_date)
         if end_date:

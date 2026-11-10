@@ -1,6 +1,7 @@
 from academics.models import AcademicLevel
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
+from core.query_params import model_param
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -456,8 +457,8 @@ class PromotionCandidatesView(APIView):
 
     def get(self, request):
         academic_year = request.query_params.get("academic_year")
-        level_id = request.query_params.get("level")
-        section_id = request.query_params.get("section")
+        level_id = model_param(request, "level", StudentLevel, "level")
+        section_id = model_param(request, "section", StudentLevel, "section")
 
         if not academic_year or not level_id:
             return Response(
@@ -596,7 +597,8 @@ class PromotionHistoryView(APIView):
         student_id = request.query_params.get("student")
         academic_year = request.query_params.get("academic_year")
         action = request.query_params.get("action")
-        if student_id:
+        student_id = model_param(request, "student", qs.model, "student")
+        if student_id is not None:
             qs = qs.filter(student_id=student_id)
         if academic_year:
             qs = qs.filter(
@@ -648,7 +650,7 @@ class CbseLocExportView(APIView):
     def get(self, request):
         from .exports import export_cbse_loc_csv
         log_action(request, action="cbse_loc_export", model_name="Student", changes={"level": request.query_params.get("level") or ""})
-        level_id = request.query_params.get("level")
+        level_id = model_param(request, "level", StudentLevel, "level")
         students = Student.objects.filter(status="active").select_related("profile").prefetch_related("enrollments__level__subjects", "enrollments__section", "parent_links__parent__profile")
         if level_id:
             students = students.filter(enrollments__level_id=level_id, enrollments__is_current=True)

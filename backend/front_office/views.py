@@ -1,5 +1,6 @@
 from django.db.models import Q
 from django.utils import timezone
+from core.query_params import date_param, model_param
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -37,9 +38,9 @@ class VisitorLogViewSet(viewsets.ModelViewSet):
         if status_param:
             qs = qs.filter(status=status_param)
 
-        date_param = params.get("date")
-        if date_param:
-            qs = qs.filter(check_in_time__date=date_param)
+        on_date = date_param(self.request, "date")
+        if on_date:
+            qs = qs.filter(check_in_time__date=on_date)
 
         search = params.get("search")
         if search:
@@ -91,12 +92,12 @@ class StudentGatePassViewSet(viewsets.ModelViewSet):
         if status_param:
             qs = qs.filter(status=status_param)
 
-        date_param = params.get("date")
-        if date_param:
-            qs = qs.filter(departure_date=date_param)
+        on_date = date_param(self.request, "date")
+        if on_date:
+            qs = qs.filter(departure_date=on_date)
 
-        student_id = params.get("student")
-        if student_id:
+        student_id = model_param(self.request, "student", qs.model, "student")
+        if student_id is not None:
             qs = qs.filter(student_id=student_id)
 
         search = params.get("search")
@@ -159,9 +160,9 @@ class PostalRecordViewSet(viewsets.ModelViewSet):
         if record_type:
             qs = qs.filter(record_type=record_type)
 
-        date_param = params.get("date")
-        if date_param:
-            qs = qs.filter(dispatch_date=date_param)
+        on_date = date_param(self.request, "date")
+        if on_date:
+            qs = qs.filter(dispatch_date=on_date)
 
         search = params.get("search")
         if search:

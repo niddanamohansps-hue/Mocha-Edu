@@ -1,4 +1,5 @@
 from django.db.models import Prefetch, Q
+from core.query_params import model_param
 from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -42,8 +43,8 @@ class ParentViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = super().get_queryset()
 
-        student_id = self.request.query_params.get("student")
-        if student_id:
+        student_id = model_param(self.request, "student", StudentParentRelation, "student")
+        if student_id is not None:
             qs = qs.filter(student_links__student_id=student_id)
 
         search = (self.request.query_params.get("search") or "").strip()
@@ -80,11 +81,11 @@ class StudentParentRelationViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        student_id = self.request.query_params.get("student")
-        if student_id:
+        student_id = model_param(self.request, "student", qs.model, "student")
+        if student_id is not None:
             qs = qs.filter(student_id=student_id)
-        parent_id = self.request.query_params.get("parent")
-        if parent_id:
+        parent_id = model_param(self.request, "parent", qs.model, "parent")
+        if parent_id is not None:
             qs = qs.filter(parent_id=parent_id)
         return qs
 

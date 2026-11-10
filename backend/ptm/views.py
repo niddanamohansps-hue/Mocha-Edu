@@ -1,6 +1,7 @@
 import logging
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db.models import Q
+from core.query_params import date_param, model_param
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -71,13 +72,13 @@ class PTMSessionViewSet(viewsets.ModelViewSet):
         meeting_date = self.request.query_params.get("meeting_date")
 
         if academic_year:
-            qs = qs.filter(academic_year_id=academic_year)
+            qs = qs.filter(academic_year_id=model_param(self.request, "academic_year", qs.model, "academic_year"))
         if level:
-            qs = qs.filter(level_id=level)
+            qs = qs.filter(level_id=model_param(self.request, "level", qs.model, "level"))
         if status_filter:
             qs = qs.filter(status=status_filter)
         if meeting_date:
-            qs = qs.filter(meeting_date=meeting_date)
+            qs = qs.filter(meeting_date=date_param(self.request, "meeting_date"))
 
         return qs
 
@@ -173,9 +174,9 @@ class PTMSlotViewSet(viewsets.ReadOnlyModelViewSet):
         slot_status = self.request.query_params.get("status")
 
         if session_id:
-            qs = qs.filter(session_id=session_id)
+            qs = qs.filter(session_id=model_param(self.request, "session_id", qs.model, "session"))
         if teacher_id:
-            qs = qs.filter(teacher_id=teacher_id)
+            qs = qs.filter(teacher_id=model_param(self.request, "teacher_id", qs.model, "teacher"))
         if slot_status:
             qs = qs.filter(status=slot_status)
 
@@ -337,7 +338,9 @@ class ParentAvailableSlotsView(APIView):
             )
 
         try:
-            session = PTMSession.objects.get(id=session_id, status=PTMSession.Status.PUBLISHED)
+            session = PTMSession.objects.get(
+                id=model_param(request, "session_id", PTMSession), status=PTMSession.Status.PUBLISHED
+            )
         except PTMSession.DoesNotExist:
             return Response(
                 {"error": "PTM session not found or not published."},

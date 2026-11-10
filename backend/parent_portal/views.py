@@ -1,5 +1,6 @@
 import logging
 
+from core.query_params import model_param, object_param
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -269,7 +270,7 @@ class ChildAdmitCardView(APIView):
         from examinations.models import Examination
         from examinations.self_service import admit_card_for
 
-        examination = get_object_or_404(Examination, pk=request.query_params.get("examination"))
+        examination = object_param(request, "examination", Examination)
         data = admit_card_for(examination, student)
         if data is None:
             raise Http404()

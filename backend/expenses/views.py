@@ -9,6 +9,7 @@ from django.conf import settings
 from django.http import FileResponse, Http404, HttpResponse
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
+from core.query_params import date_param, model_param
 from rest_framework import filters, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -80,12 +81,12 @@ class ExpenseViewSet(viewsets.ModelViewSet):
         qs = Expense.objects.select_related("category", "payment_account").all()
         params = self.request.query_params
 
-        category_id = params.get("category")
-        if category_id:
+        category_id = model_param(self.request, "category", Expense, "category")
+        if category_id is not None:
             qs = qs.filter(category_id=category_id)
 
-        account_id = params.get("payment_account")
-        if account_id:
+        account_id = model_param(self.request, "payment_account", Expense, "payment_account")
+        if account_id is not None:
             qs = qs.filter(payment_account_id=account_id)
 
         payment_method = params.get("payment_method")
@@ -96,11 +97,11 @@ class ExpenseViewSet(viewsets.ModelViewSet):
         if status_param:
             qs = qs.filter(status=status_param)
 
-        from_date = params.get("from_date")
+        from_date = date_param(self.request, "from_date")
         if from_date:
             qs = qs.filter(expense_date__gte=from_date)
 
-        to_date = params.get("to_date")
+        to_date = date_param(self.request, "to_date")
         if to_date:
             qs = qs.filter(expense_date__lte=to_date)
 
@@ -176,11 +177,11 @@ class CashbookEntryViewSet(viewsets.ModelViewSet):
         if entry_type:
             qs = qs.filter(entry_type=entry_type)
 
-        from_date = params.get("from_date")
+        from_date = date_param(self.request, "from_date")
         if from_date:
             qs = qs.filter(entry_date__gte=from_date)
 
-        to_date = params.get("to_date")
+        to_date = date_param(self.request, "to_date")
         if to_date:
             qs = qs.filter(entry_date__lte=to_date)
 
@@ -192,8 +193,8 @@ class CashbookDayBookView(APIView):
         return [IsAuthenticated(), HasPermission("view_expenses")()]
 
     def get(self, request):
-        target_date = request.query_params.get("date")
-        account_id = request.query_params.get("account_id")
+        target_date = date_param(request, "date")
+        account_id = model_param(request, "account_id", PaymentAccount)
         data = get_day_book(target_date, account_id)
         return Response(data)
 
@@ -203,8 +204,8 @@ class IncomeVsExpenseSummaryView(APIView):
         return [IsAuthenticated(), HasPermission("view_expenses")()]
 
     def get(self, request):
-        from_date = request.query_params.get("from_date")
-        to_date = request.query_params.get("to_date")
+        from_date = date_param(request, "from_date")
+        to_date = date_param(request, "to_date")
         data = get_income_vs_expense_summary(from_date, to_date)
         return Response(data)
 
@@ -216,16 +217,16 @@ class ExpenseExportCsvView(APIView):
     def get(self, request):
         expenses = Expense.objects.select_related("category", "payment_account").order_by("-expense_date")
 
-        from_date = request.query_params.get("from_date")
+        from_date = date_param(request, "from_date")
         if from_date:
             expenses = expenses.filter(expense_date__gte=from_date)
 
-        to_date = request.query_params.get("to_date")
+        to_date = date_param(request, "to_date")
         if to_date:
             expenses = expenses.filter(expense_date__lte=to_date)
 
-        category_id = request.query_params.get("category")
-        if category_id:
+        category_id = model_param(request, "category", Expense, "category")
+        if category_id is not None:
             expenses = expenses.filter(category_id=category_id)
 
         status_param = request.query_params.get("status")

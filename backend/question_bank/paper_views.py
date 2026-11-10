@@ -1,5 +1,6 @@
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
+from core.query_params import model_param
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound, PermissionDenied
@@ -108,10 +109,12 @@ class PaperViewSet(TenantOnlyMixin, viewsets.ModelViewSet):
         qs = svc.eligible_questions(paper).select_related("subject__level", "chapter", "topic", "author__profile")
         params = request.query_params
         for field in ("question_type", "difficulty", "chapter"):
-            if params.get(field):
-                qs = qs.filter(**{field: params[field]})
-        if params.get("marks"):
-            qs = qs.filter(marks=params["marks"])
+            value = model_param(request, field, qs.model, field)
+            if value is not None:
+                qs = qs.filter(**{field: value})
+        marks = model_param(request, "marks", qs.model, "marks")
+        if marks is not None:
+            qs = qs.filter(marks=marks)
         if params.get("unused") == "true":
             qs = qs.exclude(paper_items__paper__status__in=["approved", "released", "withdrawn"])
         if params.get("search"):

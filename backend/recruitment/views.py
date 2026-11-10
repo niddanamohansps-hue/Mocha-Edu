@@ -16,6 +16,7 @@ from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from core.audit import log_action
+from core.query_params import model_param
 from accounts.tenant_access import HasAnyPermission
 from roles.permissions import HasPermission
 
@@ -151,8 +152,9 @@ class ApplicantViewSet(_ReadOrManage, viewsets.ModelViewSet):
     def get_queryset(self):
         qs = Applicant.objects.select_related("opening").prefetch_related("interviews")
         params = self.request.query_params
-        if params.get("opening"):
-            qs = qs.filter(opening_id=params["opening"])
+        opening_id = model_param(self.request, "opening", qs.model, "opening")
+        if opening_id is not None:
+            qs = qs.filter(opening_id=opening_id)
         if params.get("stage"):
             qs = qs.filter(stage=params["stage"])
         search = (params.get("search") or "").strip()
@@ -271,8 +273,9 @@ class InterviewViewSet(viewsets.ModelViewSet):
             staff = staff_for_user(self.request.user)
             qs = qs.filter(panelists__staff=staff) if staff else qs.none()
         params = self.request.query_params
-        if params.get("applicant"):
-            qs = qs.filter(applicant_id=params["applicant"])
+        applicant_id = model_param(self.request, "applicant", qs.model, "applicant")
+        if applicant_id is not None:
+            qs = qs.filter(applicant_id=applicant_id)
         if params.get("status"):
             qs = qs.filter(status=params["status"])
         if params.get("mine") == "true":
@@ -400,7 +403,7 @@ class PanelConflictsView(APIView):
             raise ValidationError({"staff": ["Those are not valid staff ids."]})
         from .services import panel_conflicts
 
-        return Response(panel_conflicts(ids, moment, exclude_interview=request.query_params.get("interview") or None))
+        return Response(panel_conflicts(ids, moment, exclude_interview=model_param(request, "interview", Interview)))
 
 
 class RecruitmentSummaryView(APIView):

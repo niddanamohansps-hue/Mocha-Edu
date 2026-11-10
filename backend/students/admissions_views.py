@@ -10,6 +10,7 @@ from django.http import FileResponse, Http404, HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django_tenants.utils import get_public_schema_name
+from core.query_params import model_param
 from rest_framework import status
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
@@ -113,8 +114,8 @@ class AdmissionEnquiryListView(APIView):
         if academic_year:
             queryset = queryset.filter(academic_year=academic_year)
 
-        level_id = request.query_params.get("level")
-        if level_id:
+        level_id = model_param(request, "level", queryset.model, "preferred_level")
+        if level_id is not None:
             queryset = queryset.filter(preferred_level_id=level_id)
 
         search = request.query_params.get("search", "").strip()
@@ -275,12 +276,12 @@ class AdmissionApplicationListView(APIView):
         if academic_year:
             queryset = queryset.filter(academic_year=academic_year)
 
-        level_id = request.query_params.get("level")
-        if level_id:
+        level_id = model_param(request, "level", queryset.model, "level")
+        if level_id is not None:
             queryset = queryset.filter(level_id=level_id)
 
-        reviewer_id = request.query_params.get("reviewer")
-        if reviewer_id:
+        reviewer_id = model_param(request, "reviewer", queryset.model, "assigned_reviewer")
+        if reviewer_id is not None:
             queryset = queryset.filter(assigned_reviewer_id=reviewer_id)
 
         search = request.query_params.get("search", "").strip()

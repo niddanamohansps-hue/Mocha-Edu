@@ -2,6 +2,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
+from core.query_params import object_or_404
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -870,7 +871,7 @@ class BelowPassingReportView(APIView):
         if not examination_id:
             return Response({"error": "examination query parameter is required."}, status=status.HTTP_400_BAD_REQUEST)
 
-        examination = get_object_or_404(Examination, id=examination_id)
+        examination = object_or_404(Examination, examination_id, "examination")
         results = ExamResult.objects.filter(examination=examination, is_pass=False).select_related(
             "student__profile"
         )

@@ -7,6 +7,7 @@ import uuid
 from django.db.models import Sum
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
+from core.query_params import model_param
 from rest_framework import serializers, status, viewsets
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -382,7 +383,9 @@ class OutstandingReportView(APIView):
     pagination_class = StandardResultsPagination
 
     def get(self, request):
-        section_id = request.query_params.get("section")
+        from academics.models import Section
+
+        section_id = model_param(request, "section", Section)
         academic_year = request.query_params.get("academic_year")
 
         qs = StudentFee.objects.filter(status="active").select_related("student__profile", "fee_head")
@@ -773,8 +776,8 @@ class OnlinePaymentOrderListView(APIView):
                     status=status.HTTP_403_FORBIDDEN,
                 )
         else:
-            student_id = request.query_params.get("student")
-            if student_id:
+            student_id = model_param(request, "student", qs.model, "student")
+            if student_id is not None:
                 qs = qs.filter(student_id=student_id)
 
         status_filter = request.query_params.get("status")

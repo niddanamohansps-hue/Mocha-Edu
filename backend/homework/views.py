@@ -20,6 +20,7 @@ from django.http import FileResponse
 from django.shortcuts import get_object_or_404
 
 from core.dates import school_today
+from core.query_params import date_param, model_param
 from rest_framework import serializers, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -97,13 +98,14 @@ class HomeworkListCreateView(APIView):
         if allowed is not None:
             qs = qs.filter(section_id__in=allowed)
         params = request.query_params
-        for key, field in (("section", "section_id"), ("subject", "subject_id")):
-            if params.get(key):
-                qs = qs.filter(**{field: params[key]})
-        if params.get("from"):
-            qs = qs.filter(assigned_on__gte=params["from"])
-        if params.get("to"):
-            qs = qs.filter(assigned_on__lte=params["to"])
+        for key in ("section", "subject"):
+            value = model_param(request, key, qs.model, key)
+            if value is not None:
+                qs = qs.filter(**{f"{key}_id": value})
+        if date_param(request, "from"):
+            qs = qs.filter(assigned_on__gte=date_param(request, "from"))
+        if date_param(request, "to"):
+            qs = qs.filter(assigned_on__lte=date_param(request, "to"))
         if params.get("status") in ("active", "cancelled"):
             qs = qs.filter(status=params["status"])
         paginator = StandardResultsPagination()
