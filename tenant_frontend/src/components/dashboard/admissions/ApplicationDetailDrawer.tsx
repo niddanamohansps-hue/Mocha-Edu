@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { toast } from "sonner";
 import {
     Dialog,
     DialogBody,
@@ -31,6 +32,7 @@ import {
     useRejectAdmissionDocument,
     useScheduleInterview,
     useSendDecisionNotice,
+    useIssueTrackingLink,
     useUpdateInterview,
 } from "@/hooks/useAdmissions";
 import { useStaffMembers } from "@/hooks/useStaff";
@@ -127,6 +129,25 @@ export default function ApplicationDetailDrawer({
     // Modals
     const [decisionOpen, setDecisionOpen] = useState(false);
     const sendNotice = useSendDecisionNotice();
+    const issueLink = useIssueTrackingLink();
+    const [tracking, setTracking] = useState<{ reference: string; token: string; link: string; expires: string } | null>(null);
+    const createTrackingLink = () => {
+        if (!application) return;
+        if (!window.confirm("Create a tracking link for this family? Any link they were given before will stop working.")) return;
+        issueLink.mutate(application.id, {
+            onSuccess: (data) =>
+                setTracking({
+                    reference: data.application_number,
+                    token: data.access_token,
+                    // The fragment (#) is never sent to the server or kept in its logs.
+                    link: `${window.location.origin}/admissions/status#ref=${encodeURIComponent(data.application_number)}&token=${encodeURIComponent(data.access_token)}`,
+                    expires: new Date(data.access_token_expires_at).toLocaleDateString(),
+                }),
+        });
+    };
+    const copy = (text: string, what: string) => {
+        navigator.clipboard.writeText(text).then(() => toast.success(`${what} copied`), () => toast.error("Could not copy"));
+    };
     const [enrollOpen, setEnrollOpen] = useState(false);
 
     // Document upload state
@@ -288,6 +309,17 @@ export default function ApplicationDetailDrawer({
                             }
                             actions={
                                 <div className="flex items-center gap-2 mr-1">
+                                    {canReviewApps && (
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={createTrackingLink}
+                                            disabled={issueLink.isPending}
+                                            title="Create a link the family can use to follow this application online"
+                                        >
+                                            {issueLink.isPending ? "Creating..." : "Tracking link"}
+                                        </Button>
+                                    )}
                                     {canDecide && !isEnrolled && currentStatus !== "rejected" && (
                                         <Button
                                             size="sm"
@@ -317,6 +349,21 @@ export default function ApplicationDetailDrawer({
 
                         {/* Independently Scrollable Body */}
                         <DialogBody className="flex-1 overflow-y-auto px-6 py-5 [scrollbar-width:thin] space-y-6">
+                            {tracking && tracking.reference === application.application_number && (
+                                <div className="rounded-xl border border-sky-200 bg-sky-50 dark:border-sky-900 dark:bg-sky-950/30 p-4 space-y-3 text-sm">
+                                    <p className="font-semibold text-sky-900 dark:text-sky-200">
+                                        Give the family this link. It is shown only now, and works until {tracking.expires}.
+                                    </p>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <Input readOnly value={tracking.link} className="flex-1 min-w-0 font-mono text-xs" aria-label="Tracking link" />
+                                        <Button size="sm" onClick={() => copy(tracking.link, "Link")}>Copy link</Button>
+                                    </div>
+                                    <p className="text-xs text-sky-800 dark:text-sky-300">
+                                        Or, on the Track Application page: reference <span className="font-mono font-semibold">{tracking.reference}</span>, token{" "}
+                                        <button type="button" className="underline" onClick={() => copy(tracking.token, "Token")}>copy token</button>.
+                                    </p>
+                                </div>
+                            )}
                             {/* Lifecycle Status Bar & Reviewer Controls */}
                             <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 flex flex-wrap items-center justify-between gap-4">
                             <div className="flex items-center gap-3">

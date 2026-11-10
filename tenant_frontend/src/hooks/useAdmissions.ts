@@ -340,6 +340,20 @@ export const useSendDecisionNotice = () => {
     });
 };
 
+/**
+ * Give the family a way to track an application online (needed for applications staff entered, which get no
+ * access token). Issuing a new one cancels any earlier link. The token is shown once and never stored readable.
+ */
+export const useIssueTrackingLink = () => {
+    return useMutation({
+        mutationFn: async (id: string) =>
+            (await axiosInstance.post(`/admissions/applications/${id}/rotate-token/`, {
+                reason: "Tracking link issued by admissions staff.",
+            })).data as { application_number: string; access_token: string; access_token_expires_at: string },
+        onError: (err) => toast.error(admissionsErrorMessage(err, "Could not create the tracking link")),
+    });
+};
+
 export const useEnrollApplication = () => {
     const qc = useQueryClient();
     return useMutation({
