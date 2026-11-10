@@ -452,6 +452,11 @@ else:
         }
     }
 
+# Names this deployment inside a shared Redis (System Health counters are keyed by it). Every environment that
+# shares one Redis must have a different value; set it explicitly in each environment (e.g. production, staging).
+# Unset, it falls back to the database name, which already differs between environments.
+DEPLOYMENT_ENVIRONMENT = config("DEPLOYMENT_ENVIRONMENT", default="") or f"db-{DATABASES['default']['NAME']}"
+
 # Beat schedule: periodic tasks only, no per-run business logic lives here.
 # recover_stale_outbox_events (notifications/tasks.py) re-dispatches any
 # EmailOutboxEvent stuck in PENDING/RETRYING for longer than that module's

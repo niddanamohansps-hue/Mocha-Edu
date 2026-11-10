@@ -52,9 +52,25 @@ def _redis():
         return None
 
 
+def _namespace():
+    """What keeps one deployment's counters apart from another's in a shared Redis.
+
+    The raw Redis client used below bypasses the cache's KEY_PREFIX, so it is added here explicitly, together
+    with DEPLOYMENT_ENVIRONMENT: two environments that share one Redis (a test server next to a development one,
+    staging next to production) then never add to, or read, each other's numbers even for a school with the
+    same schema name.
+    """
+    prefix = (settings.CACHES.get("default") or {}).get("KEY_PREFIX") or "-"
+    return f"{prefix}:{getattr(settings, 'DEPLOYMENT_ENVIRONMENT', '') or '-'}"
+
+
+def _base(schema, hour):
+    return f"apimetrics:{_namespace()}:{schema}:{hour}"
+
+
 def record(schema, endpoint, status_code, ms):
     hour = _hour()
-    base = f"apimetrics:{schema}:{hour}"
+    base = _base(schema, hour)
     fields = {"n": 1, f"b{_bucket(ms)}": 1, "ms": int(round(ms))}
     if status_code >= 500:
         fields["e5"] = 1
@@ -80,21 +96,44 @@ def record(schema, endpoint, status_code, ms):
             cache.incr(key, amount)
 
 
+def _decode(value):
+    return value.decode() if isinstance(value, bytes) else value
+
+
 def _read_hour(schema, hour):
-    base = f"apimetrics:{schema}:{hour}"
+    """One hour of one school: {endpoint: {field: count}}."""
+    return _read_hours(schema, [hour])[hour]
+
+
+def _read_hours(schema, hours):
+    """Several hours of one school in two Redis round trips, whatever the number of hours and endpoints.
+
+    The first pipeline fetches every hour's endpoint list, the second every (hour, endpoint) hash. An hour
+    whose keys have expired simply has no endpoints, and a hash that expired before its endpoint list reads
+    as empty: both add nothing to the totals.
+    """
+    out = {hour: {} for hour in hours}
     client = _redis()
     if client is not None:
-        names = [n.decode() if isinstance(n, bytes) else n for n in client.smembers(f"{base}:endpoints")]
-        out = {}
-        for name in names:
-            raw = client.hgetall(f"{base}:{name}")
-            out[name] = {(k.decode() if isinstance(k, bytes) else k): int(v) for k, v in raw.items()}
+        pipe = client.pipeline(transaction=False)
+        for hour in hours:
+            pipe.smembers(f"{_base(schema, hour)}:endpoints")
+        members = pipe.execute()
+        wanted = [(hour, _decode(name)) for hour, names in zip(hours, members) for name in (names or ())]
+        if not wanted:
+            return out
+        pipe = client.pipeline(transaction=False)
+        for hour, name in wanted:
+            pipe.hgetall(f"{_base(schema, hour)}:{name}")
+        for (hour, name), raw in zip(wanted, pipe.execute()):
+            out[hour][name] = {_decode(k): int(v) for k, v in (raw or {}).items()}
         return out
-    out = {}
-    for name in cache.get(f"{base}:endpoints") or []:
-        fields = ["n", "ms", "e4", "e5"] + [f"b{i}" for i in range(len(BUCKETS_MS) + 1)]
-        values = cache.get_many([f"{base}:{name}:{f}" for f in fields])
-        out[name] = {f: int(values.get(f"{base}:{name}:{f}", 0)) for f in fields}
+    fields = ["n", "ms", "e4", "e5"] + [f"b{i}" for i in range(len(BUCKETS_MS) + 1)]
+    for hour in hours:
+        base = _base(schema, hour)
+        for name in cache.get(f"{base}:endpoints") or []:
+            values = cache.get_many([f"{base}:{name}:{f}" for f in fields])
+            out[hour][name] = {f: int(values.get(f"{base}:{name}:{f}", 0)) for f in fields}
     return out
 
 
@@ -115,8 +154,9 @@ def summary(schema, hours=24):
     """Per-endpoint and overall timings for the last `hours` hours of this school."""
     now = datetime.now(timezone.utc)
     totals = {}
-    for step in range(hours):
-        for name, fields in _read_hour(schema, _hour(now - timedelta(hours=step))).items():
+    by_hour = _read_hours(schema, [_hour(now - timedelta(hours=step)) for step in range(hours)])
+    for hour_data in by_hour.values():
+        for name, fields in hour_data.items():
             acc = totals.setdefault(name, {"n": 0, "ms": 0, "e4": 0, "e5": 0, "buckets": [0] * (len(BUCKETS_MS) + 1)})
             for key in ("n", "ms", "e4", "e5"):
                 acc[key] += fields.get(key, 0)
