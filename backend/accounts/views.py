@@ -162,7 +162,12 @@ class MeView(APIView):
             data["active_role"] = active_role
             data["permissions"] = []
 
-            if active_role:
+            if user.is_superuser:
+                # A platform operator passes every HasPermission check on the server (roles/permissions.py) even with
+                # no role in this school; the screens must show the same, or e.g. System Health says "Access Denied"
+                # while its API answers.
+                data["permissions"] = ["*"]
+            elif active_role:
                 # Find the UserRole object for the active role to get the relation
                 # We already fetched them in role_objects, let's find the matching one
                 active_user_role = next(

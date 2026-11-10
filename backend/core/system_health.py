@@ -1,6 +1,7 @@
 """
-GET /api/system-health/ - what the System Health page shows: whether each service answers, the email
-queue, and this school's API timings for the last 24 hours. Read-only; needs view_system_health.
+GET /api/system-health/ - what the System Health page shows: this school's email queue and its API timings for
+the last 24 hours and, for platform operators only, whether the shared services answer (database, cache,
+background workers). Read-only; needs view_system_health.
 """
 import time
 from datetime import datetime, timedelta
@@ -67,14 +68,18 @@ class SystemHealthView(APIView):
         return [IsAuthenticated(), HasPermission("view_system_health")]
 
     def get(self, request):
-        services = {
-            "database": _timed(_database),
-            "cache": _timed(_cache),
-        }
-        try:
-            services["background_jobs"] = _background_jobs()
-        except Exception:
-            services["background_jobs"] = {"status": "down", "last_seen": None}
+        # Shared infrastructure (the database server, Redis, the Celery workers) belongs to the platform, not to
+        # one school: only platform operators (superusers, as for the billing dashboard) see it. A school sees its
+        # own email queue and its own API timings.
+        platform = bool(getattr(request.user, "is_superuser", False))
+        services = {}
+        if platform:
+            services["database"] = _timed(_database)
+            services["cache"] = _timed(_cache)
+            try:
+                services["background_jobs"] = _background_jobs()
+            except Exception:
+                services["background_jobs"] = {"status": "down", "last_seen": None}
         try:
             services["email_queue"] = _email_queue()
         except Exception:
@@ -83,4 +88,6 @@ class SystemHealthView(APIView):
             api = summary(connection.schema_name)
         except Exception:
             api = None
-        return Response({"checked_at": timezone.now().isoformat(), "services": services, "api": api})
+        return Response(
+            {"checked_at": timezone.now().isoformat(), "platform": platform, "services": services, "api": api}
+        )
