@@ -105,13 +105,13 @@ def main():
 
     # Header and page numbering footer.
     header = section.header.paragraphs[0]
-    header.text = "EDU SEKAI  |  SYSTEM ARCHITECTURE & WORKFLOWS"
+    header.text = "EDUSEKAI  |  SYSTEM ARCHITECTURE & WORKFLOWS"
     header.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     header.runs[0].font.size = Pt(8)
     header.runs[0].font.color.rgb = RGBColor(100, 116, 139)
     footer = section.footer.paragraphs[0]
     footer.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    fr = footer.add_run("Documentation only · Current and proposed workflows are distinguished")
+    fr = footer.add_run("EduSekai · System architecture and module workflows")
     fr.font.size = Pt(8)
     fr.font.color.rgb = RGBColor(100, 116, 139)
 
@@ -120,12 +120,12 @@ def main():
     title.add_run("EDU Sekai\nSystem Architecture & Module Workflows")
     subtitle = doc.add_paragraph()
     subtitle.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    sr = subtitle.add_run("Current system overview and proposed workflows for identified gaps")
+    sr = subtitle.add_run("How the system is built and how each module works")
     sr.italic = True
     sr.font.color.rgb = RGBColor(71, 85, 105)
     note = doc.add_paragraph()
     note.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    nr = note.add_run("Documentation only — no application code changed. Based on repository inspection; not runtime verification.")
+    nr = note.add_run("Reflects the code on main as of 11 November 2026.")
     nr.font.size = Pt(9)
     nr.font.color.rgb = RGBColor(100, 116, 139)
     doc.add_paragraph()
@@ -202,9 +202,9 @@ def main():
     if paragraph_lines:
         add_rich_text(doc, " ".join(paragraph_lines).strip())
 
-    doc.core_properties.title = "EDU Sekai — System Architecture and Module Workflows"
+    doc.core_properties.title = "EduSekai — System Architecture and Module Workflows"
     doc.core_properties.subject = "Current architecture and module workflow documentation"
-    doc.core_properties.author = "OpenAI"
+    doc.core_properties.author = "EduSekai"
     doc.save(OUTPUT)
     print(f"Created {OUTPUT.name} ({OUTPUT.stat().st_size:,} bytes)")
 
