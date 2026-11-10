@@ -22,7 +22,11 @@ export interface EndpointTiming {
     method: string;
     requests: number;
     avg_ms: number;
-    /** null means slower than the slowest bucket (over 3.2 seconds). */
+    /**
+     * Upper limit (ms) of the timing range that holds the median / 95th-percentile request, not an exact time:
+     * times are counted in ranges of up to 25, 50, 100, 200, 400, 800, 1600 and 3200 ms. null means slower than
+     * 3.2 seconds.
+     */
     p50_ms: number | null;
     p95_ms: number | null;
     server_errors: number;
@@ -42,10 +46,16 @@ export interface ApiTimings {
 
 export interface SystemHealth {
     checked_at: string;
+    /** True for platform operators, who also see the shared infrastructure (database, cache, background workers). */
+    platform: boolean;
     services: {
-        database: TimedService;
-        cache: TimedService;
-        background_jobs: BackgroundJobs;
+        /** Platform operators only. */
+        database?: TimedService;
+        /** Platform operators only. */
+        cache?: TimedService;
+        /** Platform operators only. */
+        background_jobs?: BackgroundJobs;
+        /** This school's own email queue. */
         email_queue: EmailQueue;
     };
     api: ApiTimings | null;
