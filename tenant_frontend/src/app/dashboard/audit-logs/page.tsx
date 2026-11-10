@@ -19,7 +19,10 @@ import {
     TableHead,
     TableHeader,
     TableRow,
+    TableCellAction,
 } from "@/components/ui/table";
+import { TableShell } from "@/components/common/table/TableShell";
+import { Pagination } from "@/components/ui/pagination";
 import {
     Select,
     SelectContent,
@@ -345,160 +348,116 @@ export default function AuditLogsPage() {
                     }
                 />
             ) : (
-                <div className="space-y-4">
-                    <div className="rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden bg-white dark:bg-slate-900 shadow-xs">
-                        <Table>
-                            <TableHeader className="bg-slate-50 dark:bg-slate-900/80">
-                                <TableRow>
-                                    <TableHead className="w-[180px] text-xs font-semibold">Timestamp</TableHead>
-                                    <TableHead className="text-xs font-semibold">Done by</TableHead>
-                                    <TableHead className="text-xs font-semibold">Action</TableHead>
-                                    <TableHead className="text-xs font-semibold">What</TableHead>
-                                    <TableHead className="text-xs font-semibold">Record ID</TableHead>
-                                    <TableHead className="text-xs font-semibold">Changes</TableHead>
-                                    <TableHead className="text-xs font-semibold">IP Address</TableHead>
-                                    <TableHead className="text-right text-xs font-semibold">Details</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {data.results.map((log) => {
-                                    let dateLabel = log.created_at;
-                                    try {
-                                        dateLabel = format(new Date(log.created_at), "yyyy-MM-dd HH:mm:ss");
-                                    } catch {
-                                        dateLabel = log.created_at;
-                                    }
+                <TableShell
+                    footer={
+                        <Pagination
+                            page={page}
+                            pageSize={pageSize}
+                            count={totalCount}
+                            onPageChange={setPage}
+                            pageSizeOptions={[10, 20, 50]}
+                            onPageSizeChange={(val) => {
+                                setPageSize(val);
+                                setPage(1);
+                            }}
+                        />
+                    }
+                >
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead className="w-[180px]">Timestamp</TableHead>
+                                <TableHead>Done by</TableHead>
+                                <TableHead>Action</TableHead>
+                                <TableHead>What</TableHead>
+                                <TableHead>Record ID</TableHead>
+                                <TableHead>Changes</TableHead>
+                                <TableHead>IP Address</TableHead>
+                                <TableHead className="text-right">Details</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody striped>
+                            {data.results.map((log) => {
+                                let dateLabel = log.created_at;
+                                try {
+                                    dateLabel = format(new Date(log.created_at), "yyyy-MM-dd HH:mm:ss");
+                                } catch {
+                                    dateLabel = log.created_at;
+                                }
 
-                                    const changeCount = log.changes ? Object.keys(log.changes).length : 0;
+                                const changeCount = log.changes ? Object.keys(log.changes).length : 0;
 
-                                    return (
-                                        <TableRow
-                                            key={log.id}
-                                            className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 text-xs"
-                                        >
-                                            <TableCell className="font-mono text-slate-600 dark:text-slate-400">
-                                                {dateLabel}
-                                            </TableCell>
-                                            <TableCell className="font-medium text-slate-900 dark:text-white">
-                                                {log.actor_username ? (
-                                                    <span className="flex items-center gap-1.5">
-                                                        <User className="w-3.5 h-3.5 text-slate-400" />
-                                                        {log.actor_username}
-                                                    </span>
-                                                ) : (
-                                                    <span className="text-slate-400 italic">System</span>
-                                                )}
-                                            </TableCell>
-                                            <TableCell>
-                                                <Badge
-                                                    variant={getActionBadgeVariant(log.action)}
-                                                    className="font-mono text-[11px] font-normal"
-                                                >
-                                                    {log.action}
+                                return (
+                                    <TableRow
+                                        key={log.id}
+                                        className="text-xs"
+                                    >
+                                        <TableCell className="font-mono text-slate-600 dark:text-slate-400">
+                                            {dateLabel}
+                                        </TableCell>
+                                        <TableCell className="font-medium text-slate-900 dark:text-white">
+                                            {log.actor_username ? (
+                                                <span className="flex items-center gap-1.5">
+                                                    <User className="w-3.5 h-3.5 text-slate-400" />
+                                                    {log.actor_username}
+                                                </span>
+                                            ) : (
+                                                <span className="text-slate-400 italic">System</span>
+                                            )}
+                                        </TableCell>
+                                        <TableCell>
+                                            <Badge
+                                                variant={getActionBadgeVariant(log.action)}
+                                                className="font-mono text-[11px] font-normal"
+                                            >
+                                                {log.action}
+                                            </Badge>
+                                        </TableCell>
+                                        <TableCell className="font-medium text-slate-700 dark:text-slate-300">
+                                            {log.model_name}
+                                        </TableCell>
+                                        <TableCell className="font-mono text-slate-500">
+                                            {log.object_id ? (
+                                                <span className="flex items-center gap-1">
+                                                    <Hash className="w-3 h-3 text-slate-400" />
+                                                    {log.object_id}
+                                                </span>
+                                            ) : (
+                                                <span className="text-slate-400">-</span>
+                                            )}
+                                        </TableCell>
+                                        <TableCell>
+                                            {changeCount > 0 ? (
+                                                <Badge variant="outline" className="text-[10px] font-normal text-slate-600">
+                                                    {changeCount} {changeCount === 1 ? "field" : "fields"}
                                                 </Badge>
-                                            </TableCell>
-                                            <TableCell className="font-medium text-slate-700 dark:text-slate-300">
-                                                {log.model_name}
-                                            </TableCell>
-                                            <TableCell className="font-mono text-slate-500">
-                                                {log.object_id ? (
-                                                    <span className="flex items-center gap-1">
-                                                        <Hash className="w-3 h-3 text-slate-400" />
-                                                        {log.object_id}
-                                                    </span>
-                                                ) : (
-                                                    <span className="text-slate-400">-</span>
-                                                )}
-                                            </TableCell>
-                                            <TableCell>
-                                                {changeCount > 0 ? (
-                                                    <Badge variant="outline" className="text-[10px] font-normal text-slate-600">
-                                                        {changeCount} {changeCount === 1 ? "field" : "fields"}
-                                                    </Badge>
-                                                ) : (
-                                                    <span className="text-slate-400 italic text-[11px]">None</span>
-                                                )}
-                                            </TableCell>
-                                            <TableCell className="font-mono text-slate-500 text-[11px]">
-                                                {log.ip_address || "-"}
-                                            </TableCell>
-                                            <TableCell className="text-right">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={() => {
-                                                        setSelectedLog(log);
-                                                        setIsDetailOpen(true);
-                                                    }}
-                                                    className="h-7 text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-200"
-                                                >
-                                                    <Eye className="w-3.5 h-3.5 mr-1" />
-                                                    View
-                                                </Button>
-                                            </TableCell>
-                                        </TableRow>
-                                    );
-                                })}
-                            </TableBody>
-                        </Table>
-                    </div>
-
-                    {/* Pagination Bar */}
-                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-600 dark:text-slate-400 pt-2">
-                        <div className="flex items-center gap-2">
-                            <span>
-                                Showing <strong className="font-semibold text-slate-900 dark:text-white">{startIndex}</strong> to{" "}
-                                <strong className="font-semibold text-slate-900 dark:text-white">{endIndex}</strong> of{" "}
-                                <strong className="font-semibold text-slate-900 dark:text-white">{totalCount}</strong> events
-                            </span>
-                            <div className="flex items-center gap-1.5 ml-4">
-                                <span>Rows:</span>
-                                <Select
-                                    value={String(pageSize)}
-                                    onValueChange={(val) => {
-                                        setPageSize(Number(val));
-                                        setPage(1);
-                                    }}
-                                >
-                                    <SelectTrigger className="h-7 w-16 text-xs">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="10">10</SelectItem>
-                                        <SelectItem value="20">20</SelectItem>
-                                        <SelectItem value="50">50</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center gap-1">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                                disabled={page <= 1 || isFetching}
-                                className="h-8 text-xs"
-                            >
-                                <ChevronLeft className="w-4 h-4 mr-1" />
-                                Previous
-                            </Button>
-                            <span className="px-3 text-slate-700 dark:text-slate-300">
-                                Page {page} of {totalPages}
-                            </span>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                                disabled={page >= totalPages || isFetching}
-                                className="h-8 text-xs"
-                            >
-                                Next
-                                <ChevronRight className="w-4 h-4 ml-1" />
-                            </Button>
-                        </div>
-                    </div>
-                </div>
+                                            ) : (
+                                                <span className="text-slate-400 italic text-[11px]">None</span>
+                                            )}
+                                        </TableCell>
+                                        <TableCell className="font-mono text-slate-500 text-[11px]">
+                                            {log.ip_address || "-"}
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => {
+                                                    setSelectedLog(log);
+                                                    setIsDetailOpen(true);
+                                                }}
+                                                className="h-7 text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-200"
+                                            >
+                                                <Eye className="w-3.5 h-3.5 mr-1" />
+                                                View
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                );
+                            })}
+                        </TableBody>
+                    </Table>
+                </TableShell>
             )}
 
             {/* Event Detail Modal */}

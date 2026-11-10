@@ -56,38 +56,9 @@ import { EmptyState } from "@/components/feedback/EmptyState";
 import { ErrorState } from "@/components/feedback/ErrorState";
 import { ConfirmationDialog } from "@/components/feedback/ConfirmationDialog";
 import { TableShell } from "@/components/common/table/TableShell";
+import { Avatar } from "@/components/ui/avatar";
 
 const PAGE_SIZE = 20;
-
-// Deterministic vibrant avatar color palette
-const AVATAR_PALETTES = [
-    { bg: "bg-sky-100 dark:bg-sky-950/70", text: "text-sky-700 dark:text-sky-300", border: "border-sky-300/60 dark:border-sky-800" },
-    { bg: "bg-emerald-100 dark:bg-emerald-950/70", text: "text-emerald-700 dark:text-emerald-300", border: "border-emerald-300/60 dark:border-emerald-800" },
-    { bg: "bg-indigo-100 dark:bg-indigo-950/70", text: "text-indigo-700 dark:text-indigo-300", border: "border-indigo-300/60 dark:border-indigo-800" },
-    { bg: "bg-purple-100 dark:bg-purple-950/70", text: "text-purple-700 dark:text-purple-300", border: "border-purple-300/60 dark:border-purple-800" },
-    { bg: "bg-amber-100 dark:bg-amber-950/70", text: "text-amber-700 dark:text-amber-300", border: "border-amber-300/60 dark:border-amber-800" },
-    { bg: "bg-rose-100 dark:bg-rose-950/70", text: "text-rose-700 dark:text-rose-300", border: "border-rose-300/60 dark:border-rose-800" },
-    { bg: "bg-teal-100 dark:bg-teal-950/70", text: "text-teal-700 dark:text-teal-300", border: "border-teal-300/60 dark:border-teal-800" },
-];
-
-function getAvatarStyle(name?: string | null) {
-    if (!name || typeof name !== "string") return AVATAR_PALETTES[0];
-    let hash = 0;
-    for (let i = 0; i < name.length; i++) {
-        hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    const index = Math.abs(hash) % AVATAR_PALETTES.length;
-    return AVATAR_PALETTES[index];
-}
-
-function getInitials(name: string) {
-    if (!name) return "ST";
-    const parts = name.trim().split(/\s+/);
-    if (parts.length >= 2) {
-        return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
-    }
-    return name.slice(0, 2).toUpperCase();
-}
 
 export default function StudentsPage() {
     const { can, isOwner } = usePermissions();
@@ -262,7 +233,7 @@ export default function StudentsPage() {
                             <Button
                                 variant="outline"
                                 size="sm"
-                                className="h-9 px-3 gap-1.5 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 text-xs font-semibold cursor-pointer shadow-2xs"
+                                className="gap-1.5"
                             >
                                 <Download className="h-3.5 w-3.5 text-slate-500" />
                                 <span>Export Data</span>
@@ -304,7 +275,7 @@ export default function StudentsPage() {
                             onClick={() => router.push("/dashboard/students/parents")}
                             variant="outline"
                             size="sm"
-                            className="h-9 px-3 gap-1.5 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 text-xs font-semibold cursor-pointer shadow-2xs"
+                            className="gap-1.5"
                         >
                             <Users className="h-3.5 w-3.5 text-slate-500" />
                             <span>Parents Directory</span>
@@ -318,7 +289,7 @@ export default function StudentsPage() {
                                 <Button
                                     variant="outline"
                                     size="sm"
-                                    className="h-9 px-2.5 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 text-xs cursor-pointer shadow-2xs"
+                                    className="px-2.5"
                                     title="More Options"
                                 >
                                     <MoreHorizontal className="h-4 w-4" />
@@ -348,7 +319,7 @@ export default function StudentsPage() {
                         <Button
                             onClick={() => router.push("/dashboard/students/admissions")}
                             size="sm"
-                            className="h-9 px-4 gap-1.5 bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs rounded-lg shadow-sm cursor-pointer transition active:scale-95"
+                            className="gap-1.5"
                         >
                             <UserPlus className="h-3.5 w-3.5 stroke-[2.5]" />
                             <span>New Admission</span>
@@ -461,50 +432,30 @@ export default function StudentsPage() {
             {/* 4. Enterprise Student Table */}
             <TableShell
                 footer={
-                    data && (
-                        <div className="flex flex-col sm:flex-row items-center justify-between p-3 gap-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/40">
-                            <span className="text-xs text-slate-500 dark:text-slate-400">
-                                Showing <span className="font-semibold text-slate-700 dark:text-slate-200">{filteredStudents.length}</span> of {totalCount} students
-                            </span>
-                            <Pagination
-                                page={page}
-                                pageSize={PAGE_SIZE}
-                                count={data.count}
-                                onPageChange={handlePageChange}
-                            />
-                        </div>
+                    data && totalCount > 0 && (
+                        <Pagination
+                            page={page}
+                            pageSize={PAGE_SIZE}
+                            count={data.count}
+                            onPageChange={handlePageChange}
+                        />
                     )
                 }
             >
                 <Table>
-                    <TableHeader className="bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200/80 dark:border-slate-800">
+                    <TableHeader>
                         <TableRow className="hover:bg-transparent">
-                            <TableHead className="py-3.5 pl-5 text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                Student Name
-                            </TableHead>
-                            <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                Enrollment / PEN
-                            </TableHead>
-                            <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                Academic Class & Section
-                            </TableHead>
-                            <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                Status
-                            </TableHead>
-                            <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                Portal Access
-                            </TableHead>
-                            <TableHead className="text-right pr-5 text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                Actions
-                            </TableHead>
+                            <TableHead className="pl-5">Student Name</TableHead>
+                            <TableHead>Enrollment / PEN</TableHead>
+                            <TableHead>Academic Class & Section</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Portal Access</TableHead>
+                            <TableHead className="text-right pr-5">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {filteredStudents && filteredStudents.length > 0 ? (
                             filteredStudents.map((student: any) => {
-                                const avatarStyle = getAvatarStyle(student.full_name);
-                                const initials = getInitials(student.full_name);
-
                                 return (
                                     <TableRow
                                         key={student.id}
@@ -514,11 +465,7 @@ export default function StudentsPage() {
                                         <TableCell className="py-3 pl-5">
                                             <div className="flex items-center gap-3">
                                                 {/* Colorful Deterministic Avatar */}
-                                                <div
-                                                    className={`h-9 w-9 rounded-full flex items-center justify-center font-bold text-xs shrink-0 border ${avatarStyle.bg} ${avatarStyle.text} ${avatarStyle.border}`}
-                                                >
-                                                    {initials}
-                                                </div>
+                                                <Avatar name={student.full_name} src={student.photo} size="md" />
                                                 <div className="min-w-0">
                                                     <div className="flex items-center gap-1.5 flex-wrap">
                                                         <span

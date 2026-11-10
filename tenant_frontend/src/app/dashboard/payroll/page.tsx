@@ -28,6 +28,9 @@ import {
     TableHead,
     TableHeader,
     TableRow,
+    TableHeadNumeric,
+    TableCellNumeric,
+    TableCellAction,
 } from "@/components/ui/table";
 import { TableShell } from "@/components/common/table/TableShell";
 import { Pagination } from "@/components/ui/pagination";
@@ -309,116 +312,112 @@ function PayrollRunsPageContent() {
                     }
                 />
             ) : (
-                <div className="space-y-4">
-                    <TableShell>
-                        <Table>
-                            <TableHeader className="bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200/80 dark:border-slate-800">
-                                <TableRow className="hover:bg-transparent">
-                                    <TableHead className="py-3.5 pl-4 text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                        Pay Cycle
-                                    </TableHead>
-                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                        Staff Count
-                                    </TableHead>
-                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                        Gross Pay
-                                    </TableHead>
-                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                        Deductions
-                                    </TableHead>
-                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                        Net Payable
-                                    </TableHead>
-                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                        Cycle Status
-                                    </TableHead>
-                                    <TableHead className="text-right pr-4 text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                        Actions
-                                    </TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {runs.map((r) => (
-                                    <TableRow
-                                        key={r.id}
-                                        className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 border-b border-slate-100 dark:border-slate-800/70"
-                                    >
-                                        {/* Pay Cycle */}
-                                        <TableCell className="py-3.5 pl-4">
-                                            <div className="font-bold text-xs text-slate-900 dark:text-white">
-                                                {r.month_label} {r.year}
-                                            </div>
-                                            <div className="text-[10px] text-slate-400 mt-0.5">
-                                                {formatDate(r.period_start)} → {formatDate(r.period_end)}
-                                            </div>
-                                            {r.notes && (
-                                                <div className="text-[10px] text-slate-500 italic mt-0.5 max-w-xs truncate">
-                                                    {r.notes}
-                                                </div>
-                                            )}
-                                        </TableCell>
-
-                                        {/* Staff Invoiced */}
-                                        <TableCell className="py-3.5">
-                                            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-semibold">
-                                                <Users className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
-                                                <span>{r.payslip_count} Payslips</span>
-                                            </div>
-                                        </TableCell>
-
-                                        {/* Gross Pay */}
-                                        <TableCell className="py-3.5 text-xs font-semibold text-slate-700 dark:text-slate-300">
-                                            {formatIndianCurrency(r.total_gross)}
-                                        </TableCell>
-
-                                        {/* Deductions */}
-                                        <TableCell className="py-3.5 text-xs text-rose-600 dark:text-rose-400 font-semibold">
-                                            -{formatIndianCurrency(r.total_deductions)}
-                                        </TableCell>
-
-                                        {/* Net Payable */}
-                                        <TableCell className="py-3.5">
-                                            <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                                                {formatIndianCurrency(r.total_net)}
-                                            </span>
-                                        </TableCell>
-
-                                        {/* Status */}
-                                        <TableCell className="py-3.5">
-                                            <RunStatusBadge status={r.status} />
-                                        </TableCell>
-
-                                        {/* Actions */}
-                                        <TableCell className="py-3.5 pr-4 text-right">
-                                            <Link href={`/dashboard/payroll/runs/${r.id}`}>
-                                                <Button
-                                                    size="sm"
-                                                    variant="ghost"
-                                                    className="h-8 px-2.5 text-xs text-sky-600 hover:text-sky-700 hover:bg-sky-50 dark:hover:bg-sky-950/40 rounded-lg cursor-pointer"
-                                                >
-                                                    <span>Open Cycle</span>
-                                                    <ChevronRight className="w-3.5 h-3.5 ml-1" />
-                                                </Button>
-                                            </Link>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </TableShell>
-
-                    {/* Pagination */}
-                    {totalCount > PAGE_SIZE && (
-                        <div className="pt-2">
+                <TableShell
+                    footer={
+                        totalCount > PAGE_SIZE ? (
                             <Pagination
                                 page={page}
                                 pageSize={PAGE_SIZE}
                                 count={totalCount}
                                 onPageChange={setPage}
                             />
-                        </div>
-                    )}
-                </div>
+                        ) : undefined
+                    }
+                >
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead className="pl-4">
+                                    Pay Cycle
+                                </TableHead>
+                                <TableHead>
+                                    Staff Count
+                                </TableHead>
+                                <TableHeadNumeric>
+                                    Gross Pay
+                                </TableHeadNumeric>
+                                <TableHeadNumeric>
+                                    Deductions
+                                </TableHeadNumeric>
+                                <TableHeadNumeric>
+                                    Net Payable
+                                </TableHeadNumeric>
+                                <TableHead>
+                                    Cycle Status
+                                </TableHead>
+                                <TableCellAction>
+                                    Actions
+                                </TableCellAction>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody striped>
+                            {runs.map((r) => (
+                                <TableRow
+                                    key={r.id}
+                                >
+                                    {/* Pay Cycle */}
+                                    <TableCell className="pl-4">
+                                        <div className="font-bold text-xs text-slate-900 dark:text-white">
+                                            {r.month_label} {r.year}
+                                        </div>
+                                        <div className="text-[10px] text-slate-400 mt-0.5">
+                                            {formatDate(r.period_start)} → {formatDate(r.period_end)}
+                                        </div>
+                                        {r.notes && (
+                                            <div className="text-[10px] text-slate-500 italic mt-0.5 max-w-xs truncate">
+                                                {r.notes}
+                                            </div>
+                                        )}
+                                    </TableCell>
+
+                                    {/* Staff Invoiced */}
+                                    <TableCell>
+                                        <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-semibold">
+                                            <Users className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+                                            <span>{r.payslip_count} Payslips</span>
+                                        </div>
+                                    </TableCell>
+
+                                    {/* Gross Pay */}
+                                    <TableCellNumeric className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                        {formatIndianCurrency(r.total_gross)}
+                                    </TableCellNumeric>
+
+                                    {/* Deductions */}
+                                    <TableCellNumeric className="text-xs text-rose-600 dark:text-rose-400 font-semibold">
+                                        -{formatIndianCurrency(r.total_deductions)}
+                                    </TableCellNumeric>
+
+                                    {/* Net Payable */}
+                                    <TableCellNumeric>
+                                        <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                                            {formatIndianCurrency(r.total_net)}
+                                        </span>
+                                    </TableCellNumeric>
+
+                                    {/* Status */}
+                                    <TableCell>
+                                        <RunStatusBadge status={r.status} />
+                                    </TableCell>
+
+                                    {/* Actions */}
+                                    <TableCellAction>
+                                        <Link href={`/dashboard/payroll/runs/${r.id}`}>
+                                            <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                className="h-8 px-2.5 text-xs text-sky-600 hover:text-sky-700 hover:bg-sky-50 dark:hover:bg-sky-950/40 rounded-lg cursor-pointer"
+                                            >
+                                                <span>Open Cycle</span>
+                                                <ChevronRight className="w-3.5 h-3.5 ml-1" />
+                                            </Button>
+                                        </Link>
+                                    </TableCellAction>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </TableShell>
             )}
 
             {/* Dialogs */}

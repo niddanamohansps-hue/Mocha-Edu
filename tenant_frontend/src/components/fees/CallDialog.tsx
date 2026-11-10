@@ -7,11 +7,9 @@ import {
     Dialog,
     DialogBody,
     DialogContent,
-    DialogDescription,
     DialogFooter,
-    DialogHeader,
-    DialogTitle,
 } from "@/components/ui/dialog";
+import { ModalHeader } from "@/components/ui/modal-header";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -75,23 +73,13 @@ export function CallDialog({ row, onClose }: { row: DueRow; onClose: () => void 
 
     return (
         <Dialog open onOpenChange={(o) => !o && onClose()}>
-            <DialogContent className="max-w-lg max-h-[90vh] p-0 flex flex-col overflow-hidden rounded-2xl">
-                <DialogHeader className="px-6 py-4.5 border-b border-slate-100 dark:border-slate-800 shrink-0">
-                    <DialogTitle className="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-white">
-                        <PhoneCall className="w-5 h-5 text-sky-600" />
-                        Record Fee Follow-up Call: {row.name}
-                    </DialogTitle>
-                    <DialogDescription className="text-xs text-slate-500">
-                        ₹{money(row.outstanding)} outstanding. Contact: {row.guardian_name}
-                        {row.guardian_phone && (
-                            <> (
-                                <a className="text-sky-600 hover:underline" href={`tel:${row.guardian_phone}`}>
-                                    {row.guardian_phone}
-                                </a>
-                            )</>
-                        )}
-                    </DialogDescription>
-                </DialogHeader>
+            <DialogContent className="max-w-lg max-h-[90vh] p-0 flex flex-col overflow-hidden rounded-2xl" showCloseButton={false}>
+                <ModalHeader
+                    icon={<PhoneCall className="w-5 h-5 text-sky-600" />}
+                    title={`Record Fee Follow-up Call: ${row.name}`}
+                    subtitle={`₹${money(row.outstanding)} outstanding. Contact: ${row.guardian_name}${row.guardian_phone ? ` (${row.guardian_phone})` : ""}`}
+                    onClose={onClose}
+                />
 
                 <DialogBody className="flex-1 overflow-y-auto px-6 py-5 [scrollbar-width:thin] space-y-5">
                     <FormFieldWrapper label="Call Outcome" htmlFor="call_outcome" required colSpan="full">
@@ -174,7 +162,7 @@ export function CallDialog({ row, onClose }: { row: DueRow; onClose: () => void 
                     <Button
                         onClick={handleSave}
                         disabled={record.isPending || !note.trim() || (promised && !date)}
-                        className="bg-sky-600 hover:bg-sky-700 text-white min-w-[120px]"
+                        className="min-w-[120px]"
                     >
                         {record.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                         Save Call

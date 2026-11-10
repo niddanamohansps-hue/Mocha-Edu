@@ -150,7 +150,7 @@ export default function ManageAnnouncementsPage() {
                     <Button
                         asChild
                         size="sm"
-                        className="h-9 px-4 gap-1.5 bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs rounded-lg shadow-sm cursor-pointer transition active:scale-95 shrink-0"
+                        className="gap-1.5 shrink-0"
                     >
                         <Link href="/dashboard/announcements/manage/new">
                             <Plus className="h-3.5 w-3.5 stroke-[2.5]" />

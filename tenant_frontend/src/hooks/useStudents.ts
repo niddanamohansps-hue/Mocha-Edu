@@ -59,6 +59,8 @@ export interface Student {
     section: string;
     status: string;
     has_account: boolean;
+    photo?: string | null;
+    profile_image?: string | null;
     apaar_id?: string;
     pen?: string;
     caste_category?: string;

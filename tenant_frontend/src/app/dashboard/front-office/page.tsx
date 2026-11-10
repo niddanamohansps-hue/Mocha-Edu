@@ -35,7 +35,16 @@ import {
 import { usePermissions } from "@/providers/PermissionProvider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import {
+    Dialog,
+    DialogContent,
+    DialogBody,
+    DialogFooter,
+} from "@/components/ui/dialog";
+import { ModalHeader } from "@/components/ui/modal-header";
+import { FormGrid, FormGrid3, FormFieldWrapper } from "@/components/ui/form-layout";
 import {
     Table,
     TableBody,
@@ -47,22 +56,7 @@ import {
 import { TableShell } from "@/components/common/table/TableShell";
 import { StudentPicker } from "@/components/common/StudentPicker";
 import type { Student } from "@/hooks/useStudents";
-
-const AVATAR_PALETTES = [
-    { bg: "bg-sky-100 dark:bg-sky-950/70", text: "text-sky-700 dark:text-sky-300", border: "border-sky-300/60 dark:border-sky-800" },
-    { bg: "bg-emerald-100 dark:bg-emerald-950/70", text: "text-emerald-700 dark:text-emerald-300", border: "border-emerald-300/60 dark:border-emerald-800" },
-    { bg: "bg-indigo-100 dark:bg-indigo-950/70", text: "text-indigo-700 dark:text-indigo-300", border: "border-indigo-300/60 dark:border-indigo-800" },
-    { bg: "bg-purple-100 dark:bg-purple-950/70", text: "text-purple-700 dark:text-purple-300", border: "border-purple-300/60 dark:border-purple-800" },
-    { bg: "bg-amber-100 dark:bg-amber-950/70", text: "text-amber-700 dark:text-amber-300", border: "border-amber-300/60 dark:border-amber-800" },
-];
-
-function getAvatarStyle(name?: string | null) {
-    if (!name || typeof name !== "string") return AVATAR_PALETTES[0];
-    let hash = 0;
-    for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    const index = Math.abs(hash) % AVATAR_PALETTES.length;
-    return AVATAR_PALETTES[index];
-}
+import { Avatar } from "@/components/ui/avatar";
 
 export default function FrontOfficePage() {
     const { can } = usePermissions();
@@ -277,31 +271,35 @@ export default function FrontOfficePage() {
                 </div>
                 <div className="flex flex-wrap items-center gap-2.5">
                     {can("manage_visitors") && (
-                        <button
+                        <Button
                             onClick={() => setIsVisitorModalOpen(true)}
-                            className="inline-flex items-center gap-1.5 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-sm font-medium rounded-lg shadow-sm transition-colors cursor-pointer"
+                            size="sm"
+                            className="gap-1.5"
                         >
                             <Plus className="h-4 w-4" />
-                            Check In Visitor
-                        </button>
+                            <span>Check In Visitor</span>
+                        </Button>
                     )}
                     {can("issue_gate_pass") && (
-                        <button
+                        <Button
                             onClick={() => setIsGatePassModalOpen(true)}
-                            className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg shadow-sm transition-colors cursor-pointer"
+                            size="sm"
+                            className="gap-1.5 bg-amber-600 hover:bg-amber-500 text-white"
                         >
                             <LogOut className="h-4 w-4" />
-                            Issue Gate Pass
-                        </button>
+                            <span>Issue Gate Pass</span>
+                        </Button>
                     )}
                     {can("manage_postal_records") && (
-                        <button
+                        <Button
                             onClick={() => setIsPostalModalOpen(true)}
-                            className="inline-flex items-center gap-1.5 px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-sm font-medium rounded-lg shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                            variant="outline"
+                            size="sm"
+                            className="gap-1.5"
                         >
                             <Mail className="h-4 w-4" />
-                            Log Courier
-                        </button>
+                            <span>Log Courier</span>
+                        </Button>
                     )}
                 </div>
             </div>
@@ -442,7 +440,6 @@ export default function FrontOfficePage() {
                                     </TableRow>
                                 ) : (
                                     visitors.map((v) => {
-                                        const avatar = getAvatarStyle(v.visitor_name);
                                         return (
                                             <TableRow key={v.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
                                                 <TableCell className="font-mono text-xs font-bold text-sky-600 dark:text-sky-400">
@@ -450,9 +447,7 @@ export default function FrontOfficePage() {
                                                 </TableCell>
                                                 <TableCell>
                                                     <div className="flex items-center gap-2.5">
-                                                        <div className={`w-8 h-8 rounded-lg ${avatar.bg} ${avatar.text} ${avatar.border} border flex items-center justify-center font-bold text-xs shrink-0`}>
-                                                            {v.visitor_name.slice(0, 2).toUpperCase()}
-                                                        </div>
+                                                        <Avatar name={v.visitor_name} size="sm" shape="square" />
                                                         <div>
                                                             <div className="font-bold text-xs text-slate-900 dark:text-white">{v.visitor_name}</div>
                                                             {v.organization && (
@@ -613,7 +608,6 @@ export default function FrontOfficePage() {
                                     </TableRow>
                                 ) : (
                                     gatePasses.map((gp) => {
-                                        const avatar = getAvatarStyle(gp.student_name || "Student");
                                         return (
                                             <TableRow key={gp.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
                                                 <TableCell className="font-mono text-xs font-bold text-amber-600 dark:text-amber-400">
@@ -621,9 +615,7 @@ export default function FrontOfficePage() {
                                                 </TableCell>
                                                 <TableCell>
                                                     <div className="flex items-center gap-2.5">
-                                                        <div className={`w-8 h-8 rounded-lg ${avatar.bg} ${avatar.text} ${avatar.border} border flex items-center justify-center font-bold text-xs shrink-0`}>
-                                                            {(gp.student_name || "ST").slice(0, 2).toUpperCase()}
-                                                        </div>
+                                                        <Avatar name={gp.student_name || "Student"} size="sm" shape="square" />
                                                         <div>
                                                             <div className="font-bold text-xs text-slate-900 dark:text-white">{gp.student_name}</div>
                                                             <div className="text-[11px] text-slate-400">
@@ -815,50 +807,43 @@ export default function FrontOfficePage() {
             )}
 
             {/* MODAL 1: CHECK IN VISITOR */}
-            {isVisitorModalOpen && (
-                <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-200 dark:border-slate-700 space-y-4">
-                        <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
-                            Check In Visitor (Issue Badge)
-                        </h2>
-                        <form onSubmit={handleCreateVisitor} className="space-y-3.5">
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                        Visitor Name *
-                                    </label>
-                                    <input
+            <Dialog open={isVisitorModalOpen} onOpenChange={setIsVisitorModalOpen}>
+                <DialogContent className="max-w-xl max-h-[90vh] p-0 flex flex-col overflow-hidden rounded-2xl" showCloseButton={false}>
+                    <ModalHeader
+                        icon={<ShieldCheck className="w-5 h-5 text-sky-600" />}
+                        title="Check In Visitor"
+                        subtitle="Issue temporary visitor badge and record contact details."
+                        onClose={() => setIsVisitorModalOpen(false)}
+                    />
+                    <form onSubmit={handleCreateVisitor} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                        <DialogBody className="flex-1 overflow-y-auto px-6 py-5 [scrollbar-width:thin] space-y-4">
+                            <FormGrid>
+                                <FormFieldWrapper label="Visitor Name" htmlFor="vis-name" required>
+                                    <Input
+                                        id="vis-name"
                                         type="text"
                                         required
                                         placeholder="Full name"
                                         value={visitorForm.visitor_name}
                                         onChange={(e) => setVisitorForm({ ...visitorForm, visitor_name: e.target.value })}
-                                        className="w-full mt-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm"
                                     />
-                                </div>
-                                <div>
-                                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                        Phone Number *
-                                    </label>
-                                    <input
+                                </FormFieldWrapper>
+                                <FormFieldWrapper label="Phone Number" htmlFor="vis-phone" required>
+                                    <Input
+                                        id="vis-phone"
                                         type="tel"
                                         required
                                         placeholder="Mobile no."
                                         value={visitorForm.phone}
                                         onChange={(e) => setVisitorForm({ ...visitorForm, phone: e.target.value })}
-                                        className="w-full mt-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm"
                                     />
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                        ID Proof Type
-                                    </label>
+                                </FormFieldWrapper>
+                                <FormFieldWrapper label="ID Proof Type" htmlFor="vis-id-type">
                                     <select
+                                        id="vis-id-type"
                                         value={visitorForm.id_proof_type}
                                         onChange={(e) => setVisitorForm({ ...visitorForm, id_proof_type: e.target.value })}
-                                        className="w-full mt-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm"
+                                        className="flex h-9 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs sm:text-sm shadow-2xs transition-colors duration-150 focus-visible:border-sky-500 focus-visible:ring-2 focus-visible:ring-sky-500/20 dark:focus-visible:ring-sky-400/25 outline-none hover:border-slate-300 dark:hover:border-slate-700"
                                     >
                                         <option value="aadhaar">Aadhaar Card</option>
                                         <option value="driving_license">Driving License</option>
@@ -866,29 +851,22 @@ export default function FrontOfficePage() {
                                         <option value="pan">PAN Card</option>
                                         <option value="other">Other</option>
                                     </select>
-                                </div>
-                                <div>
-                                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                        ID Proof Number
-                                    </label>
-                                    <input
+                                </FormFieldWrapper>
+                                <FormFieldWrapper label="ID Proof Number" htmlFor="vis-id-num">
+                                    <Input
+                                        id="vis-id-num"
                                         type="text"
                                         placeholder="Card / license number"
                                         value={visitorForm.id_proof_number}
                                         onChange={(e) => setVisitorForm({ ...visitorForm, id_proof_number: e.target.value })}
-                                        className="w-full mt-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm"
                                     />
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                        Purpose of Visit *
-                                    </label>
+                                </FormFieldWrapper>
+                                <FormFieldWrapper label="Purpose of Visit" htmlFor="vis-purpose" required>
                                     <select
+                                        id="vis-purpose"
                                         value={visitorForm.purpose}
                                         onChange={(e) => setVisitorForm({ ...visitorForm, purpose: e.target.value })}
-                                        className="w-full mt-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm"
+                                        className="flex h-9 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs sm:text-sm shadow-2xs transition-colors duration-150 focus-visible:border-sky-500 focus-visible:ring-2 focus-visible:ring-sky-500/20 dark:focus-visible:ring-sky-400/25 outline-none hover:border-slate-300 dark:hover:border-slate-700"
                                     >
                                         <option value="parent_meeting">Meet Teacher / Staff</option>
                                         <option value="principal_meeting">Meet Principal / Management</option>
@@ -899,155 +877,131 @@ export default function FrontOfficePage() {
                                         <option value="official_inspection">Education Dept / Board</option>
                                         <option value="other">Other</option>
                                     </select>
-                                </div>
-                                <div>
-                                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                        Person to Meet
-                                    </label>
-                                    <input
+                                </FormFieldWrapper>
+                                <FormFieldWrapper label="Person to Meet" htmlFor="vis-meet">
+                                    <Input
+                                        id="vis-meet"
                                         type="text"
                                         placeholder="Staff or student name"
                                         value={visitorForm.person_to_meet_name}
                                         onChange={(e) => setVisitorForm({ ...visitorForm, person_to_meet_name: e.target.value })}
-                                        className="w-full mt-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm"
                                     />
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-3 gap-3">
-                                <div>
-                                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                        Badge #
-                                    </label>
-                                    <input
+                                </FormFieldWrapper>
+                            </FormGrid>
+                            <FormGrid3>
+                                <FormFieldWrapper label="Badge #" htmlFor="vis-badge">
+                                    <Input
+                                        id="vis-badge"
                                         type="text"
                                         placeholder="e.g. V-04"
                                         value={visitorForm.badge_number}
                                         onChange={(e) => setVisitorForm({ ...visitorForm, badge_number: e.target.value })}
-                                        className="w-full mt-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm font-mono"
+                                        className="font-mono"
                                     />
-                                </div>
-                                <div>
-                                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                        Vehicle #
-                                    </label>
-                                    <input
+                                </FormFieldWrapper>
+                                <FormFieldWrapper label="Vehicle #" htmlFor="vis-vehicle">
+                                    <Input
+                                        id="vis-vehicle"
                                         type="text"
                                         placeholder="e.g. DL-01-AB"
                                         value={visitorForm.vehicle_number}
                                         onChange={(e) => setVisitorForm({ ...visitorForm, vehicle_number: e.target.value })}
-                                        className="w-full mt-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm"
                                     />
-                                </div>
-                                <div>
-                                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                        Persons Count
-                                    </label>
-                                    <input
+                                </FormFieldWrapper>
+                                <FormFieldWrapper label="Persons Count" htmlFor="vis-count">
+                                    <Input
+                                        id="vis-count"
                                         type="number"
                                         min={1}
                                         value={visitorForm.number_of_visitors}
                                         onChange={(e) => setVisitorForm({ ...visitorForm, number_of_visitors: parseInt(e.target.value) || 1 })}
-                                        className="w-full mt-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm"
                                     />
-                                </div>
-                            </div>
-                            <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-700">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsVisitorModalOpen(false)}
-                                    className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800 dark:text-slate-400"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-sm font-medium"
-                                >
-                                    Check In Visitor
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
+                                </FormFieldWrapper>
+                            </FormGrid3>
+                        </DialogBody>
+                        <DialogFooter className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-end gap-3 shrink-0">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setIsVisitorModalOpen(false)}
+                            >
+                                Cancel
+                            </Button>
+                            <Button type="submit">
+                                Check In Visitor
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
 
             {/* MODAL 2: CHECK OUT VISITOR */}
-            {visitorToCheckOut && (
-                <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200 dark:border-slate-700 space-y-4">
-                        <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                            <LogOut className="h-5 w-5 text-sky-600" />
-                            Check Out: {visitorToCheckOut.visitor_name}
-                        </h2>
-                        <p className="text-sm text-slate-500">
-                            Confirm that badge #{visitorToCheckOut.badge_number || "N/A"} has been returned at the security gate.
-                        </p>
-                        <div>
-                            <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                Exit Remarks / Notes (Optional)
-                            </label>
-                            <input
+            <Dialog open={!!visitorToCheckOut} onOpenChange={(open) => !open && setVisitorToCheckOut(null)}>
+                <DialogContent className="max-w-md max-h-[90vh] p-0 flex flex-col overflow-hidden rounded-2xl" showCloseButton={false}>
+                    <ModalHeader
+                        icon={<LogOut className="w-5 h-5 text-sky-600" />}
+                        title={`Check Out: ${visitorToCheckOut?.visitor_name || ""}`}
+                        subtitle={`Confirm that badge #${visitorToCheckOut?.badge_number || "N/A"} has been returned.`}
+                        onClose={() => setVisitorToCheckOut(null)}
+                    />
+                    <DialogBody className="flex-1 overflow-y-auto px-6 py-5 [scrollbar-width:thin] space-y-4">
+                        <FormFieldWrapper label="Exit Remarks / Notes (Optional)" htmlFor="checkout-remarks">
+                            <Input
+                                id="checkout-remarks"
                                 type="text"
                                 placeholder="e.g. Left campus via Gate 1"
                                 value={checkOutRemarks}
                                 onChange={(e) => setCheckOutRemarks(e.target.value)}
-                                className="w-full mt-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm"
                             />
-                        </div>
-                        <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-700">
-                            <button
-                                type="button"
-                                onClick={() => setVisitorToCheckOut(null)}
-                                className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800 dark:text-slate-400"
-                            >
-                                Back
-                            </button>
-                            <button
-                                type="button"
-                                onClick={handleCheckOut}
-                                className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-sm font-medium"
-                            >
-                                Confirm Check Out
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+                        </FormFieldWrapper>
+                    </DialogBody>
+                    <DialogFooter className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-end gap-3 shrink-0">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setVisitorToCheckOut(null)}
+                        >
+                            Back
+                        </Button>
+                        <Button
+                            type="button"
+                            onClick={handleCheckOut}
+                        >
+                            Confirm Check Out
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             {/* MODAL 3: ISSUE GATE PASS */}
-            {isGatePassModalOpen && (
-                <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-200 dark:border-slate-700 space-y-4">
-                        <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                            <LogOut className="h-5 w-5 text-amber-600" />
-                            Issue Student Early Departure Gate Pass
-                        </h2>
-                        <form onSubmit={handleCreateGatePass} className="space-y-3.5">
-                            <div>
-                                <label htmlFor="gp-student" className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                    Student *
-                                </label>
-                                <div className="mt-1">
-                                    <StudentPicker
-                                        id="gp-student"
-                                        required
-                                        value={gatePassStudent}
-                                        onChange={(student) => {
-                                            setGatePassStudent(student);
-                                            setGatePassForm({ ...gatePassForm, student: student?.id ?? "" });
-                                        }}
-                                    />
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                        Reason Category *
-                                    </label>
+            <Dialog open={isGatePassModalOpen} onOpenChange={setIsGatePassModalOpen}>
+                <DialogContent className="max-w-xl max-h-[90vh] p-0 flex flex-col overflow-hidden rounded-2xl" showCloseButton={false}>
+                    <ModalHeader
+                        icon={<LogOut className="w-5 h-5 text-amber-600" />}
+                        title="Issue Early Departure Gate Pass"
+                        subtitle="Authorize student departure with guardian or relative."
+                        onClose={() => setIsGatePassModalOpen(false)}
+                    />
+                    <form onSubmit={handleCreateGatePass} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                        <DialogBody className="flex-1 overflow-y-auto px-6 py-5 [scrollbar-width:thin] space-y-4">
+                            <FormFieldWrapper label="Student" htmlFor="gp-student" required helpText="Search by name or enrollment number">
+                                <StudentPicker
+                                    id="gp-student"
+                                    required
+                                    value={gatePassStudent}
+                                    onChange={(student) => {
+                                        setGatePassStudent(student);
+                                        setGatePassForm({ ...gatePassForm, student: student?.id ?? "" });
+                                    }}
+                                />
+                            </FormFieldWrapper>
+                            <FormGrid>
+                                <FormFieldWrapper label="Reason Category" htmlFor="gp-reason" required>
                                     <select
+                                        id="gp-reason"
                                         value={gatePassForm.reason_category}
                                         onChange={(e) => setGatePassForm({ ...gatePassForm, reason_category: e.target.value })}
-                                        className="w-full mt-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm"
+                                        className="flex h-9 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs sm:text-sm shadow-2xs transition-colors duration-150 focus-visible:border-sky-500 focus-visible:ring-2 focus-visible:ring-sky-500/20 dark:focus-visible:ring-sky-400/25 outline-none hover:border-slate-300 dark:hover:border-slate-700"
                                     >
                                         <option value="illness">Medical / Sickness / Fever</option>
                                         <option value="family_emergency">Family Emergency</option>
@@ -1056,15 +1010,13 @@ export default function FrontOfficePage() {
                                         <option value="authorized_early_leave">Early Departure</option>
                                         <option value="other">Other</option>
                                     </select>
-                                </div>
-                                <div>
-                                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                        Relationship *
-                                    </label>
+                                </FormFieldWrapper>
+                                <FormFieldWrapper label="Relationship" htmlFor="gp-rel" required>
                                     <select
+                                        id="gp-rel"
                                         value={gatePassForm.relationship}
                                         onChange={(e) => setGatePassForm({ ...gatePassForm, relationship: e.target.value })}
-                                        className="w-full mt-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm"
+                                        className="flex h-9 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs sm:text-sm shadow-2xs transition-colors duration-150 focus-visible:border-sky-500 focus-visible:ring-2 focus-visible:ring-sky-500/20 dark:focus-visible:ring-sky-400/25 outline-none hover:border-slate-300 dark:hover:border-slate-700"
                                     >
                                         <option value="father">Father</option>
                                         <option value="mother">Mother</option>
@@ -1073,232 +1025,193 @@ export default function FrontOfficePage() {
                                         <option value="authorized_relative">Authorized Relative / Driver</option>
                                         <option value="self">Self (Parent Consent Provided)</option>
                                     </select>
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                        Picked Up By (Name) *
-                                    </label>
-                                    <input
+                                </FormFieldWrapper>
+                                <FormFieldWrapper label="Picked Up By (Name)" htmlFor="gp-name" required>
+                                    <Input
+                                        id="gp-name"
                                         type="text"
                                         required
                                         placeholder="Full name of person"
                                         value={gatePassForm.picked_up_by_name}
                                         onChange={(e) => setGatePassForm({ ...gatePassForm, picked_up_by_name: e.target.value })}
-                                        className="w-full mt-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm"
                                     />
-                                </div>
-                                <div>
-                                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                        Phone Number *
-                                    </label>
-                                    <input
+                                </FormFieldWrapper>
+                                <FormFieldWrapper label="Phone Number" htmlFor="gp-phone" required>
+                                    <Input
+                                        id="gp-phone"
                                         type="tel"
                                         required
                                         placeholder="Mobile no."
                                         value={gatePassForm.picked_up_by_phone}
                                         onChange={(e) => setGatePassForm({ ...gatePassForm, picked_up_by_phone: e.target.value })}
-                                        className="w-full mt-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm"
                                     />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                    Reason Details
-                                </label>
-                                <textarea
-                                    rows={2}
-                                    placeholder="Explain symptoms, doctor note, or parent phone confirmation..."
-                                    value={gatePassForm.reason_details}
-                                    onChange={(e) => setGatePassForm({ ...gatePassForm, reason_details: e.target.value })}
-                                    className="w-full mt-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm"
-                                />
-                            </div>
-                            <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-700">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsGatePassModalOpen(false)}
-                                    className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800 dark:text-slate-400"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-medium"
-                                >
-                                    Issue Pass
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
+                                </FormFieldWrapper>
+                                <FormFieldWrapper label="Reason Details" htmlFor="gp-details" colSpan={2}>
+                                    <Textarea
+                                        id="gp-details"
+                                        rows={2}
+                                        placeholder="Explain symptoms, doctor note, or parent phone confirmation..."
+                                        value={gatePassForm.reason_details}
+                                        onChange={(e) => setGatePassForm({ ...gatePassForm, reason_details: e.target.value })}
+                                    />
+                                </FormFieldWrapper>
+                            </FormGrid>
+                        </DialogBody>
+                        <DialogFooter className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-end gap-3 shrink-0">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setIsGatePassModalOpen(false)}
+                            >
+                                Cancel
+                            </Button>
+                            <Button type="submit">
+                                Issue Pass
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
 
             {/* MODAL 4: CONFIRM GATE EXIT */}
-            {gatePassToExit && (
-                <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200 dark:border-slate-700 space-y-4">
-                        <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                            <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-                            Confirm Student Gate Exit
-                        </h2>
-                        <p className="text-sm text-slate-500">
-                            Confirm that student <strong>{gatePassToExit.student_name}</strong> is physically departing with{" "}
-                            <strong>{gatePassToExit.picked_up_by_name}</strong> ({gatePassToExit.relationship_display}).
+            <Dialog open={!!gatePassToExit} onOpenChange={(open) => !open && setGatePassToExit(null)}>
+                <DialogContent className="max-w-md max-h-[90vh] p-0 flex flex-col overflow-hidden rounded-2xl" showCloseButton={false}>
+                    <ModalHeader
+                        icon={<CheckCircle2 className="w-5 h-5 text-emerald-600" />}
+                        title="Confirm Student Gate Exit"
+                        subtitle="Verify security release of departing student."
+                        onClose={() => setGatePassToExit(null)}
+                    />
+                    <DialogBody className="flex-1 overflow-y-auto px-6 py-5 [scrollbar-width:thin] space-y-4">
+                        <p className="text-xs text-slate-500">
+                            Confirm that student <strong>{gatePassToExit?.student_name}</strong> is physically departing with{" "}
+                            <strong>{gatePassToExit?.picked_up_by_name}</strong> ({gatePassToExit?.relationship_display}).
                         </p>
-                        <div>
-                            <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                Gate Security Note (Optional)
-                            </label>
-                            <input
+                        <FormFieldWrapper label="Gate Security Note (Optional)" htmlFor="gate-note">
+                            <Input
+                                id="gate-note"
                                 type="text"
                                 placeholder="e.g. ID verified, exited through Main Gate"
                                 value={gateSecurityNote}
                                 onChange={(e) => setGateSecurityNote(e.target.value)}
-                                className="w-full mt-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm"
                             />
-                        </div>
-                        <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-700">
-                            <button
-                                type="button"
-                                onClick={() => setGatePassToExit(null)}
-                                className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800 dark:text-slate-400"
-                            >
-                                Back
-                            </button>
-                            <button
-                                type="button"
-                                onClick={handleConfirmExit}
-                                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium"
-                            >
-                                Confirm Departure
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+                        </FormFieldWrapper>
+                    </DialogBody>
+                    <DialogFooter className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-end gap-3 shrink-0">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setGatePassToExit(null)}
+                        >
+                            Back
+                        </Button>
+                        <Button
+                            type="button"
+                            onClick={handleConfirmExit}
+                        >
+                            Confirm Departure
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             {/* MODAL 5: LOG COURIER */}
-            {isPostalModalOpen && (
-                <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-200 dark:border-slate-700 space-y-4">
-                        <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
-                            Log Postal / Courier Dispatch
-                        </h2>
-                        <form onSubmit={handleCreatePostal} className="space-y-3.5">
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                        Type *
-                                    </label>
+            <Dialog open={isPostalModalOpen} onOpenChange={setIsPostalModalOpen}>
+                <DialogContent className="max-w-xl max-h-[90vh] p-0 flex flex-col overflow-hidden rounded-2xl" showCloseButton={false}>
+                    <ModalHeader
+                        icon={<Mail className="w-5 h-5 text-sky-600" />}
+                        title="Log Postal / Courier Dispatch"
+                        subtitle="Inward parcel receipt or outward dispatch tracking."
+                        onClose={() => setIsPostalModalOpen(false)}
+                    />
+                    <form onSubmit={handleCreatePostal} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                        <DialogBody className="flex-1 overflow-y-auto px-6 py-5 [scrollbar-width:thin] space-y-4">
+                            <FormGrid>
+                                <FormFieldWrapper label="Type" htmlFor="post-type" required>
                                     <select
+                                        id="post-type"
                                         value={postalForm.record_type}
                                         onChange={(e) => setPostalForm({ ...postalForm, record_type: e.target.value as any })}
-                                        className="w-full mt-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm"
+                                        className="flex h-9 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs sm:text-sm shadow-2xs transition-colors duration-150 focus-visible:border-sky-500 focus-visible:ring-2 focus-visible:ring-sky-500/20 dark:focus-visible:ring-sky-400/25 outline-none hover:border-slate-300 dark:hover:border-slate-700"
                                     >
                                         <option value="inward">Inward (Received)</option>
                                         <option value="outward">Outward (Dispatched)</option>
                                     </select>
-                                </div>
-                                <div>
-                                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                        Tracking / Consignment #
-                                    </label>
-                                    <input
+                                </FormFieldWrapper>
+                                <FormFieldWrapper label="Tracking / Consignment #" htmlFor="post-tracking">
+                                    <Input
+                                        id="post-tracking"
                                         type="text"
                                         placeholder="Speed post or courier barcode"
                                         value={postalForm.tracking_number}
                                         onChange={(e) => setPostalForm({ ...postalForm, tracking_number: e.target.value })}
-                                        className="w-full mt-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm font-mono"
+                                        className="font-mono"
                                     />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                    Subject / Parcel Title *
-                                </label>
-                                <input
-                                    type="text"
-                                    required
-                                    placeholder="e.g. CBSE Affiliation Certificate, Transfer Certificate envelope"
-                                    value={postalForm.title}
-                                    onChange={(e) => setPostalForm({ ...postalForm, title: e.target.value })}
-                                    className="w-full mt-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm"
-                                />
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                        From (Sender) *
-                                    </label>
-                                    <input
+                                </FormFieldWrapper>
+                                <FormFieldWrapper label="Subject / Parcel Title" htmlFor="post-title" required colSpan={2}>
+                                    <Input
+                                        id="post-title"
+                                        type="text"
+                                        required
+                                        placeholder="e.g. CBSE Affiliation Certificate, Transfer Certificate envelope"
+                                        value={postalForm.title}
+                                        onChange={(e) => setPostalForm({ ...postalForm, title: e.target.value })}
+                                    />
+                                </FormFieldWrapper>
+                                <FormFieldWrapper label="From (Sender)" htmlFor="post-from" required>
+                                    <Input
+                                        id="post-from"
                                         type="text"
                                         required
                                         placeholder="Sender name or organization"
                                         value={postalForm.from_title}
                                         onChange={(e) => setPostalForm({ ...postalForm, from_title: e.target.value })}
-                                        className="w-full mt-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm"
                                     />
-                                </div>
-                                <div>
-                                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                        To (Recipient) *
-                                    </label>
-                                    <input
+                                </FormFieldWrapper>
+                                <FormFieldWrapper label="To (Recipient)" htmlFor="post-to" required>
+                                    <Input
+                                        id="post-to"
                                         type="text"
                                         required
                                         placeholder="Recipient name or dept"
                                         value={postalForm.to_title}
                                         onChange={(e) => setPostalForm({ ...postalForm, to_title: e.target.value })}
-                                        className="w-full mt-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm"
                                     />
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                        Courier Service
-                                    </label>
-                                    <input
+                                </FormFieldWrapper>
+                                <FormFieldWrapper label="Courier Service" htmlFor="post-courier">
+                                    <Input
+                                        id="post-courier"
                                         type="text"
                                         placeholder="e.g. India Post, BlueDart, DTDC"
                                         value={postalForm.courier_company}
                                         onChange={(e) => setPostalForm({ ...postalForm, courier_company: e.target.value })}
-                                        className="w-full mt-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm"
                                     />
-                                </div>
-                                <div>
-                                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                        Date
-                                    </label>
-                                    <input
+                                </FormFieldWrapper>
+                                <FormFieldWrapper label="Date" htmlFor="post-date">
+                                    <Input
+                                        id="post-date"
                                         type="date"
                                         value={postalForm.dispatch_date}
                                         onChange={(e) => setPostalForm({ ...postalForm, dispatch_date: e.target.value })}
-                                        className="w-full mt-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm"
                                     />
-                                </div>
-                            </div>
-                            <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-700">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsPostalModalOpen(false)}
-                                    className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800 dark:text-slate-400"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-sm font-medium"
-                                >
-                                    Save Postal Entry
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
+                                </FormFieldWrapper>
+                            </FormGrid>
+                        </DialogBody>
+                        <DialogFooter className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-end gap-3 shrink-0">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setIsPostalModalOpen(false)}
+                            >
+                                Cancel
+                            </Button>
+                            <Button type="submit">
+                                Save Postal Entry
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

@@ -62,6 +62,8 @@ export interface ProfileDetails {
     address?: string;
     user_id?: string; // If null, not activated
     local_username?: string;
+    photo?: string | null;
+    profile_image?: string | null;
 }
 
 export interface Instructor {

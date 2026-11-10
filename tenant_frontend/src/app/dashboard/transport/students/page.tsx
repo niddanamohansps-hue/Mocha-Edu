@@ -18,6 +18,7 @@ import {
     UserX,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Avatar } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -50,35 +51,6 @@ import { formatIndianCurrency } from "@/lib/currency";
 
 const PAGE_SIZE = 20;
 type OpenFilter = "" | "true" | "false";
-
-const AVATAR_PALETTES = [
-    { bg: "bg-sky-100 dark:bg-sky-950/70", text: "text-sky-700 dark:text-sky-300", border: "border-sky-300/60 dark:border-sky-800" },
-    { bg: "bg-emerald-100 dark:bg-emerald-950/70", text: "text-emerald-700 dark:text-emerald-300", border: "border-emerald-300/60 dark:border-emerald-800" },
-    { bg: "bg-indigo-100 dark:bg-indigo-950/70", text: "text-indigo-700 dark:text-indigo-300", border: "border-indigo-300/60 dark:border-indigo-800" },
-    { bg: "bg-purple-100 dark:bg-purple-950/70", text: "text-purple-700 dark:text-purple-300", border: "border-purple-300/60 dark:border-purple-800" },
-    { bg: "bg-amber-100 dark:bg-amber-950/70", text: "text-amber-700 dark:text-amber-300", border: "border-amber-300/60 dark:border-amber-800" },
-    { bg: "bg-rose-100 dark:bg-rose-950/70", text: "text-rose-700 dark:text-rose-300", border: "border-rose-300/60 dark:border-rose-800" },
-    { bg: "bg-teal-100 dark:bg-teal-950/70", text: "text-teal-700 dark:text-teal-300", border: "border-teal-300/60 dark:border-teal-800" },
-];
-
-function getAvatarStyle(name?: string | null) {
-    if (!name || typeof name !== "string") return AVATAR_PALETTES[0];
-    let hash = 0;
-    for (let i = 0; i < name.length; i++) {
-        hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    const index = Math.abs(hash) % AVATAR_PALETTES.length;
-    return AVATAR_PALETTES[index];
-}
-
-function getInitials(name: string) {
-    if (!name) return "ST";
-    const parts = name.trim().split(/\s+/);
-    if (parts.length >= 2) {
-        return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
-    }
-    return name.slice(0, 2).toUpperCase();
-}
 
 export default function TransportStudentsPage() {
     const { can } = usePermissions();
@@ -131,7 +103,7 @@ export default function TransportStudentsPage() {
                     <Button
                         onClick={() => setGiving(true)}
                         size="sm"
-                        className="h-9 px-4 gap-1.5 bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs rounded-lg shadow-sm cursor-pointer transition active:scale-95 shrink-0"
+                        className="gap-1.5 shrink-0"
                     >
                         <Plus className="h-3.5 w-3.5 stroke-[2.5]" />
                         <span>Allocate Bus Seat</span>
@@ -359,9 +331,6 @@ export default function TransportStudentsPage() {
                             </TableHeader>
                             <TableBody>
                                 {seats.map((s) => {
-                                    const avatarStyle = getAvatarStyle(s.student_name);
-                                    const initials = getInitials(s.student_name);
-
                                     return (
                                         <TableRow
                                             key={s.id}
@@ -370,11 +339,7 @@ export default function TransportStudentsPage() {
                                             {/* Student Passenger */}
                                             <TableCell className="py-3.5 pl-4">
                                                 <div className="flex items-center gap-2.5">
-                                                    <div
-                                                        className={`h-8 w-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 border ${avatarStyle.bg} ${avatarStyle.text} ${avatarStyle.border}`}
-                                                    >
-                                                        {initials}
-                                                    </div>
+                                                    <Avatar name={s.student_name} size="sm" />
                                                     <div>
                                                         <div className="font-semibold text-xs text-slate-900 dark:text-slate-100">
                                                             {s.student_name}

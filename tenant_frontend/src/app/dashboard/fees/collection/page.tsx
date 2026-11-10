@@ -6,6 +6,17 @@ import { LoadingState } from "@/components/feedback/LoadingState";
 import { EmptyState } from "@/components/feedback/EmptyState";
 import { PageHeader } from "@/components/common/PageLayout";
 import { Badge } from "@/components/ui/badge";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableCellNumeric,
+    TableHead,
+    TableHeadNumeric,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
+import { TableShell } from "@/components/common/table/TableShell";
 import { useCollection } from "@/hooks/useFees";
 import { useAcademicYear } from "@/providers/AcademicYearProvider";
 import { usePermissions } from "@/providers/PermissionProvider";
@@ -58,64 +69,64 @@ function Content() {
                     <section className="space-y-2">
                         <h2 className="text-lg font-semibold">By month</h2>
                         <p className="text-xs text-slate-500">Select a month to see it by class.</p>
-                        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-                            <table className="w-full min-w-[38rem] text-sm">
-                                <thead className="border-b border-slate-200 text-left text-xs uppercase text-slate-500 dark:border-slate-800">
-                                    <tr>
-                                        <th className="px-4 py-2 sticky left-0 bg-white dark:bg-slate-900 z-10 border-r border-slate-100 dark:border-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]">Month</th>
-                                        <th className="px-4 py-2 text-right">Billed</th>
-                                        <th className="px-4 py-2 text-right">Collected</th>
-                                        <th className="px-4 py-2 text-right">Outstanding</th>
-                                        <th className="px-4 py-2 text-right">Rate</th>
-                                        <th className="px-4 py-2 text-right">Received in month</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        <TableShell>
+                            <Table className="min-w-[38rem]">
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead className="sticky left-0 bg-white dark:bg-slate-900 z-10 border-r border-slate-100 dark:border-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)] pl-4">Month</TableHead>
+                                        <TableHeadNumeric>Billed</TableHeadNumeric>
+                                        <TableHeadNumeric>Collected</TableHeadNumeric>
+                                        <TableHeadNumeric>Outstanding</TableHeadNumeric>
+                                        <TableHeadNumeric>Rate</TableHeadNumeric>
+                                        <TableHeadNumeric className="pr-4">Received in month</TableHeadNumeric>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
                                     {data.by_month.map((m) => (
-                                        <tr
+                                        <TableRow
                                             key={m.month}
                                             onClick={() => setMonth(month === m.month ? "" : m.month)}
-                                            className={`cursor-pointer transition-colors active:bg-indigo-100 dark:active:bg-indigo-900/40 ${month === m.month ? "bg-indigo-50 dark:bg-indigo-950/30" : "hover:bg-slate-50 dark:hover:bg-slate-800/50"}`}
+                                            className={`cursor-pointer transition-colors active:bg-indigo-100 dark:active:bg-indigo-900/40 ${month === m.month ? "bg-indigo-50/80 dark:bg-indigo-950/40" : "hover:bg-slate-50/70 dark:hover:bg-slate-800/40"}`}
                                         >
-                                            <td className="px-4 py-2.5 sm:py-2 font-medium sticky left-0 bg-white dark:bg-slate-900 z-10 border-r border-slate-100 dark:border-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]">{monthName(m.month)}</td>
-                                            <td className="px-4 py-2.5 sm:py-2 text-right">{money(m.billed)}</td>
-                                            <td className="px-4 py-2.5 sm:py-2 text-right">{money(m.collected)}</td>
-                                            <td className="px-4 py-2.5 sm:py-2 text-right">{money(m.outstanding)}</td>
-                                            <td className="px-4 py-2.5 sm:py-2 text-right"><Rate line={m} /></td>
-                                            <td className="px-4 py-2.5 sm:py-2 text-right">{money(m.received)}</td>
-                                        </tr>
+                                            <TableCell className="font-medium sticky left-0 bg-white dark:bg-slate-900 z-10 border-r border-slate-100 dark:border-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)] pl-4">{monthName(m.month)}</TableCell>
+                                            <TableCellNumeric>{money(m.billed)}</TableCellNumeric>
+                                            <TableCellNumeric>{money(m.collected)}</TableCellNumeric>
+                                            <TableCellNumeric>{money(m.outstanding)}</TableCellNumeric>
+                                            <TableCellNumeric><Rate line={m} /></TableCellNumeric>
+                                            <TableCellNumeric className="pr-4">{money(m.received)}</TableCellNumeric>
+                                        </TableRow>
                                     ))}
-                                </tbody>
-                            </table>
-                        </div>
+                                </TableBody>
+                            </Table>
+                        </TableShell>
                     </section>
 
                     <section className="space-y-2">
                         <h2 className="text-lg font-semibold">By class {month ? `for ${monthName(month)}` : "for the whole year"}</h2>
-                        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-                            <table className="w-full min-w-[38rem] text-sm">
-                                <thead className="border-b border-slate-200 text-left text-xs uppercase text-slate-500 dark:border-slate-800">
-                                    <tr>
-                                        <th className="px-4 py-2 sticky left-0 bg-white dark:bg-slate-900 z-10 border-r border-slate-100 dark:border-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]">Class</th>
-                                        <th className="px-4 py-2 text-right">Billed</th>
-                                        <th className="px-4 py-2 text-right">Collected</th>
-                                        <th className="px-4 py-2 text-right">Outstanding</th>
-                                        <th className="px-4 py-2 text-right">Rate</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        <TableShell>
+                            <Table className="min-w-[38rem]">
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead className="sticky left-0 bg-white dark:bg-slate-900 z-10 border-r border-slate-100 dark:border-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)] pl-4">Class</TableHead>
+                                        <TableHeadNumeric>Billed</TableHeadNumeric>
+                                        <TableHeadNumeric>Collected</TableHeadNumeric>
+                                        <TableHeadNumeric>Outstanding</TableHeadNumeric>
+                                        <TableHeadNumeric className="pr-4">Rate</TableHeadNumeric>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
                                     {data.by_class.map((c) => (
-                                        <tr key={c.level}>
-                                            <td className="px-4 py-2.5 sm:py-2 font-medium sticky left-0 bg-white dark:bg-slate-900 z-10 border-r border-slate-100 dark:border-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]">{c.level}</td>
-                                            <td className="px-4 py-2.5 sm:py-2 text-right">{money(c.billed)}</td>
-                                            <td className="px-4 py-2.5 sm:py-2 text-right">{money(c.collected)}</td>
-                                            <td className="px-4 py-2.5 sm:py-2 text-right">{money(c.outstanding)}</td>
-                                            <td className="px-4 py-2.5 sm:py-2 text-right"><Rate line={c} /></td>
-                                        </tr>
+                                        <TableRow key={c.level}>
+                                            <TableCell className="font-medium sticky left-0 bg-white dark:bg-slate-900 z-10 border-r border-slate-100 dark:border-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)] pl-4">{c.level}</TableCell>
+                                            <TableCellNumeric>{money(c.billed)}</TableCellNumeric>
+                                            <TableCellNumeric>{money(c.collected)}</TableCellNumeric>
+                                            <TableCellNumeric>{money(c.outstanding)}</TableCellNumeric>
+                                            <TableCellNumeric className="pr-4"><Rate line={c} /></TableCellNumeric>
+                                        </TableRow>
                                     ))}
-                                </tbody>
-                            </table>
-                        </div>
+                                </TableBody>
+                            </Table>
+                        </TableShell>
                     </section>
                 </>
             )}

@@ -18,6 +18,7 @@ import { AffectedPeriodsModal } from "@/components/dashboard/staff/leaves/Affect
 import { LeaveTypesConfigTab } from "@/components/dashboard/staff/leaves/LeaveTypesConfigTab";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
@@ -58,35 +59,6 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { EmptyState } from "@/components/feedback/EmptyState";
-
-const AVATAR_PALETTES = [
-    { bg: "bg-sky-100 dark:bg-sky-950/70", text: "text-sky-700 dark:text-sky-300", border: "border-sky-300/60 dark:border-sky-800" },
-    { bg: "bg-emerald-100 dark:bg-emerald-950/70", text: "text-emerald-700 dark:text-emerald-300", border: "border-emerald-300/60 dark:border-emerald-800" },
-    { bg: "bg-indigo-100 dark:bg-indigo-950/70", text: "text-indigo-700 dark:text-indigo-300", border: "border-indigo-300/60 dark:border-indigo-800" },
-    { bg: "bg-purple-100 dark:bg-purple-950/70", text: "text-purple-700 dark:text-purple-300", border: "border-purple-300/60 dark:border-purple-800" },
-    { bg: "bg-amber-100 dark:bg-amber-950/70", text: "text-amber-700 dark:text-amber-300", border: "border-amber-300/60 dark:border-amber-800" },
-    { bg: "bg-rose-100 dark:bg-rose-950/70", text: "text-rose-700 dark:text-rose-300", border: "border-rose-300/60 dark:border-rose-800" },
-    { bg: "bg-teal-100 dark:bg-teal-950/70", text: "text-teal-700 dark:text-teal-300", border: "border-teal-300/60 dark:border-teal-800" },
-];
-
-function getAvatarStyle(name?: string | null) {
-    if (!name || typeof name !== "string") return AVATAR_PALETTES[0];
-    let hash = 0;
-    for (let i = 0; i < name.length; i++) {
-        hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    const index = Math.abs(hash) % AVATAR_PALETTES.length;
-    return AVATAR_PALETTES[index];
-}
-
-function getInitials(name: string) {
-    if (!name) return "ST";
-    const parts = name.trim().split(/\s+/);
-    if (parts.length >= 2) {
-        return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
-    }
-    return name.slice(0, 2).toUpperCase();
-}
 
 function formatDateSafe(dateStr?: string | null) {
     if (!dateStr) return "—";
@@ -229,7 +201,7 @@ export default function StaffLeavesPage() {
                     <Button
                         onClick={() => setApplyOpen(true)}
                         size="sm"
-                        className="h-9 px-4 gap-1.5 bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs rounded-lg shadow-sm cursor-pointer transition active:scale-95"
+                        className="gap-1.5"
                     >
                         <Plus className="h-3.5 w-3.5 stroke-[2.5]" />
                         <span>Apply for Leave</span>
@@ -626,9 +598,6 @@ export default function StaffLeavesPage() {
                                     </TableHeader>
                                     <TableBody>
                                         {filteredInbox.map((app) => {
-                                            const avatarStyle = getAvatarStyle(app.staff_name);
-                                            const initials = getInitials(app.staff_name);
-
                                             return (
                                                 <TableRow
                                                     key={app.id}
@@ -637,11 +606,7 @@ export default function StaffLeavesPage() {
                                                     {/* Staff Member with Avatar */}
                                                     <TableCell className="py-3.5 pl-4">
                                                         <div className="flex items-center gap-2.5">
-                                                            <div
-                                                                className={`h-8 w-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 border ${avatarStyle.bg} ${avatarStyle.text} ${avatarStyle.border}`}
-                                                            >
-                                                                {initials}
-                                                            </div>
+                                                            <Avatar name={app.staff_name} size="sm" />
                                                             <div>
                                                                 <div className="font-semibold text-xs text-slate-900 dark:text-slate-100">
                                                                     {app.staff_name}
@@ -714,7 +679,7 @@ export default function StaffLeavesPage() {
                                                                 <>
                                                                     <Button
                                                                         size="sm"
-                                                                        className="h-8 px-2.5 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg"
+                                                                        className="bg-emerald-600 hover:bg-emerald-500 text-white"
                                                                         onClick={() => {
                                                                             setDecisionApp(app);
                                                                             setDecisionAction("approve");
@@ -726,7 +691,7 @@ export default function StaffLeavesPage() {
                                                                     <Button
                                                                         size="sm"
                                                                         variant="outline"
-                                                                        className="h-8 px-2 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                                                                        className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200 dark:border-rose-900"
                                                                         onClick={() => {
                                                                             setDecisionApp(app);
                                                                             setDecisionAction("reject");
@@ -812,8 +777,6 @@ export default function StaffLeavesPage() {
                                     <TableBody>
                                         {filteredBalances.map((bal) => {
                                             const available = parseFloat(String(bal.available_days || 0));
-                                            const avatarStyle = getAvatarStyle(bal.staff_name);
-                                            const initials = getInitials(bal.staff_name);
 
                                             return (
                                                 <TableRow
@@ -823,11 +786,7 @@ export default function StaffLeavesPage() {
                                                     {/* Staff Member with Avatar */}
                                                     <TableCell className="py-3.5 pl-4">
                                                         <div className="flex items-center gap-2.5">
-                                                            <div
-                                                                className={`h-8 w-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 border ${avatarStyle.bg} ${avatarStyle.text} ${avatarStyle.border}`}
-                                                            >
-                                                                {initials}
-                                                            </div>
+                                                            <Avatar name={bal.staff_name} size="sm" />
                                                             <div>
                                                                 <div className="font-semibold text-xs text-slate-900 dark:text-slate-100">
                                                                     {bal.staff_name}

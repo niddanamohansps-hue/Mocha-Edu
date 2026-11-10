@@ -31,6 +31,7 @@ import {
 import { AttendanceStatus } from "@/types/Attendance";
 import { usePermissions } from "@/providers/PermissionProvider";
 import { Button } from "@/components/ui/button";
+import { Avatar } from "@/components/ui/avatar";
 import {
     Select,
     SelectContent,
@@ -96,33 +97,6 @@ const STATUS_CONFIG: Record<
         dotClass: "bg-purple-500",
     },
 };
-
-const AVATAR_PALETTES = [
-    { bg: "bg-sky-100 dark:bg-sky-950/70", text: "text-sky-700 dark:text-sky-300", border: "border-sky-300/60 dark:border-sky-800" },
-    { bg: "bg-emerald-100 dark:bg-emerald-950/70", text: "text-emerald-700 dark:text-emerald-300", border: "border-emerald-300/60 dark:border-emerald-800" },
-    { bg: "bg-indigo-100 dark:bg-indigo-950/70", text: "text-indigo-700 dark:text-indigo-300", border: "border-indigo-300/60 dark:border-indigo-800" },
-    { bg: "bg-purple-100 dark:bg-purple-950/70", text: "text-purple-700 dark:text-purple-300", border: "border-purple-300/60 dark:border-purple-800" },
-    { bg: "bg-amber-100 dark:bg-amber-950/70", text: "text-amber-700 dark:text-amber-300", border: "border-amber-300/60 dark:border-amber-800" },
-    { bg: "bg-rose-100 dark:bg-rose-950/70", text: "text-rose-700 dark:text-rose-300", border: "border-rose-300/60 dark:border-rose-800" },
-    { bg: "bg-teal-100 dark:bg-teal-950/70", text: "text-teal-700 dark:text-teal-300", border: "border-teal-300/60 dark:border-teal-800" },
-];
-
-function getAvatarStyle(name?: string | null) {
-    if (!name || typeof name !== "string") return AVATAR_PALETTES[0];
-    let hash = 0;
-    for (let i = 0; i < name.length; i++) {
-        hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    const index = Math.abs(hash) % AVATAR_PALETTES.length;
-    return AVATAR_PALETTES[index];
-}
-
-function getInitials(name: string) {
-    if (!name) return "ST";
-    const parts = name.trim().split(/\s+/);
-    if (parts.length >= 2) return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
-    return name.slice(0, 2).toUpperCase();
-}
 
 function todayISO() {
     return new Date().toISOString().slice(0, 10);
@@ -661,8 +635,6 @@ export default function MarkAttendancePage() {
                                         ) : (
                                             filteredStudents.map((s, idx) => {
                                                 const currentMark = marks[s.student] || { status: "present", remarks: "" };
-                                                const avatarStyle = getAvatarStyle(s.full_name);
-                                                const initials = getInitials(s.full_name);
 
                                                 return (
                                                     <TableRow
@@ -677,11 +649,7 @@ export default function MarkAttendancePage() {
                                                         {/* Student Name with Deterministic Avatar */}
                                                         <TableCell className="py-3">
                                                             <div className="flex items-center gap-2.5">
-                                                                <div
-                                                                    className={`h-8 w-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 border ${avatarStyle.bg} ${avatarStyle.text} ${avatarStyle.border}`}
-                                                                >
-                                                                    {initials}
-                                                                </div>
+                                                                <Avatar name={s.full_name} size="sm" />
                                                                 <div>
                                                                     <div className="font-semibold text-xs text-slate-900 dark:text-slate-100">
                                                                         {s.full_name}
@@ -789,7 +757,7 @@ export default function MarkAttendancePage() {
                                             variant="outline"
                                             size="sm"
                                             onClick={resetMarks}
-                                            className="h-9 px-3 gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 cursor-pointer"
+                                            className="gap-1.5"
                                         >
                                             <RotateCcw className="w-3.5 h-3.5" />
                                             Reset
@@ -799,7 +767,7 @@ export default function MarkAttendancePage() {
                                     <Button
                                         onClick={handleSubmit}
                                         disabled={isLocked || isSubmitting || isUpdating}
-                                        className="h-9 px-5 gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-lg shadow-sm cursor-pointer transition active:scale-95"
+                                        className="bg-emerald-600 hover:bg-emerald-500 text-white gap-2"
                                     >
                                         {isSubmitting || isUpdating ? (
                                             <LoaderCircle className="h-4 w-4 animate-spin" />

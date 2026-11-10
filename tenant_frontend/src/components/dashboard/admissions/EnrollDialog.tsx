@@ -5,11 +5,9 @@ import {
     Dialog,
     DialogBody,
     DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogDescription,
     DialogFooter,
 } from "@/components/ui/dialog";
+import { ModalHeader } from "@/components/ui/modal-header";
 import { Button } from "@/components/ui/button";
 import {
     Select,
@@ -74,16 +72,13 @@ export default function EnrollDialog({
 
     return (
         <Dialog open={open} onOpenChange={handleClose}>
-            <DialogContent className="max-w-md max-h-[90vh] p-0 flex flex-col overflow-hidden rounded-2xl">
-                <DialogHeader className="px-6 py-4.5 border-b border-slate-100 dark:border-slate-800 shrink-0">
-                    <DialogTitle className="text-lg font-bold flex items-center gap-2 text-slate-900 dark:text-white">
-                        <GraduationCap className="w-5 h-5 text-sky-600" />
-                        Enroll Student
-                    </DialogTitle>
-                    <DialogDescription className="text-xs text-slate-500">
-                        Generate official student enrollment record and allocate section.
-                    </DialogDescription>
-                </DialogHeader>
+            <DialogContent className="max-w-md max-h-[90vh] p-0 flex flex-col overflow-hidden rounded-2xl" showCloseButton={false}>
+                <ModalHeader
+                    icon={<GraduationCap className="w-5 h-5 text-sky-600" />}
+                    title="Enroll Student"
+                    subtitle="Generate official student enrollment record and allocate section."
+                    onClose={handleClose}
+                />
 
                 {enrolledResult ? (
                     <div className="p-6 text-center space-y-4">
@@ -104,7 +99,7 @@ export default function EnrollDialog({
                         <div className="pt-2">
                             <Button
                                 onClick={handleClose}
-                                className="w-full bg-sky-600 hover:bg-sky-700 text-white"
+                                className="w-full"
                             >
                                 Done
                             </Button>
@@ -162,7 +157,7 @@ export default function EnrollDialog({
                             <Button
                                 onClick={handleEnroll}
                                 disabled={enrollMutation.isPending}
-                                className="bg-sky-600 hover:bg-sky-700 text-white min-w-[120px]"
+                                className="min-w-[120px]"
                             >
                                 {enrollMutation.isPending && (
                                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />

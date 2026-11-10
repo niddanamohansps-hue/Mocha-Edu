@@ -15,6 +15,7 @@ import {
 import { useLinkedChildren } from "@/hooks/useParentPortal";
 import { usePermissions } from "@/providers/PermissionProvider";
 import { Button } from "@/components/ui/button";
+import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import Unauthorized from "@/components/Unauthorized";
 import { LoadingState } from "@/components/feedback/LoadingState";
@@ -29,22 +30,6 @@ const RELATION_LABELS: Record<string, string> = {
     sister: "Sister",
     other: "Other",
 };
-
-const AVATAR_PALETTES = [
-    { bg: "bg-sky-100 dark:bg-sky-950/70", text: "text-sky-700 dark:text-sky-300", border: "border-sky-300/60 dark:border-sky-800" },
-    { bg: "bg-emerald-100 dark:bg-emerald-950/70", text: "text-emerald-700 dark:text-emerald-300", border: "border-emerald-300/60 dark:border-emerald-800" },
-    { bg: "bg-indigo-100 dark:bg-indigo-950/70", text: "text-indigo-700 dark:text-indigo-300", border: "border-indigo-300/60 dark:border-indigo-800" },
-    { bg: "bg-purple-100 dark:bg-purple-950/70", text: "text-purple-700 dark:text-purple-300", border: "border-purple-300/60 dark:border-purple-800" },
-    { bg: "bg-amber-100 dark:bg-amber-950/70", text: "text-amber-700 dark:text-amber-300", border: "border-amber-300/60 dark:border-amber-800" },
-];
-
-function getAvatarStyle(name?: string | null) {
-    if (!name || typeof name !== "string") return AVATAR_PALETTES[0];
-    let hash = 0;
-    for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    const index = Math.abs(hash) % AVATAR_PALETTES.length;
-    return AVATAR_PALETTES[index];
-}
 
 export default function ParentPortalChildrenPage() {
     const { can, isOwner } = usePermissions();
@@ -88,7 +73,6 @@ export default function ParentPortalChildrenPage() {
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                     {children.map((child) => {
-                        const avatar = getAvatarStyle(child.full_name);
                         const relation = RELATION_LABELS[child.relation_type] || child.relation_type;
 
                         return (
@@ -100,11 +84,7 @@ export default function ParentPortalChildrenPage() {
                                     {/* Card Header: Avatar & Info */}
                                     <div className="flex items-start justify-between gap-3">
                                         <div className="flex items-center gap-3">
-                                            <div
-                                                className={`w-12 h-12 rounded-xl ${avatar.bg} ${avatar.text} ${avatar.border} border flex items-center justify-center font-bold text-base shrink-0`}
-                                            >
-                                                {child.full_name.slice(0, 2).toUpperCase()}
-                                            </div>
+                                            <Avatar name={child.full_name} size="lg" shape="rounded" />
                                             <div>
                                                 <h3 className="text-sm font-bold text-slate-900 dark:text-white leading-snug">
                                                     {child.full_name}
@@ -145,7 +125,7 @@ export default function ParentPortalChildrenPage() {
                                         <Button
                                             variant="outline"
                                             size="sm"
-                                            className="w-full h-8 text-[11px] font-semibold border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 text-slate-700 dark:text-slate-300 gap-1.5 cursor-pointer"
+                                            className="w-full text-[11px] gap-1.5"
                                         >
                                             <CalendarCheck className="w-3.5 h-3.5 text-sky-600" />
                                             <span>Attendance</span>
@@ -155,7 +135,7 @@ export default function ParentPortalChildrenPage() {
                                         <Button
                                             variant="outline"
                                             size="sm"
-                                            className="w-full h-8 text-[11px] font-semibold border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 text-slate-700 dark:text-slate-300 gap-1.5 cursor-pointer"
+                                            className="w-full text-[11px] gap-1.5"
                                         >
                                             <CreditCard className="w-3.5 h-3.5 text-emerald-600" />
                                             <span>Fee Invoices</span>
@@ -165,7 +145,7 @@ export default function ParentPortalChildrenPage() {
                                         <Button
                                             variant="outline"
                                             size="sm"
-                                            className="w-full h-8 text-[11px] font-semibold border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 text-slate-700 dark:text-slate-300 gap-1.5 cursor-pointer"
+                                            className="w-full text-[11px] gap-1.5"
                                         >
                                             <GraduationCap className="w-3.5 h-3.5 text-purple-600" />
                                             <span>Report Cards</span>
@@ -175,7 +155,7 @@ export default function ParentPortalChildrenPage() {
                                         <Button
                                             variant="outline"
                                             size="sm"
-                                            className="w-full h-8 text-[11px] font-semibold border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 text-slate-700 dark:text-slate-300 gap-1.5 cursor-pointer"
+                                            className="w-full text-[11px] gap-1.5"
                                         >
                                             <Clock className="w-3.5 h-3.5 text-amber-600" />
                                             <span>Timetable</span>

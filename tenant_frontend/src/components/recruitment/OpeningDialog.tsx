@@ -171,7 +171,7 @@ export function OpeningDialog({ opening, onClose }: { opening: JobOpening | null
                     <Button
                         onClick={submit}
                         disabled={!title.trim() || save.isPending}
-                        className="bg-sky-600 hover:bg-sky-700 text-white min-w-[120px]"
+                        className="min-w-[120px]"
                     >
                         {save.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                         {opening ? "Save Changes" : "Create Opening"}

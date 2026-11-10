@@ -10,6 +10,7 @@ import {
 import { ModalHeader } from "@/components/ui/modal-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Avatar } from "@/components/ui/avatar";
 import { useInstitutionProfile } from "@/hooks/useProfile";
 import {
     Printer,
@@ -44,30 +45,10 @@ interface StaffIDCardModalProps {
             email?: string;
             address?: string;
             blood_group?: string;
+            photo?: string | null;
+            profile_image?: string | null;
         };
     } | null;
-}
-
-const AVATAR_PALETTES = [
-    { bg: "bg-indigo-100", text: "text-indigo-700", border: "border-indigo-300" },
-    { bg: "bg-sky-100", text: "text-sky-700", border: "border-sky-300" },
-    { bg: "bg-emerald-100", text: "text-emerald-700", border: "border-emerald-300" },
-    { bg: "bg-purple-100", text: "text-purple-700", border: "border-purple-300" },
-    { bg: "bg-amber-100", text: "text-amber-700", border: "border-amber-300" },
-    { bg: "bg-slate-100", text: "text-slate-700", border: "border-slate-300" },
-];
-
-function getAvatarStyle(name?: string | null) {
-    if (!name) return AVATAR_PALETTES[0];
-    let hash = 0;
-    for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    return AVATAR_PALETTES[Math.abs(hash) % AVATAR_PALETTES.length];
-}
-
-function getInitials(first: string = "", last: string = "") {
-    const f = first.trim()[0] || "";
-    const l = last.trim()[0] || "";
-    return `${f}${l}`.toUpperCase() || "SF";
 }
 
 function formatDate(dateStr?: string | null) {
@@ -95,8 +76,6 @@ export function StaffIDCardModal({ isOpen, onClose, staff }: StaffIDCardModalPro
 
     const profile = staff.profile_details;
     const staffFullName = `${profile.first_name || ""} ${profile.middle_name ? profile.middle_name + " " : ""}${profile.last_name || ""}`.trim() || "Staff Member";
-    const initials = getInitials(profile.first_name, profile.last_name);
-    const avatarStyle = getAvatarStyle(staffFullName);
 
     const schoolName = institution?.name || "Sunrise Valley School";
     const schoolAddress = (institution as any)?.address || institution?.tagline || "CBSE Affiliated Senior Secondary School";
@@ -183,11 +162,13 @@ export function StaffIDCardModal({ isOpen, onClose, staff }: StaffIDCardModalPro
                                         {/* Card Photo & Core Info */}
                                         <div className="p-5 flex flex-col items-center flex-1 text-center space-y-3">
                                             {/* Photo / Deterministic Avatar */}
-                                            <div
-                                                className={`h-24 w-24 rounded-2xl flex items-center justify-center font-bold text-3xl border-2 ${avatarStyle.bg} ${avatarStyle.text} ${avatarStyle.border} shadow-sm shrink-0`}
-                                            >
-                                                {initials}
-                                            </div>
+                                            <Avatar
+                                                name={staffFullName}
+                                                src={staff.profile_details?.photo || staff.profile_details?.profile_image}
+                                                size="card"
+                                                shape="rounded"
+                                                className="shadow-sm shrink-0"
+                                            />
 
                                             {/* Employee Name & Designation */}
                                             <div className="space-y-1">
@@ -314,9 +295,13 @@ export function StaffIDCardModal({ isOpen, onClose, staff }: StaffIDCardModalPro
 
                                         {/* Content Body */}
                                         <div className="p-4 flex items-center gap-4 flex-1">
-                                            <div className={`h-24 w-24 rounded-2xl flex items-center justify-center font-bold text-2xl border-2 ${avatarStyle.bg} ${avatarStyle.text} ${avatarStyle.border} shrink-0 shadow-sm`}>
-                                                {initials}
-                                            </div>
+                                            <Avatar
+                                                name={staffFullName}
+                                                src={staff.profile_details?.photo || staff.profile_details?.profile_image}
+                                                size="card"
+                                                shape="rounded"
+                                                className="shrink-0 shadow-sm"
+                                            />
 
                                             <div className="space-y-1.5 flex-1 min-w-0 text-xs">
                                                 <h4 className="font-black text-sm text-slate-900 truncate">
@@ -399,13 +384,13 @@ export function StaffIDCardModal({ isOpen, onClose, staff }: StaffIDCardModalPro
                         Standard CR80 Printable Dimensions (ISO/IEC 7810 ID-1)
                     </span>
                     <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" onClick={onClose} className="rounded-lg h-9">
+                        <Button variant="outline" size="sm" onClick={onClose}>
                             Close
                         </Button>
                         <Button
                             size="sm"
                             onClick={handlePrint}
-                            className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg h-9 gap-1.5 font-semibold"
+                            className="gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white"
                         >
                             <Printer className="h-3.5 w-3.5" />
                             <span>Print Card</span>

@@ -19,7 +19,9 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Avatar } from "@/components/ui/avatar";
 import { Pagination } from "@/components/ui/pagination";
+import { TableShell } from "@/components/common/table/TableShell";
 import { useApplications } from "@/hooks/useAdmissions";
 import { useAcademicLevels, useAcademicYears } from "@/hooks/useAcademics";
 import { useAcademicYear } from "@/providers/AcademicYearProvider";
@@ -55,35 +57,6 @@ const STATUS_FILTER_OPTIONS: { label: string; value: string }[] = [
     { label: "Offer Accepted", value: "offer_accepted" },
     { label: "Enrolled", value: "enrolled" },
 ];
-
-const AVATAR_PALETTES = [
-    { bg: "bg-sky-100 dark:bg-sky-950/70", text: "text-sky-700 dark:text-sky-300", border: "border-sky-300/60 dark:border-sky-800" },
-    { bg: "bg-emerald-100 dark:bg-emerald-950/70", text: "text-emerald-700 dark:text-emerald-300", border: "border-emerald-300/60 dark:border-emerald-800" },
-    { bg: "bg-indigo-100 dark:bg-indigo-950/70", text: "text-indigo-700 dark:text-indigo-300", border: "border-indigo-300/60 dark:border-indigo-800" },
-    { bg: "bg-purple-100 dark:bg-purple-950/70", text: "text-purple-700 dark:text-purple-300", border: "border-purple-300/60 dark:border-purple-800" },
-    { bg: "bg-amber-100 dark:bg-amber-950/70", text: "text-amber-700 dark:text-amber-300", border: "border-amber-300/60 dark:border-amber-800" },
-    { bg: "bg-rose-100 dark:bg-rose-950/70", text: "text-rose-700 dark:text-rose-300", border: "border-rose-300/60 dark:border-rose-800" },
-    { bg: "bg-teal-100 dark:bg-teal-950/70", text: "text-teal-700 dark:text-teal-300", border: "border-teal-300/60 dark:border-teal-800" },
-];
-
-function getAvatarStyle(name?: string | null) {
-    if (!name || typeof name !== "string") return AVATAR_PALETTES[0];
-    let hash = 0;
-    for (let i = 0; i < name.length; i++) {
-        hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    const index = Math.abs(hash) % AVATAR_PALETTES.length;
-    return AVATAR_PALETTES[index];
-}
-
-function getInitials(name: string) {
-    if (!name) return "AP";
-    const parts = name.trim().split(/\s+/);
-    if (parts.length >= 2) {
-        return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
-    }
-    return name.slice(0, 2).toUpperCase();
-}
 
 function formatDate(dateStr?: string | null) {
     if (!dateStr) return "—";
@@ -297,66 +270,62 @@ export default function ApplicationsTab() {
             </div>
 
             {/* 3. Applications Table */}
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden">
-                {isLoading ? (
-                    <div className="p-16 flex flex-col items-center justify-center gap-3">
-                        <Loader2 className="w-7 h-7 animate-spin text-sky-600" />
-                        <span className="text-xs text-slate-500 font-medium">Loading applicant pipeline...</span>
+            {isLoading ? (
+                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs p-16 flex flex-col items-center justify-center gap-3">
+                    <Loader2 className="w-7 h-7 animate-spin text-sky-600" />
+                    <span className="text-xs text-slate-500 font-medium">Loading applicant pipeline...</span>
+                </div>
+            ) : applications.length === 0 ? (
+                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs p-16 text-center space-y-3">
+                    <div className="w-12 h-12 mx-auto rounded-xl bg-sky-50 dark:bg-sky-900/30 flex items-center justify-center text-sky-600 dark:text-sky-400">
+                        <GraduationCap className="w-6 h-6" />
                     </div>
-                ) : applications.length === 0 ? (
-                    <div className="p-16 text-center space-y-3">
-                        <div className="w-12 h-12 mx-auto rounded-xl bg-sky-50 dark:bg-sky-900/30 flex items-center justify-center text-sky-600 dark:text-sky-400">
-                            <GraduationCap className="w-6 h-6" />
-                        </div>
-                        <h3 className="text-sm font-bold text-slate-800 dark:text-white">
-                            No applications found
-                        </h3>
-                        <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                            {search || statusFilter !== "all" || levelFilter !== "all"
-                                ? "No applications matched the current filters. Try resetting or adjusting your search."
-                                : "Get started by submitting a new prospective student application."}
-                        </p>
-                        {canManageApplications && (
-                            <Button
-                                onClick={() => setNewAppOpen(true)}
-                                size="sm"
-                                className="rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold gap-1.5 mt-2"
-                            >
-                                <Plus className="h-3.5 w-3.5" /> Submit First Application
-                            </Button>
-                        )}
-                    </div>
-                ) : (
-                    <div className="overflow-x-auto">
-                        <Table>
-                            <TableHeader className="bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200/80 dark:border-slate-800">
-                                <TableRow className="hover:bg-transparent">
-                                    <TableHead className="py-3.5 pl-5 text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                        App Number & Date
-                                    </TableHead>
-                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                        Applicant Name
-                                    </TableHead>
-                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                        Applied Grade & Year
-                                    </TableHead>
-                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                        Guardian Contact
-                                    </TableHead>
-                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                        Stage Status
-                                    </TableHead>
-                                    <TableHead className="text-right pr-5 text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                        Actions
-                                    </TableHead>
-                                </TableRow>
-                            </TableHeader>
+                    <h3 className="text-sm font-bold text-slate-800 dark:text-white">
+                        No applications found
+                    </h3>
+                    <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                        {search || statusFilter !== "all" || levelFilter !== "all"
+                            ? "No applications matched the current filters. Try resetting or adjusting your search."
+                            : "Get started by submitting a new prospective student application."}
+                    </p>
+                    {canManageApplications && (
+                        <Button
+                            onClick={() => setNewAppOpen(true)}
+                            size="sm"
+                            className="rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold gap-1.5 mt-2"
+                        >
+                            <Plus className="h-3.5 w-3.5" /> Submit First Application
+                        </Button>
+                    )}
+                </div>
+            ) : (
+                <TableShell
+                    footer={
+                        totalCount > 0 && (
+                            <Pagination
+                                page={page}
+                                pageSize={PAGE_SIZE}
+                                count={totalCount}
+                                onPageChange={setPage}
+                            />
+                        )
+                    }
+                >
+                    <Table>
+                        <TableHeader>
+                            <TableRow className="hover:bg-transparent">
+                                <TableHead className="pl-5">App Number & Date</TableHead>
+                                <TableHead>Applicant Name</TableHead>
+                                <TableHead>Applied Grade & Year</TableHead>
+                                <TableHead>Guardian Contact</TableHead>
+                                <TableHead>Stage Status</TableHead>
+                                <TableHead className="text-right pr-5">Actions</TableHead>
+                            </TableRow>
+                        </TableHeader>
                             <TableBody>
                                 {applications.map((app) => {
                                     const fullName = `${app.first_name} ${app.middle_name ? app.middle_name + " " : ""}${app.last_name}`;
                                     const guardianName = `${app.guardian_first_name} ${app.guardian_last_name}`;
-                                    const avatarStyle = getAvatarStyle(fullName);
-                                    const initials = getInitials(fullName);
 
                                     return (
                                         <TableRow
@@ -378,11 +347,7 @@ export default function ApplicationsTab() {
                                             {/* Applicant with Colorful Avatar */}
                                             <TableCell className="py-3">
                                                 <div className="flex items-center gap-2.5">
-                                                    <div
-                                                        className={`h-8 w-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 border ${avatarStyle.bg} ${avatarStyle.text} ${avatarStyle.border}`}
-                                                    >
-                                                        {initials}
-                                                    </div>
+                                                    <Avatar name={fullName} size="sm" />
                                                     <div>
                                                         <div className="font-semibold text-xs text-slate-900 dark:text-slate-100">
                                                             {fullName}
@@ -437,20 +402,8 @@ export default function ApplicationsTab() {
                                 })}
                             </TableBody>
                         </Table>
-                    </div>
+                    </TableShell>
                 )}
-
-                {/* Enterprise Pagination Footer */}
-                {!isLoading && totalCount > 0 && (
-                    <Pagination
-                        page={page}
-                        pageSize={PAGE_SIZE}
-                        count={totalCount}
-                        onPageChange={setPage}
-                        className="border-t border-slate-200/80 dark:border-slate-800 px-4 py-3 bg-slate-50/40 dark:bg-slate-900/40"
-                    />
-                )}
-            </div>
 
             {/* Application Detail Drawer */}
             <ApplicationDetailDrawer

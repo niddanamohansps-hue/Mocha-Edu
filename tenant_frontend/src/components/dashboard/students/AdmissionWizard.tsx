@@ -742,7 +742,7 @@ export default function AdmissionWizard({ studentId }: AdmissionWizardProps) {
                                 size="sm"
                                 disabled={isPending}
                                 onClick={handlePrevStep}
-                                className="h-9 px-3 text-xs gap-1.5 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 cursor-pointer"
+                                className="gap-1.5"
                             >
                                 <ArrowLeft className="w-3.5 h-3.5" />
                                 <span>Previous</span>
@@ -755,7 +755,7 @@ export default function AdmissionWizard({ studentId }: AdmissionWizardProps) {
                             size="sm"
                             disabled={isPending}
                             onClick={() => form.reset()}
-                            className="h-9 px-3 text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 gap-1.5 cursor-pointer"
+                            className="gap-1.5"
                         >
                             <RotateCcw className="w-3.5 h-3.5" />
                             <span>Reset</span>
@@ -766,7 +766,7 @@ export default function AdmissionWizard({ studentId }: AdmissionWizardProps) {
                                 type="button"
                                 size="sm"
                                 onClick={handleNextStep}
-                                className="h-9.5 px-5 text-xs font-semibold rounded-lg bg-sky-600 hover:bg-sky-500 text-white shadow-sm transition active:scale-95 cursor-pointer flex items-center gap-2"
+                                className="gap-2"
                             >
                                 <span>Next: {STEPS[currentStep]?.title}</span>
                                 <ArrowRight className="w-3.5 h-3.5" />
@@ -776,10 +776,8 @@ export default function AdmissionWizard({ studentId }: AdmissionWizardProps) {
                                 type="submit"
                                 disabled={isPending}
                                 className={cn(
-                                    "h-9.5 px-6 text-xs font-semibold rounded-lg text-white shadow-sm transition active:scale-95 cursor-pointer flex items-center gap-2",
-                                    isEditMode
-                                        ? "bg-sky-600 hover:bg-sky-500"
-                                        : "bg-emerald-600 hover:bg-emerald-500"
+                                    "gap-2",
+                                    !isEditMode && "bg-emerald-600 hover:bg-emerald-500 text-white"
                                 )}
                             >
                                 {isPending ? (

@@ -84,7 +84,7 @@ export function ReceiptModal({ paymentId, isOpen, onClose }: ReceiptModalProps) 
                             <Button
                                 size="sm"
                                 onClick={handlePrint}
-                                className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg h-9 font-semibold text-xs gap-1.5 print:hidden"
+                                className="bg-indigo-600 hover:bg-indigo-500 text-white gap-1.5 print:hidden"
                             >
                                 <Printer className="h-3.5 w-3.5" />
                                 <span>Print Receipt</span>
@@ -421,14 +421,14 @@ export function ReceiptModal({ paymentId, isOpen, onClose }: ReceiptModalProps) 
                         {format === "executive" ? "Standard A4 / A5 Document Format" : "80mm POS Thermal Slip (76mm Roll)"}
                     </span>
                     <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" onClick={onClose} className="rounded-lg h-9">
+                        <Button variant="outline" size="sm" onClick={onClose}>
                             Close
                         </Button>
                         {payment && (
                             <Button
                                 size="sm"
                                 onClick={handlePrint}
-                                className="bg-indigo-600 hover:bg-indigo-500 text-white gap-1.5 rounded-lg h-9 font-semibold text-xs"
+                                className="bg-indigo-600 hover:bg-indigo-500 text-white gap-1.5"
                             >
                                 <Printer className="h-3.5 w-3.5" />
                                 <span>Print Receipt</span>

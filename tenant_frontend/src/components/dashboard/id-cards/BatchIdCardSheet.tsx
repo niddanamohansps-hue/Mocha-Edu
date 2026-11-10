@@ -19,6 +19,7 @@ import { useStudents, Student } from "@/hooks/useStudents";
 import { useSections } from "@/hooks/useAcademics";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Avatar } from "@/components/ui/avatar";
 import {
     Select,
     SelectContent,
@@ -28,28 +29,6 @@ import {
 } from "@/components/ui/select";
 
 const CARDS_PER_A4_PAGE = 8; // 2 columns x 4 rows (CR80: 85.6mm x 54.0mm)
-
-const AVATAR_PALETTES = [
-    { bg: "bg-sky-100", text: "text-sky-700", border: "border-sky-300" },
-    { bg: "bg-emerald-100", text: "text-emerald-700", border: "border-emerald-300" },
-    { bg: "bg-indigo-100", text: "text-indigo-700", border: "border-indigo-300" },
-    { bg: "bg-purple-100", text: "text-purple-700", border: "border-purple-300" },
-    { bg: "bg-amber-100", text: "text-amber-700", border: "border-amber-300" },
-    { bg: "bg-rose-100", text: "text-rose-700", border: "border-rose-300" },
-];
-
-function getAvatarStyle(name?: string | null) {
-    if (!name) return AVATAR_PALETTES[0];
-    let hash = 0;
-    for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    return AVATAR_PALETTES[Math.abs(hash) % AVATAR_PALETTES.length];
-}
-
-function getInitials(first: string = "", last: string = "") {
-    const f = first.trim()[0] || "";
-    const l = last.trim()[0] || "";
-    return `${f}${l}`.toUpperCase() || "ST";
-}
 
 function formatDate(dateStr?: string | null) {
     if (!dateStr) return "—";
@@ -167,7 +146,7 @@ export function BatchIdCardSheet() {
                         size="sm"
                         disabled={studentsToPrint.length === 0}
                         onClick={handlePrint}
-                        className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs h-9 px-4 gap-2 rounded-lg shadow-sm"
+                        className="gap-2 bg-indigo-600 hover:bg-indigo-500 text-white"
                     >
                         <Printer className="h-4 w-4" />
                         <span>Print Batch ({studentsToPrint.length} Cards • {pages.length} A4 Pages)</span>
@@ -252,7 +231,7 @@ export function BatchIdCardSheet() {
                             variant="outline"
                             size="sm"
                             onClick={() => setSide(side === "front" ? "back" : "front")}
-                            className="w-full h-9 text-xs font-semibold gap-1.5 border-slate-200 dark:border-slate-800"
+                            className="w-full gap-1.5"
                         >
                             <RotateCw className="h-3.5 w-3.5 text-indigo-600" />
                             <span>Showing {side === "front" ? "Front Face" : "Back Face"}</span>
@@ -329,8 +308,6 @@ export function BatchIdCardSheet() {
                         <div className="grid grid-cols-2 grid-rows-4 gap-[4mm] h-[264mm]">
                             {pageStudents.map((student) => {
                                 const fullName = student.full_name || `${student.first_name || ""} ${student.last_name || ""}`.trim();
-                                const avatarStyle = getAvatarStyle(fullName);
-                                const initials = getInitials(student.first_name, student.last_name);
 
                                 return (
                                     <div
@@ -361,11 +338,13 @@ export function BatchIdCardSheet() {
                                                 {/* Card Content Body */}
                                                 <div className="flex items-center gap-2.5 px-1 py-1 flex-1">
                                                     {/* Avatar */}
-                                                    <div
-                                                        className={`h-14 w-14 rounded-xl flex items-center justify-center font-bold text-sm shrink-0 border ${avatarStyle.bg} ${avatarStyle.text} ${avatarStyle.border}`}
-                                                    >
-                                                        {initials}
-                                                    </div>
+                                                    <Avatar
+                                                        name={fullName}
+                                                        src={student.photo}
+                                                        size="xl"
+                                                        shape="rounded"
+                                                        className="h-14 w-14 rounded-xl shrink-0"
+                                                    />
 
                                                     {/* Particulars */}
                                                     <div className="space-y-0.5 flex-1 min-w-0 text-[9px]">

@@ -8,7 +8,9 @@ import {
     TableHead,
     TableHeader,
     TableRow,
+    TableCellAction,
 } from "@/components/ui/table";
+import { TableShell } from "@/components/common/table/TableShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -139,18 +141,18 @@ export default function EnquiriesTab() {
             </div>
 
             {/* Table */}
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden">
+            <TableShell>
                 <Table>
-                    <TableHeader className="bg-slate-50/70 dark:bg-slate-800/50">
+                    <TableHeader>
                         <TableRow>
-                            <TableHead className="font-bold">Reference #</TableHead>
-                            <TableHead className="font-bold">Prospective Student</TableHead>
-                            <TableHead className="font-bold">Guardian & Contact</TableHead>
-                            <TableHead className="font-bold">Target Grade & Year</TableHead>
-                            <TableHead className="font-bold">Source</TableHead>
-                            <TableHead className="font-bold">Status</TableHead>
-                            <TableHead className="font-bold">Follow-up</TableHead>
-                            <TableHead className="text-right font-bold">Actions</TableHead>
+                            <TableHead className="pl-4">Reference #</TableHead>
+                            <TableHead>Prospective Student</TableHead>
+                            <TableHead>Guardian & Contact</TableHead>
+                            <TableHead>Target Grade & Year</TableHead>
+                            <TableHead>Source</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Follow-up</TableHead>
+                            <TableHead className="text-right pr-4">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -257,7 +259,7 @@ export default function EnquiriesTab() {
                         )}
                     </TableBody>
                 </Table>
-            </div>
+            </TableShell>
 
             <EnquiryDialog
                 open={dialogOpen}

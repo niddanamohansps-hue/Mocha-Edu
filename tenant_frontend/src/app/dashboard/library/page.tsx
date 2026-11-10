@@ -293,169 +293,165 @@ export default function LibraryBooksPage() {
                     className="py-16 text-slate-500"
                 />
             ) : (
-                <div className="space-y-3">
-                    <TableShell>
-                        <Table>
-                            <TableHeader className="bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200/80 dark:border-slate-800">
-                                <TableRow>
-                                    <TableHead className="py-3 pl-4 text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider min-w-[240px]">
-                                        Book Title &amp; Details
-                                    </TableHead>
-                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                        Author
-                                    </TableHead>
-                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                        Category
-                                    </TableHead>
-                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                        Shelf Location
-                                    </TableHead>
-                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider text-center">
-                                        On Shelf Stock
-                                    </TableHead>
-                                    <TableHead className="text-right pr-4 text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                        Actions
-                                    </TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {rows.map((r) => {
-                                    const hasCopies = r.copies_total > 0;
-                                    const hasAvailable = r.copies_available > 0;
-
-                                    return (
-                                        <TableRow
-                                            key={r.id}
-                                            className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 border-b border-slate-100 dark:border-slate-800/70"
-                                        >
-                                            {/* Book Title */}
-                                            <TableCell className="py-3 pl-4">
-                                                <div className="flex items-start gap-2.5">
-                                                    <div className="p-2 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5">
-                                                        <BookOpen className="w-4 h-4" />
-                                                    </div>
-                                                    <div>
-                                                        <div className="font-bold text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
-                                                            <span>{r.title}</span>
-                                                            {!r.is_active && (
-                                                                <Badge
-                                                                    variant="outline"
-                                                                    className="bg-slate-100 text-slate-500 text-[10px]"
-                                                                >
-                                                                    Inactive
-                                                                </Badge>
-                                                            )}
-                                                        </div>
-                                                        {r.isbn && (
-                                                            <div className="text-[10px] font-mono text-slate-400 mt-0.5">
-                                                                ISBN: {r.isbn}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </TableCell>
-
-                                            {/* Author */}
-                                            <TableCell className="py-3 text-xs text-slate-600 dark:text-slate-300 font-medium">
-                                                {r.author || "—"}
-                                            </TableCell>
-
-                                            {/* Category */}
-                                            <TableCell className="py-3">
-                                                <Badge
-                                                    variant="outline"
-                                                    className="bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300 text-xs font-medium"
-                                                >
-                                                    {r.category_name || "General"}
-                                                </Badge>
-                                            </TableCell>
-
-                                            {/* Shelf */}
-                                            <TableCell className="py-3">
-                                                <div className="flex items-center gap-1 text-xs text-slate-500 font-mono">
-                                                    <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-                                                    <span>{r.shelf_location || "—"}</span>
-                                                </div>
-                                            </TableCell>
-
-                                            {/* Copies On Shelf */}
-                                            <TableCell className="py-3 text-center">
-                                                {!hasCopies ? (
-                                                    <Badge
-                                                        variant="outline"
-                                                        className="bg-amber-50 text-amber-700 border-amber-300 text-[11px] font-bold"
-                                                    >
-                                                        0 Copies
-                                                    </Badge>
-                                                ) : (
-                                                    <div className="flex items-center justify-center gap-1.5">
-                                                        <span
-                                                            className={`font-bold text-xs ${
-                                                                hasAvailable
-                                                                    ? "text-emerald-600 dark:text-emerald-400"
-                                                                    : "text-rose-600"
-                                                            }`}
-                                                        >
-                                                            {r.copies_available}
-                                                        </span>
-                                                        <span className="text-slate-400 text-xs">/ {r.copies_total}</span>
-                                                    </div>
-                                                )}
-                                            </TableCell>
-
-                                            {/* Actions */}
-                                            <TableCell className="py-3 pr-4 text-right">
-                                                <div className="flex items-center justify-end gap-1">
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        onClick={() => setCopiesOf(r)}
-                                                        className="h-8 px-2.5 text-xs font-semibold gap-1"
-                                                    >
-                                                        <Copy className="w-3.5 h-3.5 text-slate-500" />
-                                                        <span>Copies ({r.copies_total})</span>
-                                                    </Button>
-                                                    {canEdit && (
-                                                        <>
-                                                            <Button
-                                                                size="sm"
-                                                                variant="ghost"
-                                                                onClick={() => setEditing(r)}
-                                                                className="h-8 px-2 text-xs text-slate-600 hover:text-indigo-600"
-                                                            >
-                                                                <Edit3 className="w-3.5 h-3.5" />
-                                                            </Button>
-                                                            <Button
-                                                                size="sm"
-                                                                variant="ghost"
-                                                                onClick={() => setDeleting(r)}
-                                                                className="h-8 px-2 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50"
-                                                            >
-                                                                <Trash2 className="w-3.5 h-3.5" />
-                                                            </Button>
-                                                        </>
-                                                    )}
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                    );
-                                })}
-                            </TableBody>
-                        </Table>
-                    </TableShell>
-
-                    {/* Pagination */}
-                    {totalCount > PAGE_SIZE && (
-                        <div className="pt-2">
+                <TableShell
+                    footer={
+                        totalCount > PAGE_SIZE ? (
                             <Pagination
                                 page={page}
                                 pageSize={PAGE_SIZE}
                                 count={totalCount}
                                 onPageChange={setPage}
                             />
-                        </div>
-                    )}
-                </div>
+                        ) : undefined
+                    }
+                >
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead className="pl-4 min-w-[240px]">
+                                    Book Title &amp; Details
+                                </TableHead>
+                                <TableHead>
+                                    Author
+                                </TableHead>
+                                <TableHead>
+                                    Category
+                                </TableHead>
+                                <TableHead>
+                                    Shelf Location
+                                </TableHead>
+                                <TableHead className="text-center">
+                                    On Shelf Stock
+                                </TableHead>
+                                <TableHead className="text-right pr-4">
+                                    Actions
+                                </TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody striped>
+                            {rows.map((r) => {
+                                const hasCopies = r.copies_total > 0;
+                                const hasAvailable = r.copies_available > 0;
+
+                                return (
+                                    <TableRow
+                                        key={r.id}
+                                    >
+                                        {/* Book Title */}
+                                        <TableCell className="pl-4">
+                                            <div className="flex items-start gap-2.5">
+                                                <div className="p-2 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5">
+                                                    <BookOpen className="w-4 h-4" />
+                                                </div>
+                                                <div>
+                                                    <div className="font-bold text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
+                                                        <span>{r.title}</span>
+                                                        {!r.is_active && (
+                                                            <Badge
+                                                                variant="outline"
+                                                                className="bg-slate-100 text-slate-500 text-[10px]"
+                                                            >
+                                                                Inactive
+                                                            </Badge>
+                                                        )}
+                                                    </div>
+                                                    {r.isbn && (
+                                                        <div className="text-[10px] font-mono text-slate-400 mt-0.5">
+                                                            ISBN: {r.isbn}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </TableCell>
+
+                                        {/* Author */}
+                                        <TableCell className="text-xs text-slate-600 dark:text-slate-300 font-medium">
+                                            {r.author || "—"}
+                                        </TableCell>
+
+                                        {/* Category */}
+                                        <TableCell>
+                                            <Badge
+                                                variant="outline"
+                                                className="bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300 text-xs font-medium"
+                                            >
+                                                {r.category_name || "General"}
+                                            </Badge>
+                                        </TableCell>
+
+                                        {/* Shelf */}
+                                        <TableCell>
+                                            <div className="flex items-center gap-1 text-xs text-slate-500 font-mono">
+                                                <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                                                <span>{r.shelf_location || "—"}</span>
+                                            </div>
+                                        </TableCell>
+
+                                        {/* Copies On Shelf */}
+                                        <TableCell className="text-center">
+                                            {!hasCopies ? (
+                                                <Badge
+                                                    variant="outline"
+                                                    className="bg-amber-50 text-amber-700 border-amber-300 text-[11px] font-bold"
+                                                >
+                                                    0 Copies
+                                                </Badge>
+                                            ) : (
+                                                <div className="flex items-center justify-center gap-1.5">
+                                                    <span
+                                                        className={`font-bold text-xs ${
+                                                            hasAvailable
+                                                                ? "text-emerald-600 dark:text-emerald-400"
+                                                                : "text-rose-600"
+                                                        }`}
+                                                    >
+                                                        {r.copies_available}
+                                                    </span>
+                                                    <span className="text-slate-400 text-xs">/ {r.copies_total}</span>
+                                                </div>
+                                            )}
+                                        </TableCell>
+
+                                        {/* Actions */}
+                                        <TableCell className="pr-4 text-right">
+                                            <div className="flex items-center justify-end gap-1">
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => setCopiesOf(r)}
+                                                    className="h-8 px-2.5 text-xs font-semibold gap-1"
+                                                >
+                                                    <Copy className="w-3.5 h-3.5 text-slate-500" />
+                                                    <span>Copies ({r.copies_total})</span>
+                                                </Button>
+                                                {canEdit && (
+                                                    <>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            onClick={() => setEditing(r)}
+                                                            className="h-8 px-2 text-xs text-slate-600 hover:text-indigo-600"
+                                                        >
+                                                            <Edit3 className="w-3.5 h-3.5" />
+                                                        </Button>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            onClick={() => setDeleting(r)}
+                                                            className="h-8 px-2 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                                                        >
+                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                        </Button>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </TableCell>
+                                    </TableRow>
+                                );
+                            })}
+                        </TableBody>
+                    </Table>
+                </TableShell>
             )}
 
             {/* Book Form & Copies Modals */}

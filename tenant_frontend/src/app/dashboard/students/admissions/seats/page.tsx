@@ -9,6 +9,15 @@ import { LoadingState } from "@/components/feedback/LoadingState";
 import { EmptyState } from "@/components/feedback/EmptyState";
 import { PageHeader } from "@/components/common/PageLayout";
 import {
+    Table as SharedTable,
+    TableHeader,
+    TableHead,
+    TableRow,
+    TableCell,
+    TableCellNumeric,
+} from "@/components/ui/table";
+import { TableShell } from "@/components/common/table/TableShell";
+import {
     useAdmissionsReport,
     useRequiredDocuments,
     useSeats,
@@ -51,25 +60,25 @@ function Content({ canEdit }: { canEdit: boolean }) {
                         className="py-12"
                     />
                 ) : (
-                    <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-                        <table className="w-full min-w-[34rem] text-sm">
-                            <thead className="border-b border-slate-200 text-left text-xs uppercase text-slate-500 dark:border-slate-800">
-                                <tr>
-                                    <th className="px-4 py-2 sticky left-0 bg-white dark:bg-slate-900 z-10 border-r border-slate-100 dark:border-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]">Class</th>
-                                    <th className="px-4 py-2">Seats</th>
-                                    <th className="px-4 py-2 text-right">Taken</th>
-                                    <th className="px-4 py-2 text-right">Free</th>
-                                    <th className="px-4 py-2 text-right">Waiting list</th>
-                                    <th className="px-4 py-2 text-right">In progress</th>
-                                </tr>
-                            </thead>
+                    <TableShell>
+                        <SharedTable className="min-w-[34rem]">
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead className="sticky left-0 bg-white dark:bg-slate-900 z-10 border-r border-slate-100 dark:border-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)] pl-4">Class</TableHead>
+                                    <TableHead>Seats</TableHead>
+                                    <TableHead className="text-right">Taken</TableHead>
+                                    <TableHead className="text-right">Free</TableHead>
+                                    <TableHead className="text-right">Waiting list</TableHead>
+                                    <TableHead className="text-right pr-4">In progress</TableHead>
+                                </TableRow>
+                            </TableHeader>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                 {(seats.data ?? []).map((row) => (
                                     <SeatLine key={`${row.level}-${row.seats}`} row={row} year={year} canEdit={canEdit} />
                                 ))}
                             </tbody>
-                        </table>
-                    </div>
+                        </SharedTable>
+                    </TableShell>
                 )}
             </section>
 
@@ -224,27 +233,27 @@ function Table({ title, heads, rows }: { title: string; heads: string[]; rows: (
     return (
         <div className="space-y-2">
             <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">{title}</h3>
-            <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-                <table className="w-full min-w-[34rem] text-sm">
-                    <thead className="border-b border-slate-200 text-left text-xs uppercase text-slate-500 dark:border-slate-800">
-                        <tr>
+            <TableShell>
+                <SharedTable className="min-w-[34rem]">
+                    <TableHeader>
+                        <TableRow>
                             {heads.map((h, i) => (
-                                <th
+                                <TableHead
                                     key={h}
-                                    className={`px-4 py-2 ${i === 0 ? "sticky left-0 bg-white dark:bg-slate-900 z-10 border-r border-slate-100 dark:border-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]" : ""} ${i > 0 ? "text-right" : ""}`}
+                                    className={`${i === 0 ? "sticky left-0 bg-white dark:bg-slate-900 z-10 border-r border-slate-100 dark:border-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)] pl-4" : ""} ${i > 0 ? "text-right" : ""}`}
                                 >
                                     {h}
-                                </th>
+                                </TableHead>
                             ))}
-                        </tr>
-                    </thead>
+                        </TableRow>
+                    </TableHeader>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                         {rows.map((r) => (
-                            <tr key={String(r[0])}>
+                            <tr key={String(r[0])} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
                                 {r.map((cell, i) => (
                                     <td
                                         key={i}
-                                        className={`px-4 py-2.5 sm:py-2 ${i === 0 ? "sticky left-0 bg-white dark:bg-slate-900 z-10 border-r border-slate-100 dark:border-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)] font-medium" : "text-right"}`}
+                                        className={`px-4 py-2.5 sm:py-2 ${i === 0 ? "sticky left-0 bg-white dark:bg-slate-900 z-10 border-r border-slate-100 dark:border-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)] font-medium" : "text-right font-mono tabular-nums"}`}
                                     >
                                         {cell}
                                     </td>
@@ -252,8 +261,8 @@ function Table({ title, heads, rows }: { title: string; heads: string[]; rows: (
                             </tr>
                         ))}
                     </tbody>
-                </table>
-            </div>
+                </SharedTable>
+            </TableShell>
         </div>
     );
 }

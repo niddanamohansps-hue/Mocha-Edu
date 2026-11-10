@@ -5,11 +5,9 @@ import {
     Dialog,
     DialogBody,
     DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogDescription,
     DialogFooter,
 } from "@/components/ui/dialog";
+import { ModalHeader } from "@/components/ui/modal-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -171,16 +169,13 @@ export function EventFormModal({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-xl max-h-[90vh] p-0 flex flex-col overflow-hidden rounded-2xl">
-                <DialogHeader className="px-6 py-4.5 border-b border-slate-100 dark:border-slate-800 shrink-0">
-                    <DialogTitle className="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-white">
-                        <Calendar className="w-5 h-5 text-sky-600" />
-                        {initialEvent ? "Edit Academic Event" : "Create New Calendar Event"}
-                    </DialogTitle>
-                    <DialogDescription className="text-xs text-slate-500">
-                        Schedule school activities, holidays, examinations, or academic milestones.
-                    </DialogDescription>
-                </DialogHeader>
+            <DialogContent className="max-w-xl max-h-[90vh] p-0 flex flex-col overflow-hidden rounded-2xl" showCloseButton={false}>
+                <ModalHeader
+                    icon={<Calendar className="w-5 h-5 text-sky-600" />}
+                    title={initialEvent ? "Edit Academic Event" : "Create New Calendar Event"}
+                    subtitle="Schedule school activities, holidays, examinations, or academic milestones."
+                    onClose={() => onOpenChange(false)}
+                />
 
                 <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
                     <DialogBody className="flex-1 overflow-y-auto px-6 py-5 [scrollbar-width:thin] space-y-5">
@@ -357,7 +352,7 @@ export function EventFormModal({
                         <Button
                             type="submit"
                             disabled={isSubmitting}
-                            className="bg-sky-600 hover:bg-sky-700 text-white min-w-[120px]"
+                            className="min-w-[120px]"
                         >
                             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             {initialEvent ? "Save Changes" : "Create Event"}

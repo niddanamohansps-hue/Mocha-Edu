@@ -231,7 +231,7 @@ export function AnnouncementForm({ existing }: { existing?: Announcement }) {
                 <Button
                     type="submit"
                     disabled={pending}
-                    className="h-9 px-5 gap-2 bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs rounded-lg shadow-sm cursor-pointer transition active:scale-95"
+                    className="gap-2"
                 >
                     {pending ? (
                         <LoaderCircle className="h-4 w-4 animate-spin" />
@@ -245,7 +245,6 @@ export function AnnouncementForm({ existing }: { existing?: Announcement }) {
                     variant="outline"
                     disabled={pending}
                     onClick={() => router.back()}
-                    className="h-9 text-xs font-semibold"
                 >
                     Cancel
                 </Button>

@@ -40,6 +40,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Avatar } from "@/components/ui/avatar";
 import {
     Select,
     SelectContent,
@@ -52,32 +53,16 @@ import {
     TableBody,
     TableCell,
     TableHead,
+    TableHeadNumeric,
     TableHeader,
     TableRow,
+    TableCellNumeric,
+    TableCellAction,
 } from "@/components/ui/table";
+import { TableShell } from "@/components/common/table/TableShell";
 import Unauthorized from "@/components/Unauthorized";
 import { formatIndianCurrency, CURRENCY } from "@/lib/currency";
 import { toast } from "sonner";
-
-const AVATAR_PALETTES = [
-    { bg: "bg-sky-100 dark:bg-sky-950/70", text: "text-sky-700 dark:text-sky-300", border: "border-sky-300/60 dark:border-sky-800" },
-    { bg: "bg-emerald-100 dark:bg-emerald-950/70", text: "text-emerald-700 dark:text-emerald-300", border: "border-emerald-300/60 dark:border-emerald-800" },
-    { bg: "bg-indigo-100 dark:bg-indigo-950/70", text: "text-indigo-700 dark:text-indigo-300", border: "border-indigo-300/60 dark:border-indigo-800" },
-    { bg: "bg-purple-100 dark:bg-purple-950/70", text: "text-purple-700 dark:text-purple-300", border: "border-purple-300/60 dark:border-purple-800" },
-    { bg: "bg-amber-100 dark:bg-amber-950/70", text: "text-amber-700 dark:text-amber-300", border: "border-amber-300/60 dark:border-amber-800" },
-    { bg: "bg-rose-100 dark:bg-rose-950/70", text: "text-rose-700 dark:text-rose-300", border: "border-rose-300/60 dark:border-rose-800" },
-    { bg: "bg-teal-100 dark:bg-teal-950/70", text: "text-teal-700 dark:text-teal-300", border: "border-teal-300/60 dark:border-teal-800" },
-];
-
-function getAvatarStyle(name?: string | null) {
-    if (!name || typeof name !== "string") return AVATAR_PALETTES[0];
-    let hash = 0;
-    for (let i = 0; i < name.length; i++) {
-        hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    const index = Math.abs(hash) % AVATAR_PALETTES.length;
-    return AVATAR_PALETTES[index];
-}
 
 function formatDate(dateStr?: string | null) {
     if (!dateStr) return "—";
@@ -305,10 +290,6 @@ function CollectPaymentContent() {
         return <Unauthorized />;
     }
 
-    const studentAvatarStyle = selectedStudent
-        ? getAvatarStyle(`${selectedStudent.first_name} ${selectedStudent.last_name}`)
-        : null;
-
     return (
         <div className="space-y-4">
             {/* 1. Header Banner */}
@@ -390,8 +371,6 @@ function CollectPaymentContent() {
                                 {candidateStudents.length > 0 ? (
                                     <div className="p-1 divide-y divide-slate-100 dark:divide-slate-800">
                                         {candidateStudents.map((s) => {
-                                            const palette = getAvatarStyle(s.full_name);
-                                            const initials = s.first_name[0] + (s.last_name ? s.last_name[0] : "");
                                             return (
                                                 <div
                                                     key={s.id}
@@ -399,11 +378,7 @@ function CollectPaymentContent() {
                                                     className="flex items-center justify-between p-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/60 rounded-lg cursor-pointer transition-colors"
                                                 >
                                                     <div className="flex items-center gap-3">
-                                                        <div
-                                                            className={`h-8 w-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 border ${palette.bg} ${palette.text} ${palette.border}`}
-                                                        >
-                                                            {initials}
-                                                        </div>
+                                                        <Avatar name={s.full_name} size="sm" />
                                                         <div>
                                                             <div className="font-semibold text-xs text-slate-900 dark:text-slate-100">
                                                                 {s.full_name}
@@ -436,16 +411,11 @@ function CollectPaymentContent() {
                     /* Selected Student Profile Banner */
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/80 rounded-xl">
                         <div className="flex items-center gap-3">
-                            <div
-                                className={`h-10 w-10 rounded-full flex items-center justify-center font-bold text-xs shrink-0 border ${
-                                    studentAvatarStyle?.bg || "bg-sky-100"
-                                } ${studentAvatarStyle?.text || "text-sky-700"} ${
-                                    studentAvatarStyle?.border || "border-sky-300"
-                                }`}
-                            >
-                                {selectedStudent.first_name[0]}
-                                {selectedStudent.last_name ? selectedStudent.last_name[0] : ""}
-                            </div>
+                            <Avatar
+                                name={selectedStudent.full_name}
+                                src={selectedStudent.photo}
+                                size="lg"
+                            />
                             <div>
                                 <div className="flex items-center gap-2">
                                     <h4 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white">
@@ -559,7 +529,7 @@ function CollectPaymentContent() {
                                     <Button
                                         size="sm"
                                         onClick={handleAutoAllocateAll}
-                                        className="h-8 px-3 text-xs font-semibold gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg shadow-2xs cursor-pointer"
+                                        className="bg-emerald-600 hover:bg-emerald-500 text-white gap-1.5"
                                     >
                                         <Zap className="w-3.5 h-3.5" />
                                         <span>Auto-Allocate All Dues</span>
@@ -635,7 +605,7 @@ function CollectPaymentContent() {
                                 <Button
                                     type="submit"
                                     disabled={assigning || !assignForm.fee_head || !assignForm.amount_due}
-                                    className="h-[42px] text-xs font-semibold rounded-lg bg-sky-600 hover:bg-sky-500 text-white cursor-pointer"
+                                    className="h-[42px]"
                                 >
                                     {assigning ? <LoaderCircle className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Plus className="w-3.5 h-3.5 mr-1.5" />}
                                     Assign to Student
@@ -644,31 +614,17 @@ function CollectPaymentContent() {
                         )}
 
                         {/* Fee Table */}
-                        <div className="overflow-x-auto">
+                        <TableShell>
                             <Table>
-                                <TableHeader className="bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200/80 dark:border-slate-800">
+                                <TableHeader>
                                     <TableRow className="hover:bg-transparent">
-                                        <TableHead className="py-3.5 pl-5 text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                            Fee Head &amp; Schedule
-                                        </TableHead>
-                                        <TableHead className="text-right text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                            Amount Due
-                                        </TableHead>
-                                        <TableHead className="text-right text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                            Paid
-                                        </TableHead>
-                                        <TableHead className="text-right text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                            Outstanding
-                                        </TableHead>
-                                        <TableHead className="text-center text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                            Status
-                                        </TableHead>
-                                        <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider w-44">
-                                            Collect Amount ({CURRENCY})
-                                        </TableHead>
-                                        <TableHead className="text-right pr-5 text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                            Cancel
-                                        </TableHead>
+                                        <TableHead className="pl-5">Fee Head &amp; Schedule</TableHead>
+                                        <TableHeadNumeric>Amount Due</TableHeadNumeric>
+                                        <TableHeadNumeric>Paid</TableHeadNumeric>
+                                        <TableHeadNumeric>Outstanding</TableHeadNumeric>
+                                        <TableHead className="text-center">Status</TableHead>
+                                        <TableHead className="w-44">Collect Amount ({CURRENCY})</TableHead>
+                                        <TableHead className="text-right pr-5">Cancel</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -812,7 +768,7 @@ function CollectPaymentContent() {
                                     )}
                                 </TableBody>
                             </Table>
-                        </div>
+                        </TableShell>
                     </div>
 
                     {/* 5. Checkout & Payment Recording Card */}
@@ -874,7 +830,7 @@ function CollectPaymentContent() {
                                 <Button
                                     onClick={handleRecordPayment}
                                     disabled={recording || totalAllocated <= 0}
-                                    className="h-[42px] text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white gap-2 shadow-sm transition active:scale-95 cursor-pointer"
+                                    className="h-[42px] bg-emerald-600 hover:bg-emerald-500 text-white gap-2"
                                 >
                                     {recording ? (
                                         <>
@@ -893,43 +849,30 @@ function CollectPaymentContent() {
                     )}
 
                     {/* 6. Payment History & Official Receipts */}
-                    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden">
-                        <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/30">
-                            <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
-                                <span>Collection Receipts History</span>
-                                <Badge variant="outline" className="text-[10px] py-0 font-semibold">
-                                    {payments.length} Receipts
-                                </Badge>
-                            </h3>
-                        </div>
-
-                        <div className="overflow-x-auto">
-                            <Table>
-                                <TableHeader className="bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200/80 dark:border-slate-800">
-                                    <TableRow className="hover:bg-transparent">
-                                        <TableHead className="py-3.5 pl-5 text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                            Receipt #
-                                        </TableHead>
-                                        <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                            Date
-                                        </TableHead>
-                                        <TableHead className="text-right text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                            Amount Paid
-                                        </TableHead>
-                                        <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                            Payment Channel
-                                        </TableHead>
-                                        <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                            Reference Note
-                                        </TableHead>
-                                        <TableHead className="text-right text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                            Status
-                                        </TableHead>
-                                        <TableHead className="text-right pr-5 text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                            Action
-                                        </TableHead>
-                                    </TableRow>
-                                </TableHeader>
+                    <TableShell
+                        header={
+                            <div className="p-3.5 sm:px-4 sm:py-3 flex items-center justify-between">
+                                <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                                    <span>Collection Receipts History</span>
+                                    <Badge variant="outline" className="text-[10px] py-0 font-semibold">
+                                        {payments.length} Receipts
+                                    </Badge>
+                                </h3>
+                            </div>
+                        }
+                    >
+                        <Table>
+                            <TableHeader>
+                                <TableRow className="hover:bg-transparent">
+                                    <TableHead className="pl-5">Receipt #</TableHead>
+                                    <TableHead>Date</TableHead>
+                                    <TableHeadNumeric>Amount Paid</TableHeadNumeric>
+                                    <TableHead>Payment Channel</TableHead>
+                                    <TableHead>Reference Note</TableHead>
+                                    <TableHead className="text-right">Status</TableHead>
+                                    <TableHead className="text-right pr-5">Action</TableHead>
+                                </TableRow>
+                            </TableHeader>
                                 <TableBody>
                                     {payments && payments.length > 0 ? (
                                         payments.map((p) => (
@@ -1017,8 +960,7 @@ function CollectPaymentContent() {
                                     )}
                                 </TableBody>
                             </Table>
-                        </div>
-                    </div>
+                        </TableShell>
                 </div>
             )}
 

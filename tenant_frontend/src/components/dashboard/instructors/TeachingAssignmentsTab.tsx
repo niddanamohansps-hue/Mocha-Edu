@@ -35,7 +35,9 @@ import {
     TableHead,
     TableHeader,
     TableRow,
+    TableCellAction,
 } from "@/components/ui/table";
+import { TableShell } from "@/components/common/table/TableShell";
 import { usePermissions } from "@/providers/PermissionProvider";
 
 interface TeachingAssignmentsTabProps {
@@ -221,51 +223,51 @@ export default function TeachingAssignmentsTab({ instructorId }: TeachingAssignm
                 onConfirm={confirmDelete}
             />
 
-            <div className="border rounded-lg bg-white dark:bg-slate-950">
+            <TableShell>
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>Subject</TableHead>
+                            <TableHead className="pl-4">Subject</TableHead>
                             <TableHead>Class / Section</TableHead>
                             <TableHead>Level</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
+                            <TableHead className="text-right pr-4">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {assignments?.map((assignment) => (
-                            <TableRow key={assignment.id}>
-                                <TableCell className="font-medium flex items-center gap-2">
+                            <TableRow key={assignment.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40">
+                                <TableCell className="font-medium flex items-center gap-2 pl-4">
                                     <BookOpen className="h-4 w-4 text-sky-500" />
-                                    {assignment.subject_details?.name}
-                                    <span className="text-xs text-muted-foreground ml-1">
+                                    <span>{assignment.subject_details?.name}</span>
+                                    <span className="text-xs text-muted-foreground font-mono">
                                         ({assignment.subject_details?.code})
                                     </span>
                                 </TableCell>
                                 <TableCell>{assignment.section_details?.name}</TableCell>
                                 <TableCell>{assignment.subject_details?.level_name}</TableCell>
-                                <TableCell className="text-right">
+                                <TableCellAction className="pr-4">
                                     {canManage && (
-                                        <div className="flex justify-end gap-2">
+                                        <div className="flex justify-end gap-1">
                                             <Button
                                                 variant="ghost"
                                                 size="sm"
-                                                className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
+                                                className="h-8 w-8 p-0 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
                                                 onClick={() => handleOpenEdit(assignment)}
                                             >
-                                                <Edit2 className="h-4 w-4" />
+                                                <Edit2 className="h-3.5 w-3.5" />
                                             </Button>
                                             <Button
                                                 variant="ghost"
                                                 size="sm"
-                                                className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                                                className="h-8 w-8 p-0 text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40"
                                                 onClick={() => setDeletingAssignment(assignment.id)}
                                                 disabled={isRemoving}
                                             >
-                                                <Trash2 className="h-4 w-4" />
+                                                <Trash2 className="h-3.5 w-3.5" />
                                             </Button>
                                         </div>
                                     )}
-                                </TableCell>
+                                </TableCellAction>
                             </TableRow>
                         ))}
                         {(!assignments || assignments.length === 0) && (
@@ -277,7 +279,7 @@ export default function TeachingAssignmentsTab({ instructorId }: TeachingAssignm
                         )}
                     </TableBody>
                 </Table>
-            </div>
+            </TableShell>
         </div>
     );
 }

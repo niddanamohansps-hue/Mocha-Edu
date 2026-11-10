@@ -10,6 +10,7 @@ import {
 import { ModalHeader } from "@/components/ui/modal-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Avatar } from "@/components/ui/avatar";
 import { useInstitutionProfile } from "@/hooks/useProfile";
 import {
     Printer,
@@ -33,6 +34,8 @@ interface StudentIDCardModalProps {
         last_name?: string;
         middle_name?: string;
         enrollment_id: string;
+        photo?: string | null;
+        profile_image?: string | null;
         level?: string;
         section?: string;
         academic_year?: string;
@@ -43,28 +46,6 @@ interface StudentIDCardModalProps {
         address?: string;
         is_rte?: boolean;
     } | null;
-}
-
-const AVATAR_PALETTES = [
-    { bg: "bg-sky-100", text: "text-sky-700", border: "border-sky-300" },
-    { bg: "bg-emerald-100", text: "text-emerald-700", border: "border-emerald-300" },
-    { bg: "bg-indigo-100", text: "text-indigo-700", border: "border-indigo-300" },
-    { bg: "bg-purple-100", text: "text-purple-700", border: "border-purple-300" },
-    { bg: "bg-amber-100", text: "text-amber-700", border: "border-amber-300" },
-    { bg: "bg-rose-100", text: "text-rose-700", border: "border-rose-300" },
-];
-
-function getAvatarStyle(name?: string | null) {
-    if (!name) return AVATAR_PALETTES[0];
-    let hash = 0;
-    for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    return AVATAR_PALETTES[Math.abs(hash) % AVATAR_PALETTES.length];
-}
-
-function getInitials(first: string = "", last: string = "") {
-    const f = first.trim()[0] || "";
-    const l = last.trim()[0] || "";
-    return `${f}${l}`.toUpperCase() || "ST";
 }
 
 function formatDate(dateStr?: string | null) {
@@ -91,8 +72,6 @@ export function StudentIDCardModal({ isOpen, onClose, student }: StudentIDCardMo
     if (!student) return null;
 
     const studentFullName = student.full_name || `${student.first_name || ""} ${student.last_name || ""}`.trim() || "Student Name";
-    const initials = getInitials(student.first_name || studentFullName.split(" ")[0], student.last_name || studentFullName.split(" ").slice(-1)[0]);
-    const avatarStyle = getAvatarStyle(studentFullName);
 
     const schoolName = institution?.name || "Sunrise Valley School";
     const schoolAddress = (institution as any)?.address || institution?.tagline || "CBSE Affiliated Senior Secondary School";
@@ -177,9 +156,13 @@ export function StudentIDCardModal({ isOpen, onClose, student }: StudentIDCardMo
 
                                         {/* Student Photo & Demographics */}
                                         <div className="p-4 text-center flex-1 flex flex-col items-center justify-center space-y-3">
-                                            <div className={`h-24 w-24 rounded-2xl flex items-center justify-center font-bold text-3xl border-3 ${avatarStyle.bg} ${avatarStyle.text} ${avatarStyle.border} shadow-md`}>
-                                                {initials}
-                                            </div>
+                                            <Avatar
+                                                name={studentFullName}
+                                                src={student.photo}
+                                                size="card"
+                                                shape="rounded"
+                                                className="shadow-md"
+                                            />
 
                                             <div>
                                                 <h4 className="font-black text-base text-slate-900 tracking-tight">
@@ -287,9 +270,13 @@ export function StudentIDCardModal({ isOpen, onClose, student }: StudentIDCardMo
 
                                         {/* Content Body */}
                                         <div className="p-4 flex items-center gap-4 flex-1">
-                                            <div className={`h-24 w-24 rounded-2xl flex items-center justify-center font-bold text-2xl border-2 ${avatarStyle.bg} ${avatarStyle.text} ${avatarStyle.border} shrink-0 shadow-sm`}>
-                                                {initials}
-                                            </div>
+                                            <Avatar
+                                                name={studentFullName}
+                                                src={student.photo}
+                                                size="card"
+                                                shape="rounded"
+                                                className="shrink-0 shadow-sm"
+                                            />
 
                                             <div className="space-y-1.5 flex-1 min-w-0 text-xs">
                                                 <h4 className="font-black text-sm text-slate-900 truncate">
@@ -363,13 +350,13 @@ export function StudentIDCardModal({ isOpen, onClose, student }: StudentIDCardMo
                         Standard CR80 Printable Dimensions (ISO/IEC 7810 ID-1)
                     </span>
                     <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" onClick={onClose} className="rounded-lg h-9">
+                        <Button variant="outline" size="sm" onClick={onClose}>
                             Close
                         </Button>
                         <Button
                             size="sm"
                             onClick={handlePrint}
-                            className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg h-9 gap-1.5 font-semibold"
+                            className="gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white"
                         >
                             <Printer className="h-3.5 w-3.5" />
                             <span>Print Card</span>

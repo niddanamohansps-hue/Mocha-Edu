@@ -46,32 +46,7 @@ import {
     UserPlus,
     User,
 } from "lucide-react";
-
-const AVATAR_PALETTES = [
-    { bg: "bg-sky-100 dark:bg-sky-950/70", text: "text-sky-700 dark:text-sky-300", border: "border-sky-300/60 dark:border-sky-800" },
-    { bg: "bg-emerald-100 dark:bg-emerald-950/70", text: "text-emerald-700 dark:text-emerald-300", border: "border-emerald-300/60 dark:border-emerald-800" },
-    { bg: "bg-indigo-100 dark:bg-indigo-950/70", text: "text-indigo-700 dark:text-indigo-300", border: "border-indigo-300/60 dark:border-indigo-800" },
-    { bg: "bg-purple-100 dark:bg-purple-950/70", text: "text-purple-700 dark:text-purple-300", border: "border-purple-300/60 dark:border-purple-800" },
-    { bg: "bg-amber-100 dark:bg-amber-950/70", text: "text-amber-700 dark:text-amber-300", border: "border-amber-300/60 dark:border-amber-800" },
-    { bg: "bg-rose-100 dark:bg-rose-950/70", text: "text-rose-700 dark:text-rose-300", border: "border-rose-300/60 dark:border-rose-800" },
-    { bg: "bg-teal-100 dark:bg-teal-950/70", text: "text-teal-700 dark:text-teal-300", border: "border-teal-300/60 dark:border-teal-800" },
-];
-
-function getAvatarStyle(name?: string | null) {
-    if (!name || typeof name !== "string") return AVATAR_PALETTES[0];
-    let hash = 0;
-    for (let i = 0; i < name.length; i++) {
-        hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    const index = Math.abs(hash) % AVATAR_PALETTES.length;
-    return AVATAR_PALETTES[index];
-}
-
-function getInitials(first: string = "", last: string = "") {
-    const f = first.trim()[0] || "";
-    const l = last.trim()[0] || "";
-    return `${f}${l}`.toUpperCase() || "ST";
-}
+import { Avatar } from "@/components/ui/avatar";
 
 function formatDate(dateStr?: string | null) {
     if (!dateStr) return "—";
@@ -138,8 +113,6 @@ export default function Student360Page({ params }: Student360PageProps) {
     if (isError || !student) return <ErrorState onRetry={refetch} message="Student record could not be loaded." />;
 
     const fullName = `${student.first_name} ${student.middle_name ? student.middle_name + " " : ""}${student.last_name}`.trim();
-    const avatarStyle = getAvatarStyle(fullName);
-    const initials = getInitials(student.first_name, student.last_name);
 
     return (
         <div className="space-y-6 pb-16 max-w-7xl mx-auto animate-in fade-in duration-300">
@@ -149,7 +122,7 @@ export default function Student360Page({ params }: Student360PageProps) {
                     variant="ghost"
                     size="sm"
                     onClick={() => router.push("/dashboard/students")}
-                    className="text-xs font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 gap-1.5 h-8 px-2"
+                    className="gap-1.5"
                 >
                     <ArrowLeft className="h-4 w-4" />
                     <span>Back to Student Directory</span>
@@ -160,7 +133,7 @@ export default function Student360Page({ params }: Student360PageProps) {
                         variant="outline"
                         size="sm"
                         onClick={() => setIsIdCardOpen(true)}
-                        className="rounded-lg h-9 font-semibold text-xs gap-1.5 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-800"
+                        className="gap-1.5"
                     >
                         <Printer className="h-3.5 w-3.5 text-indigo-600" />
                         <span>Print ID Card</span>
@@ -169,7 +142,7 @@ export default function Student360Page({ params }: Student360PageProps) {
                         <Button
                             size="sm"
                             onClick={() => router.push(`/dashboard/fees/collect?search=${student.enrollment_id}`)}
-                            className="bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg h-9 font-semibold text-xs gap-1.5 shadow-xs"
+                            className="bg-emerald-600 hover:bg-emerald-500 text-white gap-1.5"
                         >
                             <CreditCard className="h-3.5 w-3.5" />
                             <span>Collect Fee</span>
@@ -180,7 +153,7 @@ export default function Student360Page({ params }: Student360PageProps) {
                             variant="outline"
                             size="sm"
                             onClick={() => router.push(`/dashboard/students/edit/${student.id}`)}
-                            className="rounded-lg h-9 font-semibold text-xs gap-1.5 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-800"
+                            className="gap-1.5"
                         >
                             <Pencil className="h-3.5 w-3.5 text-sky-600" />
                             <span>Edit Profile</span>
@@ -193,21 +166,23 @@ export default function Student360Page({ params }: Student360PageProps) {
             <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 shadow-xs relative overflow-hidden">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
                     <div className="flex items-center gap-4">
-                        <div
-                            className={`h-16 w-16 sm:h-20 sm:w-20 rounded-2xl flex items-center justify-center font-bold text-xl sm:text-2xl shrink-0 border ${avatarStyle.bg} ${avatarStyle.text} ${avatarStyle.border} shadow-inner`}
-                        >
-                            {initials}
-                        </div>
+                        <Avatar
+                            name={fullName}
+                            src={student.photo}
+                            size="2xl"
+                            shape="rounded"
+                            className="sm:h-20 sm:w-20 shadow-inner"
+                        />
                         <div className="space-y-1">
                             <div className="flex items-center gap-2.5 flex-wrap">
                                 <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
                                     {fullName}
                                 </h1>
-                                <Badge className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300/80 font-semibold text-xs">
+                                <Badge variant="success">
                                     Enrolled Student
                                 </Badge>
                                 {student.is_rte && (
-                                    <Badge variant="outline" className="text-amber-600 border-amber-300 dark:border-amber-800 text-xs">
+                                    <Badge variant="warning">
                                         RTE Quota
                                     </Badge>
                                 )}

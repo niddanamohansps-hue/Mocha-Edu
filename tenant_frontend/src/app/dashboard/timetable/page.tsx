@@ -288,7 +288,7 @@ export default function TimetablePage() {
                         asChild
                         variant="outline"
                         size="sm"
-                        className="h-9 px-3 gap-1.5 text-xs font-semibold border-slate-200 dark:border-slate-800 cursor-pointer shadow-2xs"
+                        className="gap-1.5"
                     >
                         <Link href="/dashboard/timetable/substitutions">
                             <Users className="h-3.5 w-3.5 text-slate-500" />
@@ -300,7 +300,7 @@ export default function TimetablePage() {
                             onClick={() => window.print()}
                             variant="outline"
                             size="sm"
-                            className="h-9 px-3 gap-1.5 text-xs font-semibold border-slate-200 dark:border-slate-800 cursor-pointer shadow-2xs"
+                            className="gap-1.5"
                         >
                             <Printer className="h-3.5 w-3.5 text-slate-500" />
                             <span>Print Schedule</span>
@@ -650,7 +650,6 @@ export default function TimetablePage() {
                                     size="sm"
                                     disabled={!form.subject || isCreating || isUpdating}
                                     onClick={handleSave}
-                                    className="bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs"
                                 >
                                     {(isCreating || isUpdating) && (
                                         <LoaderCircle className="h-4 w-4 animate-spin mr-1.5" />

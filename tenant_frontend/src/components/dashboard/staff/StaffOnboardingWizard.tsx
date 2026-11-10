@@ -193,7 +193,7 @@ export default function StaffOnboardingWizard() {
                         <Button
                             type="submit"
                             disabled={isPending}
-                            className="h-9.5 px-5 text-xs font-semibold rounded-lg text-white shadow-sm transition active:scale-95 cursor-pointer flex items-center gap-2 bg-sky-600 hover:bg-sky-500"
+                            className="gap-2"
                         >
                             {isPending ? (
                                 <>

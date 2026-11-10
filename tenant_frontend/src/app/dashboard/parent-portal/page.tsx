@@ -31,6 +31,7 @@ import {
 } from "@/hooks/useParentPortal";
 import { usePermissions } from "@/providers/PermissionProvider";
 import { Button } from "@/components/ui/button";
+import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import Unauthorized from "@/components/Unauthorized";
 import ChildSwitcher from "@/components/parent-portal/ChildSwitcher";
@@ -41,22 +42,6 @@ import { formatIndianCurrency } from "@/lib/currency";
 
 function todayISODate() {
     return new Date().toISOString().slice(0, 10);
-}
-
-const AVATAR_PALETTES = [
-    { bg: "bg-sky-100 dark:bg-sky-950/70", text: "text-sky-700 dark:text-sky-300", border: "border-sky-300/60 dark:border-sky-800" },
-    { bg: "bg-emerald-100 dark:bg-emerald-950/70", text: "text-emerald-700 dark:text-emerald-300", border: "border-emerald-300/60 dark:border-emerald-800" },
-    { bg: "bg-indigo-100 dark:bg-indigo-950/70", text: "text-indigo-700 dark:text-indigo-300", border: "border-indigo-300/60 dark:border-indigo-800" },
-    { bg: "bg-purple-100 dark:bg-purple-950/70", text: "text-purple-700 dark:text-purple-300", border: "border-purple-300/60 dark:border-purple-800" },
-    { bg: "bg-amber-100 dark:bg-amber-950/70", text: "text-amber-700 dark:text-amber-300", border: "border-amber-300/60 dark:border-amber-800" },
-];
-
-function getAvatarStyle(name?: string | null) {
-    if (!name || typeof name !== "string") return AVATAR_PALETTES[0];
-    let hash = 0;
-    for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    const index = Math.abs(hash) % AVATAR_PALETTES.length;
-    return AVATAR_PALETTES[index];
 }
 
 export default function ParentPortalDashboardPage() {
@@ -98,7 +83,6 @@ function ParentPortalDashboardPageContent() {
     const today = todayISODate();
     const todaysAttendance = attendance?.records?.find((r) => r.date === today);
     const latestResult = reportCard?.examinations?.[0];
-    const avatar = getAvatarStyle(selectedChild?.full_name || "Student");
 
     // Outstanding fees
     const totalOutstanding = useMemo(() => {
@@ -153,11 +137,7 @@ function ParentPortalDashboardPageContent() {
                     {/* 1. Student Hero Profile Strip */}
                     <div className="p-5 bg-gradient-to-r from-sky-500/10 via-indigo-500/10 to-transparent rounded-2xl border border-sky-200/70 dark:border-sky-900/50 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-5">
                         <div className="flex items-center gap-4">
-                            <div
-                                className={`w-14 h-14 rounded-2xl ${avatar.bg} ${avatar.text} ${avatar.border} border flex items-center justify-center font-bold text-xl shadow-xs shrink-0`}
-                            >
-                                {selectedChild.full_name.slice(0, 2).toUpperCase()}
-                            </div>
+                            <Avatar name={selectedChild.full_name} size="xl" shape="rounded" />
                             <div className="space-y-1">
                                 <div className="flex items-center gap-2.5 flex-wrap">
                                     <h2 className="text-lg font-bold text-slate-900 dark:text-white">
@@ -186,7 +166,7 @@ function ParentPortalDashboardPageContent() {
                             <Link href="/dashboard/parent-portal/fees">
                                 <Button
                                     size="sm"
-                                    className="h-9 px-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-xl shadow-xs gap-1.5 cursor-pointer"
+                                    className="bg-emerald-600 hover:bg-emerald-500 text-white gap-1.5"
                                 >
                                     <CreditCard className="w-3.5 h-3.5" />
                                     <span>Pay Fees</span>
@@ -196,7 +176,7 @@ function ParentPortalDashboardPageContent() {
                                 <Button
                                     variant="outline"
                                     size="sm"
-                                    className="h-9 px-3.5 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 font-semibold text-xs rounded-xl shadow-2xs gap-1.5 cursor-pointer"
+                                    className="gap-1.5"
                                 >
                                     <GraduationCap className="w-3.5 h-3.5 text-sky-600" />
                                     <span>Report Card</span>
@@ -206,7 +186,7 @@ function ParentPortalDashboardPageContent() {
                                 <Button
                                     variant="outline"
                                     size="sm"
-                                    className="h-9 px-3.5 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 font-semibold text-xs rounded-xl shadow-2xs gap-1.5 cursor-pointer"
+                                    className="gap-1.5"
                                 >
                                     <Video className="w-3.5 h-3.5 text-indigo-600" />
                                     <span>Book PTM</span>

@@ -5,11 +5,9 @@ import {
     Dialog,
     DialogBody,
     DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogDescription,
     DialogFooter,
 } from "@/components/ui/dialog";
+import { ModalHeader } from "@/components/ui/modal-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -132,15 +130,12 @@ export default function NewApplicationDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-4xl max-h-[90vh] p-0 flex flex-col overflow-hidden rounded-2xl">
-                <DialogHeader className="px-6 py-4.5 border-b border-slate-100 dark:border-slate-800 shrink-0">
-                    <DialogTitle className="text-lg font-bold text-slate-900 dark:text-white">
-                        New Admission Application
-                    </DialogTitle>
-                    <DialogDescription className="text-xs text-slate-500">
-                        Register a new student application with personal, guardian, and placement details.
-                    </DialogDescription>
-                </DialogHeader>
+            <DialogContent className="max-w-4xl max-h-[90vh] p-0 flex flex-col overflow-hidden rounded-2xl" showCloseButton={false}>
+                <ModalHeader
+                    title="New Admission Application"
+                    subtitle="Register a new student application with personal, guardian, and placement details."
+                    onClose={() => onOpenChange(false)}
+                />
 
                 <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
                     <DialogBody className="flex-1 overflow-y-auto px-6 py-5 [scrollbar-width:thin] space-y-6">
@@ -391,7 +386,6 @@ export default function NewApplicationDialog({
                         <Button
                             type="submit"
                             disabled={createMutation.isPending || !level}
-                            className="bg-sky-600 hover:bg-sky-700 text-white font-semibold"
                         >
                             {createMutation.isPending && (
                                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />

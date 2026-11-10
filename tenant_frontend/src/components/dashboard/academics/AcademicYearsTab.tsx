@@ -24,11 +24,12 @@ import {
 } from "lucide-react";
 import {
     Dialog,
+    DialogBody,
     DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
+    DialogFooter,
 } from "@/components/ui/dialog";
+import { ModalHeader } from "@/components/ui/modal-header";
+import { FormGrid, FormFieldWrapper } from "@/components/ui/form-layout";
 import {
     Table,
     TableBody,
@@ -161,7 +162,7 @@ export default function AcademicYearsTab() {
                     </p>
                 </div>
                 {canCreate && (
-                    <Button onClick={handleOpenCreate} className="gap-2 bg-sky-600 hover:bg-sky-700 text-white">
+                    <Button onClick={handleOpenCreate} className="gap-2">
                         <Plus className="h-4 w-4" />
                         <span>Add Academic Year</span>
                     </Button>
@@ -175,7 +176,7 @@ export default function AcademicYearsTab() {
                     description="Create your first academic year session (e.g. 2025-2026) to manage class enrollments, fees, timetables, and exams."
                     action={
                         canCreate ? (
-                            <Button onClick={handleOpenCreate} className="gap-2 bg-sky-600 hover:bg-sky-700 text-white">
+                            <Button onClick={handleOpenCreate} className="gap-2">
                                 <Plus className="h-4 w-4" />
                                 <span>Create Academic Year</span>
                             </Button>
@@ -292,54 +293,55 @@ export default function AcademicYearsTab() {
 
             {/* Create / Edit Dialog */}
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>
-                            {editingYear ? "Edit Academic Year" : "New Academic Year"}
-                        </DialogTitle>
-                        <DialogDescription>
-                            {editingYear
+                <DialogContent className="max-w-md max-h-[90vh] p-0 flex flex-col overflow-hidden rounded-2xl" showCloseButton={false}>
+                    <ModalHeader
+                        icon={<Calendar className="w-5 h-5 text-sky-600" />}
+                        title={editingYear ? "Edit Academic Year" : "New Academic Year"}
+                        subtitle={
+                            editingYear
                                 ? "Update the academic session name or dates."
-                                : "Define a new academic session with start and end dates."}
-                        </DialogDescription>
-                    </DialogHeader>
-                    <form onSubmit={handleSubmit} className="space-y-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="year-name">Academic Year Name</Label>
-                            <Input
-                                id="year-name"
+                                : "Define a new academic session with start and end dates."
+                        }
+                        onClose={() => setIsDialogOpen(false)}
+                    />
+                    <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                        <DialogBody className="flex-1 overflow-y-auto px-6 py-5 [scrollbar-width:thin] space-y-4">
+                            <FormFieldWrapper
+                                label="Academic Year Name"
+                                htmlFor="year-name"
                                 required
-                                placeholder="e.g. 2025-2026"
-                                value={formData.name}
-                                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                            />
-                            <p className="text-[11px] text-slate-500">
-                                Descriptive name for reports, timetables, and student promotions.
-                            </p>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="start-date">Start Date</Label>
+                                helpText="e.g. 2026-2027"
+                            >
                                 <Input
-                                    id="start-date"
-                                    type="date"
+                                    id="year-name"
                                     required
-                                    value={formData.start_date}
-                                    onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+                                    placeholder="e.g. 2025-2026"
+                                    value={formData.name}
+                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                 />
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="end-date">End Date</Label>
-                                <Input
-                                    id="end-date"
-                                    type="date"
-                                    required
-                                    value={formData.end_date}
-                                    onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
-                                />
-                            </div>
-                        </div>
-                        <div className="flex justify-end gap-2 pt-2">
+                            </FormFieldWrapper>
+                            <FormGrid>
+                                <FormFieldWrapper label="Start Date" htmlFor="start-date" required>
+                                    <Input
+                                        id="start-date"
+                                        type="date"
+                                        required
+                                        value={formData.start_date}
+                                        onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+                                    />
+                                </FormFieldWrapper>
+                                <FormFieldWrapper label="End Date" htmlFor="end-date" required>
+                                    <Input
+                                        id="end-date"
+                                        type="date"
+                                        required
+                                        value={formData.end_date}
+                                        onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+                                    />
+                                </FormFieldWrapper>
+                            </FormGrid>
+                        </DialogBody>
+                        <DialogFooter className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-end gap-3 shrink-0">
                             <Button
                                 type="button"
                                 variant="outline"
@@ -350,7 +352,6 @@ export default function AcademicYearsTab() {
                             <Button
                                 type="submit"
                                 disabled={isCreating || isUpdating}
-                                className="bg-sky-600 hover:bg-sky-700 text-white"
                             >
                                 {isCreating || isUpdating
                                     ? "Saving..."
@@ -358,7 +359,7 @@ export default function AcademicYearsTab() {
                                     ? "Update Academic Year"
                                     : "Create Academic Year"}
                             </Button>
-                        </div>
+                        </DialogFooter>
                     </form>
                 </DialogContent>
             </Dialog>

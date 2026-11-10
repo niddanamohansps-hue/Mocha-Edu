@@ -4,6 +4,19 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableCellNumeric,
+    TableCellAction,
+    TableHead,
+    TableHeadNumeric,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
+import { TableShell } from "@/components/common/table/TableShell";
+import { Pagination } from "@/components/ui/pagination";
 import Unauthorized from "@/components/Unauthorized";
 import { LoadingState } from "@/components/feedback/LoadingState";
 import { EmptyState } from "@/components/feedback/EmptyState";
@@ -113,68 +126,74 @@ function Content({ canCall }: { canCall: boolean }) {
                 />
             ) : (
                 <>
-                    <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-                        <table className="w-full min-w-[48rem] text-sm">
-                            <thead className="border-b border-slate-200 text-left text-xs uppercase text-slate-500 dark:border-slate-800">
-                                <tr>
-                                    <th className="whitespace-nowrap px-4 py-2 sticky left-0 bg-white dark:bg-slate-900 z-10 border-r border-slate-100 dark:border-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]">Student</th>
-                                    <th className="whitespace-nowrap px-4 py-2 text-right">Outstanding</th>
-                                    <th className="whitespace-nowrap px-4 py-2">Oldest due</th>
-                                    <th className="whitespace-nowrap px-4 py-2">Parent or guardian</th>
-                                    <th className="whitespace-nowrap px-4 py-2">Last call</th>
-                                    {canCall && <th className="whitespace-nowrap px-4 py-2" />}
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                {data.results.map((row) => (
-                                    <tr key={row.student}>
-                                        <td className="px-4 py-2.5 sm:py-2 sticky left-0 bg-white dark:bg-slate-900 z-10 border-r border-slate-100 dark:border-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]">
-                                            <span className="font-medium text-slate-900 dark:text-white block truncate max-w-[130px] sm:max-w-none">{row.name}</span>
-                                            <span className="block text-xs text-slate-400 truncate max-w-[130px] sm:max-w-none">{row.enrollment_id}{row.level ? `, ${row.level}${row.section ? ` ${row.section}` : ""}` : ""}</span>
-                                        </td>
-                                        <td className="px-4 py-2 text-right">
-                                            <span className="font-semibold">{money(row.outstanding)}</span>
-                                            <span className="block text-xs text-slate-400">{row.fees} {row.fees === 1 ? "fee" : "fees"}</span>
-                                        </td>
-                                        <td className="px-4 py-2">
-                                            {row.oldest_due ? (
-                                                <>
-                                                    {row.oldest_due}
-                                                    <Badge variant={row.days_late > 60 ? "destructive" : "secondary"} className="ml-2">{row.days_late} days late</Badge>
-                                                </>
-                                            ) : <span className="text-xs text-slate-400">Not yet due</span>}
-                                        </td>
-                                        <td className="px-4 py-2.5 sm:py-2">
-                                            {row.guardian_name || row.guardian_phone ? (
-                                                <>
-                                                    {row.guardian_name}
-                                                    {row.guardian_phone && (
-                                                        <a className="inline-flex items-center py-1 text-xs sm:text-sm text-indigo-700 dark:text-indigo-400 font-medium underline active:text-indigo-900" href={`tel:${row.guardian_phone}`}>{row.guardian_phone}</a>
-                                                    )}
-                                                </>
-                                            ) : <span className="text-xs text-slate-400">No guardian on file</span>}
-                                        </td>
-                                        <td className="px-4 py-2.5 sm:py-2 text-xs">
+                <TableShell
+                    footer={
+                        data.count > 0 && (
+                            <Pagination
+                                page={page}
+                                pageSize={25}
+                                count={data.count}
+                                onPageChange={setPage}
+                            />
+                        )
+                    }
+                >
+                    <Table className="min-w-[48rem]">
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead className="sticky left-0 bg-white dark:bg-slate-900 z-10 border-r border-slate-100 dark:border-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)] pl-4">Student</TableHead>
+                                <TableHeadNumeric>Outstanding</TableHeadNumeric>
+                                <TableHead>Oldest due</TableHead>
+                                <TableHead>Parent or guardian</TableHead>
+                                <TableHead>Last call</TableHead>
+                                {canCall && <TableHead className="text-right pr-4">Action</TableHead>}
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {data.results.map((row) => (
+                                <TableRow key={row.student} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40">
+                                    <TableCell className="sticky left-0 bg-white dark:bg-slate-900 z-10 border-r border-slate-100 dark:border-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)] pl-4">
+                                        <span className="font-medium text-slate-900 dark:text-white block truncate max-w-[130px] sm:max-w-none">{row.name}</span>
+                                        <span className="block text-xs text-slate-400 truncate max-w-[130px] sm:max-w-none">{row.enrollment_id}{row.level ? `, ${row.level}${row.section ? ` ${row.section}` : ""}` : ""}</span>
+                                    </TableCell>
+                                    <TableCellNumeric>
+                                        <span className="font-semibold text-slate-900 dark:text-white">{money(row.outstanding)}</span>
+                                        <span className="block text-xs text-slate-400 font-normal">{row.fees} {row.fees === 1 ? "fee" : "fees"}</span>
+                                    </TableCellNumeric>
+                                    <TableCell>
+                                        {row.oldest_due ? (
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                <span className="font-mono text-xs text-slate-600 dark:text-slate-300">{row.oldest_due}</span>
+                                                <Badge variant={row.days_late > 60 ? "destructive" : "secondary"} className="text-[10px] font-semibold">{row.days_late}d late</Badge>
+                                            </div>
+                                        ) : <span className="text-xs text-slate-400">Not yet due</span>}
+                                    </TableCell>
+                                    <TableCell>
+                                        {row.guardian_name || row.guardian_phone ? (
+                                            <div>
+                                                <div className="font-medium text-xs text-slate-800 dark:text-slate-200">{row.guardian_name}</div>
+                                                {row.guardian_phone && (
+                                                    <a className="inline-flex items-center text-xs text-indigo-600 dark:text-indigo-400 font-medium hover:underline" href={`tel:${row.guardian_phone}`}>{row.guardian_phone}</a>
+                                                )}
+                                            </div>
+                                        ) : <span className="text-xs text-slate-400">No guardian on file</span>}
+                                    </TableCell>
+                                    <TableCell className="text-xs">
+                                        <div className="font-mono text-slate-600 dark:text-slate-300">
                                             {row.last_call_at ? new Date(row.last_call_at).toLocaleDateString() : <span className="text-slate-400">Never called</span>}
-                                            <PromiseBadge promise={row.promise} />
-                                        </td>
-                                        {canCall && (
-                                            <td className="px-4 py-2.5 sm:py-2 text-right">
-                                                <Button size="sm" variant="outline" className="min-h-[38px] sm:min-h-0 font-medium" onClick={() => setCalling(row)}>Record call</Button>
-                                            </td>
-                                        )}
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                    <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-slate-500">
-                        <span>{data.count} students, page {page} of {pages}</span>
-                        <span className="flex gap-2">
-                            <Button size="sm" variant="outline" className="min-h-[38px] sm:min-h-0 px-4" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</Button>
-                            <Button size="sm" variant="outline" className="min-h-[38px] sm:min-h-0 px-4" disabled={page >= pages} onClick={() => setPage(page + 1)}>Next</Button>
-                        </span>
-                    </div>
+                                        </div>
+                                        <PromiseBadge promise={row.promise} />
+                                    </TableCell>
+                                    {canCall && (
+                                        <TableCellAction className="pr-4">
+                                            <Button size="sm" variant="outline" className="h-8 text-xs font-semibold" onClick={() => setCalling(row)}>Record call</Button>
+                                        </TableCellAction>
+                                    )}
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </TableShell>
                 </>
             )}
             {calling && <CallDialog row={calling} onClose={() => setCalling(null)} />}

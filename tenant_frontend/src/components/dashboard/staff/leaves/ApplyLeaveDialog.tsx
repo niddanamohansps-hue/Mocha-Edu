@@ -239,7 +239,7 @@ export function ApplyLeaveDialog({ open, onOpenChange }: ApplyLeaveDialogProps) 
                         <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                             Cancel
                         </Button>
-                        <Button type="submit" disabled={applyMutation.isPending} className="bg-sky-600 hover:bg-sky-700 text-white min-w-[120px]">
+                        <Button type="submit" disabled={applyMutation.isPending} className="min-w-[120px]">
                             {applyMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                             Submit Application
                         </Button>

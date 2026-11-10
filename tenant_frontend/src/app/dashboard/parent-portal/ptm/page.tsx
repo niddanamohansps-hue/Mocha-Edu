@@ -29,6 +29,15 @@ import { Card, CardContent } from "@/components/ui/card";
 import { LoadingState } from "@/components/feedback/LoadingState";
 import { EmptyState } from "@/components/feedback/EmptyState";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import {
+    Dialog,
+    DialogContent,
+    DialogBody,
+    DialogFooter,
+} from "@/components/ui/dialog";
+import { ModalHeader } from "@/components/ui/modal-header";
+import { FormFieldWrapper } from "@/components/ui/form-layout";
 
 export default function ParentPTMPage() {
     const { data: children = [], isLoading: loadingChildren } = useLinkedChildren();
@@ -386,63 +395,53 @@ export default function ParentPTMPage() {
             )}
 
             {/* Booking Modal */}
-            {bookingSlot && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-                    <div className="bg-white dark:bg-slate-900 rounded-xl max-w-md w-full p-5 space-y-4 shadow-xl border border-slate-200 dark:border-slate-800">
-                        <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-                            <h3 className="font-semibold text-slate-900 dark:text-white">
-                                Confirm Meeting Booking
-                            </h3>
-                            <button
-                                onClick={() => setBookingSlot(null)}
-                                className="text-slate-400 hover:text-slate-600"
-                            >
-                                <X className="h-5 w-5" />
-                            </button>
-                        </div>
+            <Dialog open={!!bookingSlot} onOpenChange={(open) => !open && setBookingSlot(null)}>
+                <DialogContent className="max-w-md max-h-[90vh] p-0 flex flex-col overflow-hidden rounded-2xl" showCloseButton={false}>
+                    <ModalHeader
+                        icon={<CalendarCheck className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />}
+                        title="Confirm Meeting Booking"
+                        subtitle="Parent-Teacher Meeting Reservation"
+                        onClose={() => setBookingSlot(null)}
+                    />
 
-                        <div className="space-y-2 text-xs text-slate-600 dark:text-slate-400">
-                            <div className="p-3 bg-indigo-50/60 dark:bg-indigo-950/40 rounded-lg space-y-1">
+                    <DialogBody className="flex-1 overflow-y-auto px-6 py-5 [scrollbar-width:thin] space-y-4">
+                        {bookingSlot && (
+                            <div className="p-3.5 bg-indigo-50/60 dark:bg-indigo-950/40 rounded-xl border border-indigo-100/70 dark:border-indigo-900/50 space-y-1.5 text-xs">
                                 <p><strong className="text-slate-800 dark:text-slate-200">Teacher:</strong> {bookingSlot.teacherName}</p>
                                 <p><strong className="text-slate-800 dark:text-slate-200">Time Slot:</strong> {bookingSlot.time}</p>
                                 <p><strong className="text-slate-800 dark:text-slate-200">Student:</strong> {selectedChild?.full_name}</p>
                             </div>
+                        )}
 
-                            <div className="space-y-1 pt-1">
-                                <label className="font-medium text-slate-700 dark:text-slate-300">
-                                    Discussion Points / Questions (Optional):
-                                </label>
-                                <textarea
-                                    value={parentNotes}
-                                    onChange={(e) => setParentNotes(e.target.value)}
-                                    placeholder="e.g. Questions regarding midterm exam scores, classroom engagement, homework..."
-                                    rows={3}
-                                    className="w-full text-xs p-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                />
-                            </div>
-                        </div>
+                        <FormFieldWrapper label="Discussion Points / Questions (Optional)" htmlFor="parent-notes">
+                            <Textarea
+                                id="parent-notes"
+                                value={parentNotes}
+                                onChange={(e) => setParentNotes(e.target.value)}
+                                placeholder="e.g. Questions regarding midterm exam scores, classroom engagement, homework..."
+                                rows={3}
+                            />
+                        </FormFieldWrapper>
+                    </DialogBody>
 
-                        <div className="flex justify-end gap-2 pt-2">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setBookingSlot(null)}
-                                className="text-xs"
-                            >
-                                Cancel
-                            </Button>
-                            <Button
-                                size="sm"
-                                onClick={handleConfirmBooking}
-                                disabled={bookMutation.isPending}
-                                className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white"
-                            >
-                                {bookMutation.isPending ? "Booking..." : "Confirm & Book Slot"}
-                            </Button>
-                        </div>
-                    </div>
-                </div>
-            )}
+                    <DialogFooter className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-end gap-3 shrink-0">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setBookingSlot(null)}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            type="button"
+                            onClick={handleConfirmBooking}
+                            disabled={bookMutation.isPending}
+                        >
+                            {bookMutation.isPending ? "Booking..." : "Confirm & Book Slot"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

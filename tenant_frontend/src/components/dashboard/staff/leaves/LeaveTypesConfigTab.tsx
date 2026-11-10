@@ -29,7 +29,9 @@ import {
     TableHead,
     TableHeader,
     TableRow,
+    TableCellAction,
 } from "@/components/ui/table";
+import { TableShell } from "@/components/common/table/TableShell";
 import { Plus, Edit2, Ban, CheckCircle2, Settings, Loader2 } from "lucide-react";
 
 export function LeaveTypesConfigTab() {
@@ -112,18 +114,18 @@ export function LeaveTypesConfigTab() {
                 </Button>
             </div>
 
-            <Card className="border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+            <TableShell>
                 <Table>
-                    <TableHeader className="bg-slate-50 dark:bg-slate-900">
+                    <TableHeader>
                         <TableRow>
-                            <TableHead>Code</TableHead>
+                            <TableHead className="pl-4">Code</TableHead>
                             <TableHead>Leave Category</TableHead>
                             <TableHead>Days per year</TableHead>
                             <TableHead>Type</TableHead>
                             <TableHead>Document</TableHead>
                             <TableHead>Most days in a row</TableHead>
                             <TableHead>Status</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
+                            <TableHead className="text-right pr-4">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -188,7 +190,7 @@ export function LeaveTypesConfigTab() {
                         )}
                     </TableBody>
                 </Table>
-            </Card>
+            </TableShell>
 
             {/* Create/Edit Modal */}
             <Dialog open={modalOpen} onOpenChange={setModalOpen}>

@@ -222,7 +222,7 @@ export function AddApplicantDialog({
                     <Button
                         onClick={submit}
                         disabled={!opening || !values.first_name?.trim() || !values.last_name?.trim() || create.isPending}
-                        className="bg-sky-600 hover:bg-sky-700 text-white min-w-[120px]"
+                        className="min-w-[120px]"
                     >
                         {create.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                         Add Applicant

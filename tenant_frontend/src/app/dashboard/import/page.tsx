@@ -163,7 +163,7 @@ function ImportPanel({ config }: { config: KindConfig }) {
             const url = URL.createObjectURL(response.data as Blob);
             const link = document.createElement("a");
             link.href = url;
-            link.download = `school-sansar-${kind}-template.xlsx`;
+            link.download = `edusekai-${kind}-template.xlsx`;
             link.click();
             URL.revokeObjectURL(url);
             toast.success("Excel template downloaded.");
@@ -240,7 +240,6 @@ function ImportPanel({ config }: { config: KindConfig }) {
                         size="sm"
                         onClick={downloadTemplate}
                         disabled={busy !== null}
-                        className="bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700 font-medium text-xs shadow-sm h-9"
                     >
                         {busy === "template" ? (
                             <Loader2 className="h-4 w-4 mr-2 animate-spin text-sky-600" />

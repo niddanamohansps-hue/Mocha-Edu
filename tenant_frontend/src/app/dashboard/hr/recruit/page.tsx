@@ -6,7 +6,18 @@ import { Briefcase, Plus, School, UserPlus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeadNumeric,
+    TableHeader,
+    TableRow,
+    TableCellNumeric,
+    TableCellAction,
+} from "@/components/ui/table";
+import { TableShell } from "@/components/common/table/TableShell";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AddApplicantDialog } from "@/components/recruitment/AddApplicantDialog";
 import { ApplicantDialog } from "@/components/recruitment/ApplicantDialog";
@@ -167,30 +178,32 @@ function Pipeline({ canManage, canHire }: { canManage: boolean; canHire: boolean
                     ) : applicants.length === 0 ? (
                         <EmptyState title="No applicants" description="Applicants you add will appear here." />
                     ) : (
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Name</TableHead>
-                                    <TableHead>Opening</TableHead>
-                                    <TableHead>Experience</TableHead>
-                                    <TableHead>Score</TableHead>
-                                    <TableHead>Stage</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {applicants.map((a) => (
-                                    <TableRow key={a.id} className="cursor-pointer" onClick={() => setSelectedId(a.id)}>
-                                        <TableCell className="font-medium">{a.full_name}</TableCell>
-                                        <TableCell>{a.opening_title}</TableCell>
-                                        <TableCell>{a.experience_years} yrs</TableCell>
-                                        <TableCell>{a.average_score ?? "-"}</TableCell>
-                                        <TableCell>
-                                            <Badge variant="outline">{STAGES.find((s) => s.value === a.stage)?.label}</Badge>
-                                        </TableCell>
+                        <TableShell>
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead className="pl-4">Name</TableHead>
+                                        <TableHead>Opening</TableHead>
+                                        <TableHeadNumeric>Experience</TableHeadNumeric>
+                                        <TableHeadNumeric>Score</TableHeadNumeric>
+                                        <TableHead className="pr-4">Stage</TableHead>
                                     </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
+                                </TableHeader>
+                                <TableBody>
+                                    {applicants.map((a) => (
+                                        <TableRow key={a.id} className="cursor-pointer hover:bg-slate-50/70 dark:hover:bg-slate-800/40" onClick={() => setSelectedId(a.id)}>
+                                            <TableCell className="font-medium pl-4">{a.full_name}</TableCell>
+                                            <TableCell>{a.opening_title}</TableCell>
+                                            <TableCellNumeric>{a.experience_years} yrs</TableCellNumeric>
+                                            <TableCellNumeric>{a.average_score ?? "—"}</TableCellNumeric>
+                                            <TableCell className="pr-4">
+                                                <Badge variant="outline" className="text-xs">{STAGES.find((s) => s.value === a.stage)?.label}</Badge>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </TableShell>
                     )}
                 </TabsContent>
 
@@ -200,64 +213,68 @@ function Pipeline({ canManage, canHire }: { canManage: boolean; canHire: boolean
                     ) : openings.length === 0 ? (
                         <EmptyState title="No openings" description="Create an opening to start receiving applicants." />
                     ) : (
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Title</TableHead>
-                                    <TableHead>Type</TableHead>
-                                    <TableHead>Vacancies</TableHead>
-                                    <TableHead>Applicants</TableHead>
-                                    <TableHead>Last date</TableHead>
-                                    <TableHead>Status</TableHead>
-                                    {canManage && <TableHead />}
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {openings.map((o) => (
-                                    <TableRow key={o.id}>
-                                        <TableCell className="font-medium">{o.title}</TableCell>
-                                        <TableCell>{o.position_type === "instructor" ? "Instructor" : "Staff"}</TableCell>
-                                        <TableCell>
-                                            {o.hired_count}/{o.vacancies} filled
-                                        </TableCell>
-                                        <TableCell>{o.applicant_count}</TableCell>
-                                        <TableCell>{o.last_date ?? "-"}</TableCell>
-                                        <TableCell>
-                                            <Badge variant="outline">{o.status}</Badge>
-                                        </TableCell>
-                                        {canManage && (
-                                            <TableCell className="space-x-2 text-right">
-                                                {o.status !== "closed" && (
-                                                    <Button size="sm" variant="ghost" onClick={() => setEditing(o)}>
-                                                        Edit
-                                                    </Button>
-                                                )}
-                                                {o.status === "draft" && (
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        disabled={openingAction.isPending}
-                                                        onClick={() => openingAction.mutate({ id: o.id, action: "publish" })}
-                                                    >
-                                                        Publish
-                                                    </Button>
-                                                )}
-                                                {o.status === "open" && (
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        disabled={openingAction.isPending}
-                                                        onClick={() => openingAction.mutate({ id: o.id, action: "close" })}
-                                                    >
-                                                        Close
-                                                    </Button>
-                                                )}
-                                            </TableCell>
-                                        )}
+                        <TableShell>
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead className="pl-4">Title</TableHead>
+                                        <TableHead>Type</TableHead>
+                                        <TableHead>Vacancies</TableHead>
+                                        <TableHeadNumeric>Applicants</TableHeadNumeric>
+                                        <TableHead>Last date</TableHead>
+                                        <TableHead>Status</TableHead>
+                                        {canManage && <TableHead className="text-right pr-4">Actions</TableHead>}
                                     </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
+                                </TableHeader>
+                                <TableBody>
+                                    {openings.map((o) => (
+                                        <TableRow key={o.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40">
+                                            <TableCell className="font-medium pl-4">{o.title}</TableCell>
+                                            <TableCell>{o.position_type === "instructor" ? "Instructor" : "Staff"}</TableCell>
+                                            <TableCell>
+                                                {o.hired_count}/{o.vacancies} filled
+                                            </TableCell>
+                                            <TableCellNumeric>{o.applicant_count}</TableCellNumeric>
+                                            <TableCell>{o.last_date ?? "—"}</TableCell>
+                                            <TableCell>
+                                                <Badge variant="outline" className="text-xs">{o.status}</Badge>
+                                            </TableCell>
+                                            {canManage && (
+                                                <TableCellAction className="space-x-2 pr-4">
+                                                    {o.status !== "closed" && (
+                                                        <Button size="sm" variant="ghost" className="h-8 text-xs font-semibold" onClick={() => setEditing(o)}>
+                                                            Edit
+                                                        </Button>
+                                                    )}
+                                                    {o.status === "draft" && (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="h-8 text-xs font-semibold"
+                                                            disabled={openingAction.isPending}
+                                                            onClick={() => openingAction.mutate({ id: o.id, action: "publish" })}
+                                                        >
+                                                            Publish
+                                                        </Button>
+                                                    )}
+                                                    {o.status === "open" && (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="h-8 text-xs font-semibold"
+                                                            disabled={openingAction.isPending}
+                                                            onClick={() => openingAction.mutate({ id: o.id, action: "close" })}
+                                                        >
+                                                            Close
+                                                        </Button>
+                                                    )}
+                                                </TableCellAction>
+                                            )}
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </TableShell>
                     )}
                 </TabsContent>
             </Tabs>

@@ -5,11 +5,9 @@ import {
     Dialog,
     DialogBody,
     DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogDescription,
     DialogFooter,
 } from "@/components/ui/dialog";
+import { ModalHeader } from "@/components/ui/modal-header";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -73,15 +71,12 @@ export default function DecisionDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-lg max-h-[90vh] p-0 flex flex-col overflow-hidden rounded-2xl">
-                <DialogHeader className="px-6 py-4.5 border-b border-slate-100 dark:border-slate-800 shrink-0">
-                    <DialogTitle className="text-lg font-bold text-slate-900 dark:text-white">
-                        Record Admission Decision
-                    </DialogTitle>
-                    <DialogDescription className="text-xs text-slate-500">
-                        Select admission status, capture mandatory rejection reasons or conditional terms.
-                    </DialogDescription>
-                </DialogHeader>
+            <DialogContent className="max-w-lg max-h-[90vh] p-0 flex flex-col overflow-hidden rounded-2xl" showCloseButton={false}>
+                <ModalHeader
+                    title="Record Admission Decision"
+                    subtitle="Select admission status, capture mandatory rejection reasons or conditional terms."
+                    onClose={() => onOpenChange(false)}
+                />
 
                 <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
                     <DialogBody className="flex-1 overflow-y-auto px-6 py-5 [scrollbar-width:thin] space-y-4">

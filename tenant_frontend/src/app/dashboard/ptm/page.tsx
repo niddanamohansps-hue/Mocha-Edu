@@ -41,8 +41,28 @@ import { useAcademicYears, useAcademicLevels, useSections } from "@/hooks/useAca
 import { usePermissions } from "@/providers/PermissionProvider";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+    Dialog,
+    DialogContent,
+    DialogBody,
+    DialogFooter,
+} from "@/components/ui/dialog";
+import { ModalHeader } from "@/components/ui/modal-header";
+import { FormGrid, FormGrid3, FormFieldWrapper } from "@/components/ui/form-layout";
 import { LoadingState } from "@/components/feedback/LoadingState";
 import { EmptyState } from "@/components/feedback/EmptyState";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+    TableCellAction,
+} from "@/components/ui/table";
+import { TableShell } from "@/components/common/table/TableShell";
 
 export default function PTMAdminPage() {
     const { can, isOwner } = usePermissions();
@@ -521,29 +541,28 @@ export default function PTMAdminPage() {
                             description="Slots may not have been generated yet for this session, or no slots match the active filter."
                         />
                     ) : (
-                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left border-collapse text-xs">
-                                    <thead>
-                                        <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 font-semibold uppercase">
-                                            <th className="py-3 px-4">Time Slot</th>
-                                            <th className="py-3 px-4">Faculty / Teacher</th>
-                                            <th className="py-3 px-4">Student & Class</th>
-                                            <th className="py-3 px-4">Parent Details</th>
-                                            <th className="py-3 px-4">Status</th>
-                                            <th className="py-3 px-4">Discussion Agenda</th>
-                                            <th className="py-3 px-4 text-right">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                        {filteredRosterSlots.map((slot) => {
-                                            const isBooked = slot.status === "booked" || slot.status === "completed";
+                        <TableShell>
+                            <Table className="min-w-[48rem]">
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead className="pl-4">Time Slot</TableHead>
+                                        <TableHead>Faculty / Teacher</TableHead>
+                                        <TableHead>Student & Class</TableHead>
+                                        <TableHead>Parent Details</TableHead>
+                                        <TableHead>Status</TableHead>
+                                        <TableHead>Discussion Agenda</TableHead>
+                                        <TableHead className="text-right pr-4">Actions</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {filteredRosterSlots.map((slot) => {
+                                        const isBooked = slot.status === "booked" || slot.status === "completed";
 
-                                            return (
-                                                <tr key={slot.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition">
-                                                    <td className="py-3 px-4 font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">
-                                                        {slot.start_time.slice(0, 5)} - {slot.end_time.slice(0, 5)}
-                                                    </td>
+                                        return (
+                                            <TableRow key={slot.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40">
+                                                <TableCell className="pl-4 font-mono font-semibold text-xs text-slate-800 dark:text-slate-200 whitespace-nowrap">
+                                                    {slot.start_time.slice(0, 5)} - {slot.end_time.slice(0, 5)}
+                                                </TableCell>
                                                     <td className="py-3 px-4">
                                                         <p className="font-semibold text-slate-900 dark:text-white">
                                                             {slot.teacher_detail?.full_name || "Teacher"}
@@ -646,14 +665,13 @@ export default function PTMAdminPage() {
                                                             )}
                                                         </div>
                                                     </td>
-                                                </tr>
+                                                </TableRow>
                                             );
                                         })}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    )}
+                                    </TableBody>
+                                </Table>
+                            </TableShell>
+                        )}
                 </div>
             )}
 
@@ -768,332 +786,288 @@ export default function PTMAdminPage() {
             )}
 
             {/* CREATE PTM SESSION MODAL */}
-            {isCreateModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-                    <div className="bg-white dark:bg-slate-900 rounded-xl max-w-2xl w-full p-6 space-y-4 shadow-xl border border-slate-200 dark:border-slate-800 max-h-[90vh] overflow-y-auto">
-                        <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-                            <div>
-                                <h3 className="font-bold text-slate-900 dark:text-white text-base">
-                                    Create New PTM Event
-                                </h3>
-                                <p className="text-xs text-slate-500">
-                                    Define the meeting schedule, duration, and participating teachers.
-                                </p>
-                            </div>
-                            <button
-                                onClick={() => setIsCreateModalOpen(false)}
-                                className="text-slate-400 hover:text-slate-600"
-                            >
-                                <X className="h-5 w-5" />
-                            </button>
-                        </div>
+            <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
+                <DialogContent className="max-w-2xl max-h-[90vh] p-0 flex flex-col overflow-hidden rounded-2xl" showCloseButton={false}>
+                    <ModalHeader
+                        icon={<CalendarCheck className="w-5 h-5 text-indigo-600" />}
+                        title="Create New PTM Event"
+                        subtitle="Define the meeting schedule, duration, and participating teachers."
+                        onClose={() => setIsCreateModalOpen(false)}
+                    />
 
-                        <form onSubmit={handleCreateSession} className="space-y-4 text-xs">
-                            <div className="space-y-1">
-                                <label className="font-semibold text-slate-700 dark:text-slate-300">
-                                    Event Title *
-                                </label>
-                                <input
+                    <form onSubmit={handleCreateSession} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                        <DialogBody className="flex-1 overflow-y-auto px-6 py-5 [scrollbar-width:thin] space-y-4">
+                            <FormFieldWrapper label="Event Title" htmlFor="ptm-title" required>
+                                <Input
+                                    id="ptm-title"
                                     type="text"
                                     required
                                     placeholder="e.g. Term 1 Mid-Term PTM, Board Class Review..."
                                     value={newTitle}
                                     onChange={(e) => setNewTitle(e.target.value)}
-                                    className="w-full text-xs p-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
                                 />
-                            </div>
+                            </FormFieldWrapper>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <div className="space-y-1">
-                                    <label className="font-semibold text-slate-700 dark:text-slate-300">
-                                        Academic Year
-                                    </label>
+                            <FormGrid>
+                                <FormFieldWrapper label="Academic Year" htmlFor="ptm-ay">
                                     <select
+                                        id="ptm-ay"
                                         value={newAcademicYear}
                                         onChange={(e) => setNewAcademicYear(e.target.value)}
-                                        className="w-full text-xs p-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                                        className="flex h-9 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs sm:text-sm shadow-2xs transition-colors duration-150 focus-visible:border-sky-500 focus-visible:ring-2 focus-visible:ring-sky-500/20 dark:focus-visible:ring-sky-400/25 outline-none hover:border-slate-300 dark:hover:border-slate-700"
                                     >
                                         <option value="">Select Academic Year</option>
                                         {academicYears.map((ay) => (
                                             <option key={ay.id} value={ay.id}>{ay.name}</option>
                                         ))}
                                     </select>
-                                </div>
+                                </FormFieldWrapper>
 
-                                <div className="space-y-1">
-                                    <label className="font-semibold text-slate-700 dark:text-slate-300">
-                                        Target Grade / Level (Optional)
-                                    </label>
+                                <FormFieldWrapper label="Target Grade / Level (Optional)" htmlFor="ptm-level">
                                     <select
+                                        id="ptm-level"
                                         value={newLevel}
                                         onChange={(e) => setNewLevel(e.target.value)}
-                                        className="w-full text-xs p-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                                        className="flex h-9 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs sm:text-sm shadow-2xs transition-colors duration-150 focus-visible:border-sky-500 focus-visible:ring-2 focus-visible:ring-sky-500/20 dark:focus-visible:ring-sky-400/25 outline-none hover:border-slate-300 dark:hover:border-slate-700"
                                     >
                                         <option value="">Open to All Grades</option>
                                         {levels.map((lvl) => (
                                             <option key={lvl.id} value={lvl.id}>{lvl.name}</option>
                                         ))}
                                     </select>
-                                </div>
-                            </div>
+                                </FormFieldWrapper>
+                            </FormGrid>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                <div className="space-y-1">
-                                    <label className="font-semibold text-slate-700 dark:text-slate-300">
-                                        Meeting Date *
-                                    </label>
-                                    <input
+                            <FormGrid3>
+                                <FormFieldWrapper label="Meeting Date" htmlFor="ptm-date" required>
+                                    <Input
+                                        id="ptm-date"
                                         type="date"
                                         required
                                         value={newMeetingDate}
                                         onChange={(e) => setNewMeetingDate(e.target.value)}
-                                        className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                                     />
-                                </div>
+                                </FormFieldWrapper>
 
-                                <div className="space-y-1">
-                                    <label className="font-semibold text-slate-700 dark:text-slate-300">
-                                        Start Time *
-                                    </label>
-                                    <input
+                                <FormFieldWrapper label="Start Time" htmlFor="ptm-start" required>
+                                    <Input
+                                        id="ptm-start"
                                         type="time"
                                         required
                                         value={newStartTime}
                                         onChange={(e) => setNewStartTime(e.target.value)}
-                                        className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                                     />
-                                </div>
+                                </FormFieldWrapper>
 
-                                <div className="space-y-1">
-                                    <label className="font-semibold text-slate-700 dark:text-slate-300">
-                                        End Time *
-                                    </label>
-                                    <input
+                                <FormFieldWrapper label="End Time" htmlFor="ptm-end" required>
+                                    <Input
+                                        id="ptm-end"
                                         type="time"
                                         required
                                         value={newEndTime}
                                         onChange={(e) => setNewEndTime(e.target.value)}
-                                        className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                                     />
-                                </div>
-                            </div>
+                                </FormFieldWrapper>
+                            </FormGrid3>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <div className="space-y-1">
-                                    <label className="font-semibold text-slate-700 dark:text-slate-300">
-                                        Slot Duration (Minutes)
-                                    </label>
+                            <FormGrid>
+                                <FormFieldWrapper label="Slot Duration" htmlFor="ptm-dur">
                                     <select
+                                        id="ptm-dur"
                                         value={newSlotDuration}
                                         onChange={(e) => setNewSlotDuration(Number(e.target.value))}
-                                        className="w-full text-xs p-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                                        className="flex h-9 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs sm:text-sm shadow-2xs transition-colors duration-150 focus-visible:border-sky-500 focus-visible:ring-2 focus-visible:ring-sky-500/20 dark:focus-visible:ring-sky-400/25 outline-none hover:border-slate-300 dark:hover:border-slate-700"
                                     >
                                         <option value={10}>10 Minutes per parent</option>
                                         <option value={15}>15 Minutes per parent</option>
                                         <option value={20}>20 Minutes per parent</option>
                                         <option value={30}>30 Minutes per parent</option>
                                     </select>
-                                </div>
+                                </FormFieldWrapper>
 
-                                <div className="space-y-1">
-                                    <label className="font-semibold text-slate-700 dark:text-slate-300">
-                                        Buffer Gap Between Slots
-                                    </label>
+                                <FormFieldWrapper label="Buffer Gap" htmlFor="ptm-buf">
                                     <select
+                                        id="ptm-buf"
                                         value={newBufferMinutes}
                                         onChange={(e) => setNewBufferMinutes(Number(e.target.value))}
-                                        className="w-full text-xs p-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                                        className="flex h-9 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs sm:text-sm shadow-2xs transition-colors duration-150 focus-visible:border-sky-500 focus-visible:ring-2 focus-visible:ring-sky-500/20 dark:focus-visible:ring-sky-400/25 outline-none hover:border-slate-300 dark:hover:border-slate-700"
                                     >
                                         <option value={0}>0 Minutes (Back-to-back)</option>
                                         <option value={5}>5 Minutes break between slots</option>
                                         <option value={10}>10 Minutes break between slots</option>
                                     </select>
-                                </div>
-                            </div>
+                                </FormFieldWrapper>
+                            </FormGrid>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <div className="space-y-1">
-                                    <label className="font-semibold text-slate-700 dark:text-slate-300">
-                                        Meeting Format
-                                    </label>
+                            <FormGrid>
+                                <FormFieldWrapper label="Meeting Format" htmlFor="ptm-mode">
                                     <select
+                                        id="ptm-mode"
                                         value={newMode}
                                         onChange={(e) => setNewMode(e.target.value as "in_person" | "online")}
-                                        className="w-full text-xs p-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                                        className="flex h-9 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs sm:text-sm shadow-2xs transition-colors duration-150 focus-visible:border-sky-500 focus-visible:ring-2 focus-visible:ring-sky-500/20 dark:focus-visible:ring-sky-400/25 outline-none hover:border-slate-300 dark:hover:border-slate-700"
                                     >
                                         <option value="in_person">In-Person (On Campus)</option>
                                         <option value="online">Online / Virtual Video</option>
                                     </select>
-                                </div>
+                                </FormFieldWrapper>
 
-                                <div className="space-y-1">
-                                    <label className="font-semibold text-slate-700 dark:text-slate-300">
-                                        {newMode === "online" ? "Meeting Link / URL" : "Campus Location / Room Numbers"}
-                                    </label>
-                                    <input
+                                <FormFieldWrapper
+                                    label={newMode === "online" ? "Meeting Link / URL" : "Campus Location / Room Numbers"}
+                                    htmlFor="ptm-loc"
+                                >
+                                    <Input
+                                        id="ptm-loc"
                                         type="text"
                                         placeholder={newMode === "online" ? "https://meet.google.com/..." : "e.g. Senior Block Rooms 101-105"}
                                         value={newLocationOrUrl}
                                         onChange={(e) => setNewLocationOrUrl(e.target.value)}
-                                        className="w-full text-xs p-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                                     />
-                                </div>
-                            </div>
+                                </FormFieldWrapper>
+                            </FormGrid>
 
                             {/* Teachers multi-select */}
-                            <div className="space-y-1.5">
-                                <label className="font-semibold text-slate-700 dark:text-slate-300 flex justify-between">
-                                    <span>Participating Teachers ({newSelectedTeachers.length} selected) *</span>
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            if (newSelectedTeachers.length === staffMembers.length) {
-                                                setNewSelectedTeachers([]);
-                                            } else {
-                                                setNewSelectedTeachers(staffMembers.map((s) => s.id));
-                                            }
-                                        }}
-                                        className="text-indigo-600 hover:underline font-normal"
-                                    >
-                                        {newSelectedTeachers.length === staffMembers.length ? "Deselect All" : "Select All Faculty"}
-                                    </button>
-                                </label>
-                                <div className="max-h-36 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg p-2 grid grid-cols-1 sm:grid-cols-2 gap-1.5 bg-slate-50/50 dark:bg-slate-800/30">
-                                    {staffMembers.map((staff) => {
-                                        const isChecked = newSelectedTeachers.includes(staff.id);
-                                        return (
-                                            <label
-                                                key={staff.id}
-                                                className="flex items-center gap-2 p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer text-slate-800 dark:text-slate-200"
-                                            >
-                                                <input
-                                                    type="checkbox"
-                                                    checked={isChecked}
-                                                    onChange={(e) => {
-                                                        if (e.target.checked) {
-                                                            setNewSelectedTeachers([...newSelectedTeachers, staff.id]);
-                                                        } else {
-                                                            setNewSelectedTeachers(newSelectedTeachers.filter((id) => id !== staff.id));
-                                                        }
-                                                    }}
-                                                    className="rounded border-slate-300 text-indigo-600"
-                                                />
-                                                <span className="truncate">
-                                                    {staff.profile_details?.first_name} {staff.profile_details?.last_name} ({staff.designation})
-                                                </span>
-                                            </label>
-                                        );
-                                    })}
+                            <FormFieldWrapper
+                                label={`Participating Teachers (${newSelectedTeachers.length} selected)`}
+                                required
+                                helpText="Faculty available for slot bookings"
+                            >
+                                <div className="space-y-1.5">
+                                    <div className="flex justify-end">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                if (newSelectedTeachers.length === staffMembers.length) {
+                                                    setNewSelectedTeachers([]);
+                                                } else {
+                                                    setNewSelectedTeachers(staffMembers.map((s) => s.id));
+                                                }
+                                            }}
+                                            className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium cursor-pointer"
+                                        >
+                                            {newSelectedTeachers.length === staffMembers.length ? "Deselect All" : "Select All Faculty"}
+                                        </button>
+                                    </div>
+                                    <div className="max-h-36 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg p-2.5 grid grid-cols-1 sm:grid-cols-2 gap-2 bg-slate-50/50 dark:bg-slate-800/30 [scrollbar-width:thin]">
+                                        {staffMembers.map((staff) => {
+                                            const isChecked = newSelectedTeachers.includes(staff.id);
+                                            return (
+                                                <label
+                                                    key={staff.id}
+                                                    className="flex items-center gap-2 p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800/70 cursor-pointer text-slate-800 dark:text-slate-200 text-xs"
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isChecked}
+                                                        onChange={(e) => {
+                                                            if (e.target.checked) {
+                                                                setNewSelectedTeachers([...newSelectedTeachers, staff.id]);
+                                                            } else {
+                                                                setNewSelectedTeachers(newSelectedTeachers.filter((id) => id !== staff.id));
+                                                            }
+                                                        }}
+                                                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                                    />
+                                                    <span className="truncate">
+                                                        {staff.profile_details?.first_name} {staff.profile_details?.last_name} ({staff.designation})
+                                                    </span>
+                                                </label>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
-                            </div>
+                            </FormFieldWrapper>
 
-                            <div className="space-y-1">
-                                <label className="font-semibold text-slate-700 dark:text-slate-300">
-                                    Instructions for Parents
-                                </label>
-                                <textarea
+                            <FormFieldWrapper label="Instructions for Parents" htmlFor="ptm-inst">
+                                <Textarea
+                                    id="ptm-inst"
                                     rows={2}
                                     placeholder="e.g. Please be present 5 minutes before your time slot. Discussion duration is strictly observed."
                                     value={newInstructions}
                                     onChange={(e) => setNewInstructions(e.target.value)}
-                                    className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                                 />
-                            </div>
+                            </FormFieldWrapper>
+                        </DialogBody>
 
-                            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => setIsCreateModalOpen(false)}
-                                    className="text-xs"
-                                >
-                                    Cancel
-                                </Button>
-                                <Button
-                                    type="submit"
-                                    disabled={createSessionMutation.isPending || newSelectedTeachers.length === 0}
-                                    className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white"
-                                >
-                                    {createSessionMutation.isPending ? "Creating..." : "Save PTM Session"}
-                                </Button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
+                        <DialogFooter className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-end gap-3 shrink-0">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setIsCreateModalOpen(false)}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                type="submit"
+                                disabled={createSessionMutation.isPending || newSelectedTeachers.length === 0}
+                            >
+                                {createSessionMutation.isPending ? "Creating..." : "Save PTM Session"}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
 
             {/* FEEDBACK & MEETING NOTES MODAL */}
-            {feedbackModalSlot && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-                    <div className="bg-white dark:bg-slate-900 rounded-xl max-w-lg w-full p-5 space-y-4 shadow-xl border border-slate-200 dark:border-slate-800">
-                        <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-                            <h3 className="font-semibold text-slate-900 dark:text-white">
-                                Record Meeting Notes & Attendance
-                            </h3>
-                            <button
-                                onClick={() => setFeedbackModalSlot(null)}
-                                className="text-slate-400 hover:text-slate-600"
-                            >
-                                <X className="h-5 w-5" />
-                            </button>
-                        </div>
+            <Dialog open={!!feedbackModalSlot} onOpenChange={(open) => !open && setFeedbackModalSlot(null)}>
+                <DialogContent className="max-w-lg max-h-[90vh] p-0 flex flex-col overflow-hidden rounded-2xl" showCloseButton={false}>
+                    <ModalHeader
+                        icon={<MessageSquare className="w-5 h-5 text-indigo-600" />}
+                        title="Record Meeting Notes & Attendance"
+                        subtitle={feedbackModalSlot ? `Slot: ${feedbackModalSlot.start_time.slice(0, 5)} - ${feedbackModalSlot.end_time.slice(0, 5)}` : undefined}
+                        onClose={() => setFeedbackModalSlot(null)}
+                    />
 
-                        <div className="space-y-3 text-xs">
-                            <div className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg space-y-1">
+                    <DialogBody className="flex-1 overflow-y-auto px-6 py-5 [scrollbar-width:thin] space-y-4">
+                        {feedbackModalSlot && (
+                            <div className="bg-slate-50 dark:bg-slate-800/50 p-3.5 rounded-xl border border-slate-200/70 dark:border-slate-800 text-xs space-y-1.5">
                                 <p><strong className="text-slate-700 dark:text-slate-300">Student:</strong> {feedbackModalSlot.student_detail?.full_name} ({feedbackModalSlot.student_detail?.enrollment_id})</p>
                                 <p><strong className="text-slate-700 dark:text-slate-300">Time:</strong> {feedbackModalSlot.start_time.slice(0, 5)} - {feedbackModalSlot.end_time.slice(0, 5)}</p>
                                 {feedbackModalSlot.parent_notes && (
                                     <p className="pt-1 text-slate-500 italic"><strong className="not-italic text-slate-700 dark:text-slate-300">Parent Agenda:</strong> "{feedbackModalSlot.parent_notes}"</p>
                                 )}
                             </div>
+                        )}
 
-                            <label className="flex items-center gap-2 p-2 rounded bg-indigo-50/50 dark:bg-indigo-950/30 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={attendedCheck}
-                                    onChange={(e) => setAttendedCheck(e.target.checked)}
-                                    className="rounded border-slate-300 text-indigo-600"
-                                />
-                                <span className="font-medium text-slate-800 dark:text-slate-200">
-                                    Mark as Attended (Parent & Student were present)
-                                </span>
-                            </label>
+                        <label className="flex items-center gap-2.5 p-3 rounded-xl bg-indigo-50/50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/50 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={attendedCheck}
+                                onChange={(e) => setAttendedCheck(e.target.checked)}
+                                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                            />
+                            <span className="font-semibold text-xs text-slate-800 dark:text-slate-200">
+                                Mark as Attended (Parent & Student were present)
+                            </span>
+                        </label>
 
-                            <div className="space-y-1">
-                                <label className="font-medium text-slate-700 dark:text-slate-300">
-                                    Academic Feedback, Discussion Remarks & Action Items:
-                                </label>
-                                <textarea
-                                    rows={4}
-                                    value={feedbackNotes}
-                                    onChange={(e) => setFeedbackNotes(e.target.value)}
-                                    placeholder="Enter points discussed, strengths observed, areas of academic improvement, and recommendations agreed upon with the parent..."
-                                    className="w-full text-xs p-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                />
-                            </div>
-                        </div>
+                        <FormFieldWrapper label="Academic Feedback & Action Items" htmlFor="ptm-notes" required>
+                            <Textarea
+                                id="ptm-notes"
+                                rows={4}
+                                value={feedbackNotes}
+                                onChange={(e) => setFeedbackNotes(e.target.value)}
+                                placeholder="Enter points discussed, strengths observed, areas of academic improvement, and recommendations agreed upon with the parent..."
+                            />
+                        </FormFieldWrapper>
+                    </DialogBody>
 
-                        <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setFeedbackModalSlot(null)}
-                                className="text-xs"
-                            >
-                                Cancel
-                            </Button>
-                            <Button
-                                size="sm"
-                                onClick={handleSaveFeedback}
-                                disabled={recordFeedbackMutation.isPending}
-                                className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white"
-                            >
-                                {recordFeedbackMutation.isPending ? "Saving..." : "Save Meeting Notes"}
-                            </Button>
-                        </div>
-                    </div>
-                </div>
-            )}
+                    <DialogFooter className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-end gap-3 shrink-0">
+                        <Button
+                            variant="outline"
+                            onClick={() => setFeedbackModalSlot(null)}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleSaveFeedback}
+                            disabled={recordFeedbackMutation.isPending}
+                        >
+                            {recordFeedbackMutation.isPending ? "Saving..." : "Save Meeting Notes"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

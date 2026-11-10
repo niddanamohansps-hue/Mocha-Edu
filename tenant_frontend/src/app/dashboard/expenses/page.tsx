@@ -39,14 +39,26 @@ import { usePermissions } from "@/providers/PermissionProvider";
 import { formatIndianCurrency } from "@/lib/currency";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import {
+    Dialog,
+    DialogContent,
+    DialogBody,
+    DialogFooter,
+} from "@/components/ui/dialog";
+import { ModalHeader } from "@/components/ui/modal-header";
+import { FormGrid, FormFieldWrapper } from "@/components/ui/form-layout";
 import {
     Table,
     TableBody,
     TableCell,
     TableHead,
+    TableHeadNumeric,
     TableHeader,
     TableRow,
+    TableCellNumeric,
+    TableCellAction,
 } from "@/components/ui/table";
 import { TableShell } from "@/components/common/table/TableShell";
 
@@ -206,6 +218,42 @@ export default function ExpensesPage() {
         setIsCancelModalOpen(false);
         setVoucherToCancel(null);
         setCancelReason("");
+    };
+
+    const handleCreateCategory = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!categoryForm.name.trim() || !categoryForm.code.trim()) return;
+        await createCategory.mutateAsync({
+            name: categoryForm.name.trim(),
+            code: categoryForm.code.trim().toUpperCase(),
+            description: categoryForm.description.trim() || undefined,
+        });
+        setIsCategoryModalOpen(false);
+        setCategoryForm({ name: "", code: "", description: "" });
+    };
+
+    const handleCreateAccount = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!accountForm.name.trim()) return;
+        await createAccount.mutateAsync({
+            name: accountForm.name.trim(),
+            account_type: accountForm.account_type,
+            bank_name: accountForm.bank_name.trim() || undefined,
+            account_number: accountForm.account_number.trim() || undefined,
+            ifsc_code: accountForm.ifsc_code.trim() || undefined,
+            opening_balance: accountForm.opening_balance || "0.00",
+            is_default: accountForm.is_default,
+        });
+        setIsAccountModalOpen(false);
+        setAccountForm({
+            name: "",
+            account_type: "cash",
+            bank_name: "",
+            account_number: "",
+            ifsc_code: "",
+            opening_balance: "0.00",
+            is_default: false,
+        });
     };
 
     const handleExportCsv = () => {
@@ -383,15 +431,15 @@ export default function ExpensesPage() {
                     <TableShell>
                         <Table>
                             <TableHeader>
-                                <TableRow className="bg-slate-50/75 dark:bg-slate-900/60">
-                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Time</TableHead>
-                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Type</TableHead>
-                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Voucher / Receipt #</TableHead>
-                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Particulars / Description</TableHead>
-                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Payment Mode</TableHead>
-                                    <TableHead className="text-xs font-bold text-right text-emerald-600 dark:text-emerald-400">Inflow (₹)</TableHead>
-                                    <TableHead className="text-xs font-bold text-right text-rose-600 dark:text-rose-400">Outflow (₹)</TableHead>
-                                    <TableHead className="text-xs font-bold text-right text-slate-700 dark:text-slate-300">Running Balance</TableHead>
+                                <TableRow>
+                                    <TableHead className="pl-4">Time</TableHead>
+                                    <TableHead>Type</TableHead>
+                                    <TableHead>Voucher / Receipt #</TableHead>
+                                    <TableHead>Particulars / Description</TableHead>
+                                    <TableHead>Payment Mode</TableHead>
+                                    <TableHeadNumeric className="text-emerald-600 dark:text-emerald-400">Inflow (₹)</TableHeadNumeric>
+                                    <TableHeadNumeric className="text-rose-600 dark:text-rose-400">Outflow (₹)</TableHeadNumeric>
+                                    <TableHeadNumeric className="pr-4">Running Balance</TableHeadNumeric>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -410,7 +458,7 @@ export default function ExpensesPage() {
                                 ) : (
                                     dayBook.entries.map((item, idx) => (
                                         <TableRow key={idx} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
-                                            <TableCell className="text-slate-500 whitespace-nowrap text-xs font-mono">
+                                            <TableCell className="text-slate-500 whitespace-nowrap text-xs font-mono pl-4">
                                                 {item.time_str}
                                             </TableCell>
                                             <TableCell className="whitespace-nowrap">
@@ -433,15 +481,15 @@ export default function ExpensesPage() {
                                             <TableCell className="text-slate-500 text-xs uppercase font-mono">
                                                 {item.payment_method}
                                             </TableCell>
-                                            <TableCell className="text-right font-semibold text-xs text-emerald-600 dark:text-emerald-400">
+                                            <TableCellNumeric className="text-emerald-600 dark:text-emerald-400 font-semibold">
                                                 {item.inflow > 0 ? `+₹${item.inflow.toFixed(2)}` : "—"}
-                                            </TableCell>
-                                            <TableCell className="text-right font-semibold text-xs text-rose-600 dark:text-rose-400">
+                                            </TableCellNumeric>
+                                            <TableCellNumeric className="text-rose-600 dark:text-rose-400 font-semibold">
                                                 {item.outflow > 0 ? `-₹${item.outflow.toFixed(2)}` : "—"}
-                                            </TableCell>
-                                            <TableCell className="text-right font-mono font-bold text-xs text-slate-900 dark:text-slate-100">
+                                            </TableCellNumeric>
+                                            <TableCellNumeric className="pr-4 font-bold text-slate-900 dark:text-slate-100">
                                                 ₹{item.running_balance.toFixed(2)}
-                                            </TableCell>
+                                            </TableCellNumeric>
                                         </TableRow>
                                     ))
                                 )}
@@ -455,22 +503,22 @@ export default function ExpensesPage() {
             {activeTab === "vouchers" && (
                 <div className="space-y-6">
                     {/* Filters */}
-                    <div className="flex flex-wrap items-center justify-between gap-4 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-800">
-                        <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+                        <div className="flex flex-wrap items-center gap-2.5">
                             <div className="relative">
-                                <Search className="h-4 w-4 absolute left-3 top-2.5 text-slate-400" />
-                                <input
-                                    type="text"
+                                <Search className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                <Input
+                                    type="search"
                                     placeholder="Search payee, voucher #..."
                                     value={voucherSearch}
                                     onChange={(e) => setVoucherSearch(e.target.value)}
-                                    className="pl-9 pr-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 w-60"
+                                    className="pl-8.5 h-9 text-xs w-60 rounded-xl border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50"
                                 />
                             </div>
                             <select
                                 value={voucherCategory}
                                 onChange={(e) => setVoucherCategory(e.target.value)}
-                                className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100"
+                                className="h-9 px-3 text-xs font-medium bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-700 dark:text-slate-200 focus:outline-hidden focus:ring-1 focus:ring-sky-500"
                             >
                                 <option value="">All Categories</option>
                                 {categories.map((c) => (
@@ -482,15 +530,29 @@ export default function ExpensesPage() {
                             <select
                                 value={voucherStatus}
                                 onChange={(e) => setVoucherStatus(e.target.value)}
-                                className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100"
+                                className="h-9 px-3 text-xs font-medium bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-700 dark:text-slate-200 focus:outline-hidden focus:ring-1 focus:ring-sky-500"
                             >
                                 <option value="">All Statuses</option>
                                 <option value="approved">Approved</option>
                                 <option value="draft">Draft</option>
                                 <option value="cancelled">Cancelled</option>
                             </select>
+                            {(voucherSearch || voucherCategory || voucherStatus) && (
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                        setVoucherSearch("");
+                                        setVoucherCategory("");
+                                        setVoucherStatus("");
+                                    }}
+                                    className="h-9 px-2 text-xs text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl"
+                                >
+                                    Reset
+                                </Button>
+                            )}
                         </div>
-                        <div className="text-xs text-slate-500">
+                        <div className="text-xs text-slate-500 font-medium">
                             {vouchers.length} vouchers recorded
                         </div>
                     </div>
@@ -499,15 +561,15 @@ export default function ExpensesPage() {
                     <TableShell>
                         <Table>
                             <TableHeader>
-                                <TableRow className="bg-slate-50/75 dark:bg-slate-900/60">
-                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Voucher #</TableHead>
-                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Date</TableHead>
-                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Category</TableHead>
-                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Paid To (Beneficiary)</TableHead>
-                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Account / Mode</TableHead>
-                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Amount (₹)</TableHead>
-                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300">Status</TableHead>
-                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 text-right">Actions</TableHead>
+                                <TableRow>
+                                    <TableHead className="pl-4">Voucher #</TableHead>
+                                    <TableHead>Date</TableHead>
+                                    <TableHead>Category</TableHead>
+                                    <TableHead>Paid To (Beneficiary)</TableHead>
+                                    <TableHead>Account / Mode</TableHead>
+                                    <TableHeadNumeric>Amount (₹)</TableHeadNumeric>
+                                    <TableHead>Status</TableHead>
+                                    <TableHead className="text-right pr-4">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -547,9 +609,9 @@ export default function ExpensesPage() {
                                                 <div>{v.payment_account_name || "Cash Counter"}</div>
                                                 <span className="uppercase text-[10px] text-slate-400 font-mono">{v.payment_method}</span>
                                             </TableCell>
-                                            <TableCell className="font-bold text-xs text-slate-900 dark:text-slate-100 font-mono">
+                                            <TableCellNumeric className="font-bold text-xs text-slate-900 dark:text-slate-100 font-mono">
                                                 ₹{parseFloat(v.amount).toFixed(2)}
-                                            </TableCell>
+                                            </TableCellNumeric>
                                             <TableCell>
                                                 <Badge
                                                     className={
@@ -563,7 +625,7 @@ export default function ExpensesPage() {
                                                     {v.status.toUpperCase()}
                                                 </Badge>
                                             </TableCell>
-                                            <TableCell className="text-right space-x-1.5">
+                                            <TableCellAction className="pr-4 space-x-1.5">
                                                 {v.status === "draft" && can("approve_expenses") && (
                                                     <Button
                                                         variant="outline"
@@ -587,7 +649,7 @@ export default function ExpensesPage() {
                                                         Cancel
                                                     </Button>
                                                 )}
-                                            </TableCell>
+                                            </TableCellAction>
                                         </TableRow>
                                     ))
                                 )}
@@ -792,23 +854,24 @@ export default function ExpensesPage() {
             )}
 
             {/* MODAL 1: RECORD EXPENSE */}
-            {isExpenseModalOpen && (
-                <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-200 dark:border-slate-700 space-y-4">
-                        <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
-                            Record Expense Voucher
-                        </h2>
-                        <form onSubmit={handleCreateExpense} className="space-y-3.5">
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                        Category *
-                                    </label>
+            <Dialog open={isExpenseModalOpen} onOpenChange={setIsExpenseModalOpen}>
+                <DialogContent className="max-w-xl max-h-[90vh] p-0 flex flex-col overflow-hidden rounded-2xl" showCloseButton={false}>
+                    <ModalHeader
+                        icon={<Receipt className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />}
+                        title="Record Expense Voucher"
+                        subtitle="Create an official expense entry and link to account."
+                        onClose={() => setIsExpenseModalOpen(false)}
+                    />
+                    <form onSubmit={handleCreateExpense} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                        <DialogBody className="flex-1 overflow-y-auto px-6 py-5 [scrollbar-width:thin] space-y-4">
+                            <FormGrid>
+                                <FormFieldWrapper label="Category" htmlFor="exp-category" required>
                                     <select
+                                        id="exp-category"
                                         required
                                         value={expenseForm.category}
                                         onChange={(e) => setExpenseForm({ ...expenseForm, category: e.target.value })}
-                                        className="w-full mt-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm"
+                                        className="flex h-9 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs sm:text-sm shadow-2xs transition-colors duration-150 focus-visible:border-sky-500 focus-visible:ring-2 focus-visible:ring-sky-500/20 dark:focus-visible:ring-sky-400/25 outline-none hover:border-slate-300 dark:hover:border-slate-700"
                                     >
                                         <option value="">Select Category</option>
                                         {categories.map((c) => (
@@ -817,15 +880,13 @@ export default function ExpensesPage() {
                                             </option>
                                         ))}
                                     </select>
-                                </div>
-                                <div>
-                                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                        Account *
-                                    </label>
+                                </FormFieldWrapper>
+                                <FormFieldWrapper label="Payment Account" htmlFor="exp-account">
                                     <select
+                                        id="exp-account"
                                         value={expenseForm.payment_account}
                                         onChange={(e) => setExpenseForm({ ...expenseForm, payment_account: e.target.value })}
-                                        className="w-full mt-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm"
+                                        className="flex h-9 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs sm:text-sm shadow-2xs transition-colors duration-150 focus-visible:border-sky-500 focus-visible:ring-2 focus-visible:ring-sky-500/20 dark:focus-visible:ring-sky-400/25 outline-none hover:border-slate-300 dark:hover:border-slate-700"
                                     >
                                         <option value="">Default Cash Counter</option>
                                         {accounts.map((a) => (
@@ -834,59 +895,43 @@ export default function ExpensesPage() {
                                             </option>
                                         ))}
                                     </select>
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                        Amount (₹) *
-                                    </label>
-                                    <input
+                                </FormFieldWrapper>
+                                <FormFieldWrapper label="Amount (₹)" htmlFor="exp-amount" required>
+                                    <Input
+                                        id="exp-amount"
                                         type="number"
                                         step="0.01"
                                         required
                                         placeholder="0.00"
                                         value={expenseForm.amount}
                                         onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })}
-                                        className="w-full mt-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm"
-                                    >
-                                    </input>
-                                </div>
-                                <div>
-                                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                        Date *
-                                    </label>
-                                    <input
+                                    />
+                                </FormFieldWrapper>
+                                <FormFieldWrapper label="Date" htmlFor="exp-date" required>
+                                    <Input
+                                        id="exp-date"
                                         type="date"
                                         required
                                         value={expenseForm.expense_date}
                                         onChange={(e) => setExpenseForm({ ...expenseForm, expense_date: e.target.value })}
-                                        className="w-full mt-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm"
                                     />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                    Paid To (Beneficiary / Vendor) *
-                                </label>
-                                <input
-                                    type="text"
-                                    required
-                                    placeholder="e.g. HP Petrol Pump, Local Electrician, Stationery Press"
-                                    value={expenseForm.paid_to}
-                                    onChange={(e) => setExpenseForm({ ...expenseForm, paid_to: e.target.value })}
-                                    className="w-full mt-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm"
-                                />
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                        Payment Mode
-                                    </label>
+                                </FormFieldWrapper>
+                                <FormFieldWrapper label="Paid To (Beneficiary / Vendor)" htmlFor="exp-paid-to" required colSpan={2}>
+                                    <Input
+                                        id="exp-paid-to"
+                                        type="text"
+                                        required
+                                        placeholder="e.g. HP Petrol Pump, Local Electrician, Stationery Press"
+                                        value={expenseForm.paid_to}
+                                        onChange={(e) => setExpenseForm({ ...expenseForm, paid_to: e.target.value })}
+                                    />
+                                </FormFieldWrapper>
+                                <FormFieldWrapper label="Payment Mode" htmlFor="exp-mode">
                                     <select
+                                        id="exp-mode"
                                         value={expenseForm.payment_method}
                                         onChange={(e) => setExpenseForm({ ...expenseForm, payment_method: e.target.value })}
-                                        className="w-full mt-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm"
+                                        className="flex h-9 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs sm:text-sm shadow-2xs transition-colors duration-150 focus-visible:border-sky-500 focus-visible:ring-2 focus-visible:ring-sky-500/20 dark:focus-visible:ring-sky-400/25 outline-none hover:border-slate-300 dark:hover:border-slate-700"
                                     >
                                         <option value="cash">Cash</option>
                                         <option value="upi">UPI / QR</option>
@@ -894,241 +939,380 @@ export default function ExpensesPage() {
                                         <option value="bank_transfer">Bank Transfer / NEFT</option>
                                         <option value="other">Other</option>
                                     </select>
-                                </div>
-                                <div>
-                                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                        Bill / Ref Number
-                                    </label>
-                                    <input
+                                </FormFieldWrapper>
+                                <FormFieldWrapper label="Bill / Ref Number" htmlFor="exp-ref">
+                                    <Input
+                                        id="exp-ref"
                                         type="text"
                                         placeholder="Invoice # or UTR"
                                         value={expenseForm.reference_number}
                                         onChange={(e) => setExpenseForm({ ...expenseForm, reference_number: e.target.value })}
-                                        className="w-full mt-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm"
                                     />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                    Description / Purpose
-                                </label>
-                                <textarea
-                                    rows={2}
-                                    placeholder="Details or item breakdown..."
-                                    value={expenseForm.description}
-                                    onChange={(e) => setExpenseForm({ ...expenseForm, description: e.target.value })}
-                                    className="w-full mt-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm"
-                                />
-                            </div>
-                            <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-700">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsExpenseModalOpen(false)}
-                                    className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800 dark:text-slate-400"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium"
-                                >
-                                    Save Voucher
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
+                                </FormFieldWrapper>
+                                <FormFieldWrapper label="Description / Purpose" htmlFor="exp-desc" colSpan={2}>
+                                    <Textarea
+                                        id="exp-desc"
+                                        rows={2}
+                                        placeholder="Details or item breakdown..."
+                                        value={expenseForm.description}
+                                        onChange={(e) => setExpenseForm({ ...expenseForm, description: e.target.value })}
+                                    />
+                                </FormFieldWrapper>
+                            </FormGrid>
+                        </DialogBody>
+                        <DialogFooter className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-end gap-3 shrink-0">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setIsExpenseModalOpen(false)}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                type="submit"
+                                disabled={createExpense.isPending}
+                            >
+                                {createExpense.isPending ? "Saving..." : "Save Voucher"}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
 
             {/* MODAL 2: CASH ENTRY / TRANSFER */}
-            {isCashEntryModalOpen && (
-                <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-200 dark:border-slate-700 space-y-4">
-                        <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
-                            Record Cash Entry or Contra Transfer
-                        </h2>
-                        <form onSubmit={handleCreateCashEntry} className="space-y-3.5">
-                            <div>
-                                <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                    Entry Type *
-                                </label>
-                                <select
-                                    value={cashEntryForm.entry_type}
-                                    onChange={(e) => setCashEntryForm({ ...cashEntryForm, entry_type: e.target.value as any })}
-                                    className="w-full mt-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm font-semibold"
-                                >
-                                    <option value="income">Direct Income (Non-Fee: Prospectus, uniform sale, etc.)</option>
-                                    <option value="transfer">Account Transfer / Contra (Cash to Bank or Bank to Cash)</option>
-                                </select>
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                        Amount (₹) *
-                                    </label>
-                                    <input
+            <Dialog open={isCashEntryModalOpen} onOpenChange={setIsCashEntryModalOpen}>
+                <DialogContent className="max-w-xl max-h-[90vh] p-0 flex flex-col overflow-hidden rounded-2xl" showCloseButton={false}>
+                    <ModalHeader
+                        icon={<ArrowDownRight className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />}
+                        title="Record Cash Entry or Contra Transfer"
+                        subtitle="Direct non-fee income or account-to-account funds transfer."
+                        onClose={() => setIsCashEntryModalOpen(false)}
+                    />
+                    <form onSubmit={handleCreateCashEntry} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                        <DialogBody className="flex-1 overflow-y-auto px-6 py-5 [scrollbar-width:thin] space-y-4">
+                            <FormGrid>
+                                <FormFieldWrapper label="Entry Type" htmlFor="cash-entry-type" required colSpan={2}>
+                                    <select
+                                        id="cash-entry-type"
+                                        value={cashEntryForm.entry_type}
+                                        onChange={(e) => setCashEntryForm({ ...cashEntryForm, entry_type: e.target.value as any })}
+                                        className="flex h-9 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs sm:text-sm font-semibold shadow-2xs transition-colors duration-150 focus-visible:border-sky-500 focus-visible:ring-2 focus-visible:ring-sky-500/20 dark:focus-visible:ring-sky-400/25 outline-none hover:border-slate-300 dark:hover:border-slate-700"
+                                    >
+                                        <option value="income">Direct Income (Non-Fee: Prospectus, uniform sale, etc.)</option>
+                                        <option value="transfer">Account Transfer / Contra (Cash to Bank or Bank to Cash)</option>
+                                    </select>
+                                </FormFieldWrapper>
+                                <FormFieldWrapper label="Amount (₹)" htmlFor="cash-amount" required>
+                                    <Input
+                                        id="cash-amount"
                                         type="number"
                                         step="0.01"
                                         required
                                         placeholder="0.00"
                                         value={cashEntryForm.amount}
                                         onChange={(e) => setCashEntryForm({ ...cashEntryForm, amount: e.target.value })}
-                                        className="w-full mt-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm"
                                     />
-                                </div>
-                                <div>
-                                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                        Date *
-                                    </label>
-                                    <input
+                                </FormFieldWrapper>
+                                <FormFieldWrapper label="Date" htmlFor="cash-date" required>
+                                    <Input
+                                        id="cash-date"
                                         type="date"
                                         required
                                         value={cashEntryForm.entry_date}
                                         onChange={(e) => setCashEntryForm({ ...cashEntryForm, entry_date: e.target.value })}
-                                        className="w-full mt-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm"
                                     />
-                                </div>
-                            </div>
-                            {cashEntryForm.entry_type === "transfer" && (
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                            From Account *
-                                        </label>
+                                </FormFieldWrapper>
+                                {cashEntryForm.entry_type === "transfer" && (
+                                    <>
+                                        <FormFieldWrapper label="From Account" htmlFor="cash-from" required>
+                                            <select
+                                                id="cash-from"
+                                                required
+                                                value={cashEntryForm.from_account}
+                                                onChange={(e) => setCashEntryForm({ ...cashEntryForm, from_account: e.target.value })}
+                                                className="flex h-9 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs sm:text-sm shadow-2xs transition-colors duration-150 focus-visible:border-sky-500 focus-visible:ring-2 focus-visible:ring-sky-500/20 dark:focus-visible:ring-sky-400/25 outline-none hover:border-slate-300 dark:hover:border-slate-700"
+                                            >
+                                                <option value="">Select Source</option>
+                                                {accounts.map((a) => (
+                                                    <option key={a.id} value={a.id}>
+                                                        {a.name}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </FormFieldWrapper>
+                                        <FormFieldWrapper label="To Account" htmlFor="cash-to" required>
+                                            <select
+                                                id="cash-to"
+                                                required
+                                                value={cashEntryForm.to_account}
+                                                onChange={(e) => setCashEntryForm({ ...cashEntryForm, to_account: e.target.value })}
+                                                className="flex h-9 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs sm:text-sm shadow-2xs transition-colors duration-150 focus-visible:border-sky-500 focus-visible:ring-2 focus-visible:ring-sky-500/20 dark:focus-visible:ring-sky-400/25 outline-none hover:border-slate-300 dark:hover:border-slate-700"
+                                            >
+                                                <option value="">Select Destination</option>
+                                                {accounts.map((a) => (
+                                                    <option key={a.id} value={a.id}>
+                                                        {a.name}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </FormFieldWrapper>
+                                    </>
+                                )}
+                                {cashEntryForm.entry_type === "income" && (
+                                    <FormFieldWrapper label="Receiving Account" htmlFor="cash-recv-acct" required colSpan={2}>
                                         <select
-                                            required
-                                            value={cashEntryForm.from_account}
-                                            onChange={(e) => setCashEntryForm({ ...cashEntryForm, from_account: e.target.value })}
-                                            className="w-full mt-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm"
-                                        >
-                                            <option value="">Select Source</option>
-                                            {accounts.map((a) => (
-                                                <option key={a.id} value={a.id}>
-                                                    {a.name}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                            To Account *
-                                        </label>
-                                        <select
+                                            id="cash-recv-acct"
                                             required
                                             value={cashEntryForm.to_account}
                                             onChange={(e) => setCashEntryForm({ ...cashEntryForm, to_account: e.target.value })}
-                                            className="w-full mt-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm"
+                                            className="flex h-9 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs sm:text-sm shadow-2xs transition-colors duration-150 focus-visible:border-sky-500 focus-visible:ring-2 focus-visible:ring-sky-500/20 dark:focus-visible:ring-sky-400/25 outline-none hover:border-slate-300 dark:hover:border-slate-700"
                                         >
-                                            <option value="">Select Destination</option>
+                                            <option value="">Select Account</option>
                                             {accounts.map((a) => (
                                                 <option key={a.id} value={a.id}>
                                                     {a.name}
                                                 </option>
                                             ))}
                                         </select>
-                                    </div>
-                                </div>
-                            )}
-                            {cashEntryForm.entry_type === "income" && (
-                                <div>
-                                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                        Receiving Account *
-                                    </label>
-                                    <select
-                                        required
-                                        value={cashEntryForm.to_account}
-                                        onChange={(e) => setCashEntryForm({ ...cashEntryForm, to_account: e.target.value })}
-                                        className="w-full mt-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm"
-                                    >
-                                        <option value="">Select Account</option>
-                                        {accounts.map((a) => (
-                                            <option key={a.id} value={a.id}>
-                                                {a.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                            )}
-                            <div>
-                                <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                    {cashEntryForm.entry_type === "income" ? "Income Source *" : "Payee / Slip Reference *"}
-                                </label>
-                                <input
-                                    type="text"
+                                    </FormFieldWrapper>
+                                )}
+                                <FormFieldWrapper
+                                    label={cashEntryForm.entry_type === "income" ? "Income Source" : "Payee / Slip Reference"}
+                                    htmlFor="cash-source"
                                     required
-                                    placeholder={
-                                        cashEntryForm.entry_type === "income"
-                                            ? "e.g. Prospectus Sales, Scrap newspaper sale"
-                                            : "e.g. SBI Bank Deposit Slip #450"
-                                    }
-                                    value={cashEntryForm.source_or_payee}
-                                    onChange={(e) => setCashEntryForm({ ...cashEntryForm, source_or_payee: e.target.value })}
-                                    className="w-full mt-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm"
-                                />
-                            </div>
-                            <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-700">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsCashEntryModalOpen(false)}
-                                    className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800 dark:text-slate-400"
+                                    colSpan={2}
                                 >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium"
-                                >
-                                    Save Entry
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
+                                    <Input
+                                        id="cash-source"
+                                        type="text"
+                                        required
+                                        placeholder={
+                                            cashEntryForm.entry_type === "income"
+                                                ? "e.g. Prospectus Sales, Scrap newspaper sale"
+                                                : "e.g. SBI Bank Deposit Slip #450"
+                                        }
+                                        value={cashEntryForm.source_or_payee}
+                                        onChange={(e) => setCashEntryForm({ ...cashEntryForm, source_or_payee: e.target.value })}
+                                    />
+                                </FormFieldWrapper>
+                            </FormGrid>
+                        </DialogBody>
+                        <DialogFooter className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-end gap-3 shrink-0">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setIsCashEntryModalOpen(false)}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                type="submit"
+                                disabled={createCashEntry.isPending}
+                            >
+                                {createCashEntry.isPending ? "Saving..." : "Save Entry"}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
 
             {/* MODAL 3: CANCEL VOUCHER */}
-            {isCancelModalOpen && voucherToCancel && (
-                <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200 dark:border-slate-700 space-y-4">
-                        <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                            <XCircle className="h-5 w-5 text-rose-600" />
-                            Cancel Voucher {voucherToCancel.voucher_number}
-                        </h2>
-                        <p className="text-sm text-slate-500">
+            <Dialog open={isCancelModalOpen && !!voucherToCancel} onOpenChange={setIsCancelModalOpen}>
+                <DialogContent className="max-w-md max-h-[90vh] p-0 flex flex-col overflow-hidden rounded-2xl" showCloseButton={false}>
+                    <ModalHeader
+                        icon={<XCircle className="w-5 h-5 text-rose-600" />}
+                        title={`Cancel Voucher ${voucherToCancel?.voucher_number || ""}`}
+                        subtitle="Reverses cashbook deduction with an audit reason."
+                        onClose={() => setIsCancelModalOpen(false)}
+                    />
+                    <DialogBody className="flex-1 overflow-y-auto px-6 py-5 [scrollbar-width:thin] space-y-4">
+                        <p className="text-xs text-slate-500">
                             Cancelling this voucher will reverse its deduction from the cashbook. Please enter a mandatory reason.
                         </p>
-                        <div>
-                            <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                Cancellation Reason *
-                            </label>
-                            <input
+                        <FormFieldWrapper label="Cancellation Reason" htmlFor="cancel-reason" required>
+                            <Input
+                                id="cancel-reason"
                                 type="text"
                                 required
                                 placeholder="e.g. Duplicate bill, incorrect amount, wrong category"
                                 value={cancelReason}
                                 onChange={(e) => setCancelReason(e.target.value)}
-                                className="w-full mt-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm"
                             />
-                        </div>
-                        <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-700">
-                            <button
+                        </FormFieldWrapper>
+                    </DialogBody>
+                    <DialogFooter className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-end gap-3 shrink-0">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setIsCancelModalOpen(false)}
+                        >
+                            Back
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="destructive"
+                            onClick={handleCancelVoucher}
+                            disabled={cancelExpense.isPending || !cancelReason.trim()}
+                        >
+                            {cancelExpense.isPending ? "Cancelling..." : "Confirm Cancellation"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* MODAL 4: ADD EXPENSE CATEGORY */}
+            <Dialog open={isCategoryModalOpen} onOpenChange={setIsCategoryModalOpen}>
+                <DialogContent className="max-w-md max-h-[90vh] p-0 flex flex-col overflow-hidden rounded-2xl" showCloseButton={false}>
+                    <ModalHeader
+                        icon={<Layers className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />}
+                        title="Add Expense Category"
+                        subtitle="Define a cost center category to group operational expenses."
+                        onClose={() => setIsCategoryModalOpen(false)}
+                    />
+                    <form onSubmit={handleCreateCategory} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                        <DialogBody className="flex-1 overflow-y-auto px-6 py-5 [scrollbar-width:thin] space-y-4">
+                            <FormFieldWrapper label="Category Name" htmlFor="cat-name" required>
+                                <Input
+                                    id="cat-name"
+                                    type="text"
+                                    required
+                                    placeholder="e.g. Printing & Stationery"
+                                    value={categoryForm.name}
+                                    onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })}
+                                />
+                            </FormFieldWrapper>
+                            <FormFieldWrapper label="Code" htmlFor="cat-code" required helpText="Short uppercase identifier">
+                                <Input
+                                    id="cat-code"
+                                    type="text"
+                                    required
+                                    placeholder="e.g. STAT"
+                                    value={categoryForm.code}
+                                    onChange={(e) => setCategoryForm({ ...categoryForm, code: e.target.value })}
+                                />
+                            </FormFieldWrapper>
+                            <FormFieldWrapper label="Description" htmlFor="cat-desc">
+                                <Textarea
+                                    id="cat-desc"
+                                    rows={2}
+                                    placeholder="Optional description of expenses covered..."
+                                    value={categoryForm.description}
+                                    onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })}
+                                />
+                            </FormFieldWrapper>
+                        </DialogBody>
+                        <DialogFooter className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-end gap-3 shrink-0">
+                            <Button
                                 type="button"
-                                onClick={() => setIsCancelModalOpen(false)}
-                                className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800 dark:text-slate-400"
+                                variant="outline"
+                                onClick={() => setIsCategoryModalOpen(false)}
                             >
-                                Back
-                            </button>
-                            <button
+                                Cancel
+                            </Button>
+                            <Button
+                                type="submit"
+                                disabled={createCategory.isPending || !categoryForm.name.trim() || !categoryForm.code.trim()}
+                            >
+                                {createCategory.isPending ? "Creating..." : "Create Category"}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
+
+            {/* MODAL 5: ADD PAYMENT ACCOUNT */}
+            <Dialog open={isAccountModalOpen} onOpenChange={setIsAccountModalOpen}>
+                <DialogContent className="max-w-md max-h-[90vh] p-0 flex flex-col overflow-hidden rounded-2xl" showCloseButton={false}>
+                    <ModalHeader
+                        icon={<Building2 className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />}
+                        title="Add Payment Account"
+                        subtitle="Configure cash drawer or school bank ledger account."
+                        onClose={() => setIsAccountModalOpen(false)}
+                    />
+                    <form onSubmit={handleCreateAccount} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                        <DialogBody className="flex-1 overflow-y-auto px-6 py-5 [scrollbar-width:thin] space-y-4">
+                            <FormFieldWrapper label="Account Name" htmlFor="acct-name" required>
+                                <Input
+                                    id="acct-name"
+                                    type="text"
+                                    required
+                                    placeholder="e.g. SBI Main Operations"
+                                    value={accountForm.name}
+                                    onChange={(e) => setAccountForm({ ...accountForm, name: e.target.value })}
+                                />
+                            </FormFieldWrapper>
+                            <FormFieldWrapper label="Account Type" htmlFor="acct-type" required>
+                                <select
+                                    id="acct-type"
+                                    value={accountForm.account_type}
+                                    onChange={(e) => setAccountForm({ ...accountForm, account_type: e.target.value as any })}
+                                    className="flex h-9 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs sm:text-sm shadow-2xs transition-colors duration-150 focus-visible:border-sky-500 focus-visible:ring-2 focus-visible:ring-sky-500/20 dark:focus-visible:ring-sky-400/25 outline-none hover:border-slate-300 dark:hover:border-slate-700"
+                                >
+                                    <option value="cash">Cash Drawer</option>
+                                    <option value="bank">Bank Account</option>
+                                    <option value="other">Other / Digital Wallet</option>
+                                </select>
+                            </FormFieldWrapper>
+                            {accountForm.account_type === "bank" && (
+                                <>
+                                    <FormFieldWrapper label="Bank Name" htmlFor="acct-bank">
+                                        <Input
+                                            id="acct-bank"
+                                            type="text"
+                                            placeholder="e.g. State Bank of India"
+                                            value={accountForm.bank_name}
+                                            onChange={(e) => setAccountForm({ ...accountForm, bank_name: e.target.value })}
+                                        />
+                                    </FormFieldWrapper>
+                                    <FormFieldWrapper label="Account Number" htmlFor="acct-num">
+                                        <Input
+                                            id="acct-num"
+                                            type="text"
+                                            placeholder="e.g. 1234567890"
+                                            value={accountForm.account_number}
+                                            onChange={(e) => setAccountForm({ ...accountForm, account_number: e.target.value })}
+                                        />
+                                    </FormFieldWrapper>
+                                    <FormFieldWrapper label="IFSC Code" htmlFor="acct-ifsc">
+                                        <Input
+                                            id="acct-ifsc"
+                                            type="text"
+                                            placeholder="e.g. SBIN0001234"
+                                            value={accountForm.ifsc_code}
+                                            onChange={(e) => setAccountForm({ ...accountForm, ifsc_code: e.target.value })}
+                                        />
+                                    </FormFieldWrapper>
+                                </>
+                            )}
+                            <FormFieldWrapper label="Opening Balance (₹)" htmlFor="acct-balance">
+                                <Input
+                                    id="acct-balance"
+                                    type="number"
+                                    step="0.01"
+                                    placeholder="0.00"
+                                    value={accountForm.opening_balance}
+                                    onChange={(e) => setAccountForm({ ...accountForm, opening_balance: e.target.value })}
+                                />
+                            </FormFieldWrapper>
+                        </DialogBody>
+                        <DialogFooter className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-end gap-3 shrink-0">
+                            <Button
                                 type="button"
-                                onClick={handleCancelVoucher}
-                                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-sm font-medium"
+                                variant="outline"
+                                onClick={() => setIsAccountModalOpen(false)}
                             >
-                                Confirm Cancellation
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+                                Cancel
+                            </Button>
+                            <Button
+                                type="submit"
+                                disabled={createAccount.isPending || !accountForm.name.trim()}
+                            >
+                                {createAccount.isPending ? "Creating..." : "Create Account"}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

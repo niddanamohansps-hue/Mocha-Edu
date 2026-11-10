@@ -19,6 +19,7 @@ import {
     Car,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Avatar } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -48,35 +49,6 @@ import { usePermissions } from "@/providers/PermissionProvider";
 import { Driver, Vehicle } from "@/types/Transport";
 
 const WARN_DAYS = 30;
-
-const AVATAR_PALETTES = [
-    { bg: "bg-sky-100 dark:bg-sky-950/70", text: "text-sky-700 dark:text-sky-300", border: "border-sky-300/60 dark:border-sky-800" },
-    { bg: "bg-emerald-100 dark:bg-emerald-950/70", text: "text-emerald-700 dark:text-emerald-300", border: "border-emerald-300/60 dark:border-emerald-800" },
-    { bg: "bg-indigo-100 dark:bg-indigo-950/70", text: "text-indigo-700 dark:text-indigo-300", border: "border-indigo-300/60 dark:border-indigo-800" },
-    { bg: "bg-purple-100 dark:bg-purple-950/70", text: "text-purple-700 dark:text-purple-300", border: "border-purple-300/60 dark:border-purple-800" },
-    { bg: "bg-amber-100 dark:bg-amber-950/70", text: "text-amber-700 dark:text-amber-300", border: "border-amber-300/60 dark:border-amber-800" },
-    { bg: "bg-rose-100 dark:bg-rose-950/70", text: "text-rose-700 dark:text-rose-300", border: "border-rose-300/60 dark:border-rose-800" },
-    { bg: "bg-teal-100 dark:bg-teal-950/70", text: "text-teal-700 dark:text-teal-300", border: "border-teal-300/60 dark:border-teal-800" },
-];
-
-function getAvatarStyle(name?: string | null) {
-    if (!name || typeof name !== "string") return AVATAR_PALETTES[0];
-    let hash = 0;
-    for (let i = 0; i < name.length; i++) {
-        hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    const index = Math.abs(hash) % AVATAR_PALETTES.length;
-    return AVATAR_PALETTES[index];
-}
-
-function getInitials(name: string) {
-    if (!name) return "DR";
-    const parts = name.trim().split(/\s+/);
-    if (parts.length >= 2) {
-        return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
-    }
-    return name.slice(0, 2).toUpperCase();
-}
 
 export default function FleetPage() {
     const { can } = usePermissions();
@@ -159,7 +131,7 @@ export default function FleetPage() {
                         <Button
                             onClick={() => setVehicle(null)}
                             size="sm"
-                            className="h-9 px-3.5 gap-1.5 bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs rounded-lg shadow-sm cursor-pointer transition active:scale-95"
+                            className="gap-1.5"
                         >
                             <Plus className="h-3.5 w-3.5 stroke-[2.5]" />
                             <span>Add Bus Vehicle</span>
@@ -168,7 +140,7 @@ export default function FleetPage() {
                             onClick={() => setPerson(null)}
                             variant="outline"
                             size="sm"
-                            className="h-9 px-3 gap-1.5 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 text-xs font-semibold cursor-pointer shadow-2xs"
+                            className="gap-1.5"
                         >
                             <Plus className="h-3.5 w-3.5 stroke-[2.5] text-slate-500" />
                             <span>Add Driver/Helper</span>
@@ -367,32 +339,32 @@ export default function FleetPage() {
                     ) : (
                         <TableShell>
                             <Table>
-                                <TableHeader className="bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200/80 dark:border-slate-800">
-                                    <TableRow className="hover:bg-transparent">
-                                        <TableHead className="py-3.5 pl-4 text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead className="pl-4">
                                             Registration Number
                                         </TableHead>
-                                        <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                            Make & Model
+                                        <TableHead>
+                                            Make &amp; Model
                                         </TableHead>
-                                        <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                                        <TableHead>
                                             Seating Capacity
                                         </TableHead>
-                                        <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                                        <TableHead>
                                             Routes Assigned
                                         </TableHead>
-                                        <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                                        <TableHead>
                                             Statutory Expiries
                                         </TableHead>
-                                        <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                                        <TableHead>
                                             Status
                                         </TableHead>
-                                        <TableHead className="text-right pr-4 text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                                        <TableHead className="text-right pr-4">
                                             Actions
                                         </TableHead>
                                     </TableRow>
                                 </TableHeader>
-                                <TableBody>
+                                <TableBody striped>
                                     {filteredVehicles.map((v) => (
                                         <TableRow
                                             key={v.id}
@@ -535,36 +507,33 @@ export default function FleetPage() {
                     ) : (
                         <TableShell>
                             <Table>
-                                <TableHeader className="bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200/80 dark:border-slate-800">
-                                    <TableRow className="hover:bg-transparent">
-                                        <TableHead className="py-3.5 pl-4 text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead className="pl-4">
                                             Crew Member
                                         </TableHead>
-                                        <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                                        <TableHead>
                                             Role
                                         </TableHead>
-                                        <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                                        <TableHead>
                                             Phone Contact
                                         </TableHead>
-                                        <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                                        <TableHead>
                                             Driving License
                                         </TableHead>
-                                        <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                                        <TableHead>
                                             License Expiry
                                         </TableHead>
-                                        <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                                        <TableHead>
                                             Status
                                         </TableHead>
-                                        <TableHead className="text-right pr-4 text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                                        <TableHead className="text-right pr-4">
                                             Actions
                                         </TableHead>
                                     </TableRow>
                                 </TableHeader>
-                                <TableBody>
+                                <TableBody striped>
                                     {filteredCrew.map((p) => {
-                                        const avatarStyle = getAvatarStyle(p.full_name);
-                                        const initials = getInitials(p.full_name);
-
                                         return (
                                             <TableRow
                                                 key={p.id}
@@ -573,11 +542,7 @@ export default function FleetPage() {
                                                 {/* Crew Member with Avatar */}
                                                 <TableCell className="py-3.5 pl-4">
                                                     <div className="flex items-center gap-2.5">
-                                                        <div
-                                                            className={`h-8 w-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 border ${avatarStyle.bg} ${avatarStyle.text} ${avatarStyle.border}`}
-                                                        >
-                                                            {initials}
-                                                        </div>
+                                                        <Avatar name={p.full_name} size="sm" />
                                                         <div>
                                                             <div className="font-semibold text-xs text-slate-900 dark:text-slate-100">
                                                                 {p.full_name}

@@ -36,6 +36,9 @@ import {
     TableHead,
     TableHeader,
     TableRow,
+    TableHeadNumeric,
+    TableCellNumeric,
+    TableCellAction,
 } from "@/components/ui/table";
 import { TableShell } from "@/components/common/table/TableShell";
 import { Pagination } from "@/components/ui/pagination";
@@ -348,147 +351,143 @@ function StockPageContent() {
                     }
                 />
             ) : (
-                <div className="space-y-4">
-                    <TableShell>
-                        <Table>
-                            <TableHeader className="bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200/80 dark:border-slate-800">
-                                <TableRow className="hover:bg-transparent">
-                                    <TableHead className="py-3.5 pl-4 text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                        SKU & Item Name
-                                    </TableHead>
-                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                        Category
-                                    </TableHead>
-                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                        Available On-Hand
-                                    </TableHead>
-                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                        Reorder Level
-                                    </TableHead>
-                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                        Stock Health
-                                    </TableHead>
-                                    <TableHead className="text-right pr-4 text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                        Actions
-                                    </TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {items.map((item) => (
-                                    <TableRow
-                                        key={item.id}
-                                        className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 border-b border-slate-100 dark:border-slate-800/70"
-                                    >
-                                        {/* SKU & Item Name */}
-                                        <TableCell className="py-3.5 pl-4">
-                                            <div className="font-semibold text-xs text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                                                <span>{item.name}</span>
-                                                <code className="text-[10px] font-mono text-slate-400 bg-slate-100 dark:bg-slate-800 px-1 py-0.2 rounded">
-                                                    {item.sku}
-                                                </code>
-                                            </div>
-                                            {/* Sub-locations breakdown */}
-                                            <ItemLocations itemId={item.id} unit={item.unit} />
-                                        </TableCell>
-
-                                        {/* Category */}
-                                        <TableCell className="py-3.5 text-xs text-slate-600 dark:text-slate-400 font-medium">
-                                            {item.category_name}
-                                        </TableCell>
-
-                                        {/* Available On-Hand */}
-                                        <TableCell className="py-3.5">
-                                            <span className="text-xs font-bold text-slate-900 dark:text-white">
-                                                {formatQuantity(item.on_hand)}
-                                            </span>{" "}
-                                            <span className="text-[11px] text-slate-400">{item.unit}</span>
-                                        </TableCell>
-
-                                        {/* Reorder Level */}
-                                        <TableCell className="py-3.5 text-xs text-slate-500 font-medium">
-                                            {item.reorder_level ? (
-                                                <span>{formatQuantity(item.reorder_level)} {item.unit}</span>
-                                            ) : (
-                                                <span className="text-slate-400">—</span>
-                                            )}
-                                        </TableCell>
-
-                                        {/* Stock Health */}
-                                        <TableCell className="py-3.5">
-                                            {item.low_stock ? (
-                                                <Badge className="bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300/80 font-semibold text-[11px]">
-                                                    Low Stock
-                                                </Badge>
-                                            ) : !item.is_active ? (
-                                                <Badge variant="outline" className="text-[11px] text-slate-400 border-slate-300">
-                                                    Inactive
-                                                </Badge>
-                                            ) : (
-                                                <Badge className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300/80 font-semibold text-[11px]">
-                                                    Adequate
-                                                </Badge>
-                                            )}
-                                        </TableCell>
-
-                                        {/* Actions */}
-                                        <TableCell className="py-3.5 pr-4 text-right">
-                                            <div className="flex items-center justify-end gap-1">
-                                                {can("receive_stock") && (
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        onClick={() => setStockAction({ item, action: "receive" })}
-                                                        className="h-8 px-2 text-xs font-semibold text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 cursor-pointer"
-                                                    >
-                                                        <ArrowDownRight className="w-3 h-3 mr-1" />
-                                                        <span>Receive</span>
-                                                    </Button>
-                                                )}
-                                                {can("issue_stock") && (
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        onClick={() => setStockAction({ item, action: "issue" })}
-                                                        className="h-8 px-2 text-xs font-semibold text-sky-600 hover:text-sky-700 hover:bg-sky-50 cursor-pointer"
-                                                    >
-                                                        <ArrowUpRight className="w-3 h-3 mr-1" />
-                                                        <span>Issue</span>
-                                                    </Button>
-                                                )}
-                                                {canManage && (
-                                                    <Button
-                                                        size="sm"
-                                                        variant="ghost"
-                                                        onClick={() => {
-                                                            setDialogItem(item);
-                                                            setItemDialogOpen(true);
-                                                        }}
-                                                        className="h-8 w-8 p-0 text-slate-500 hover:text-sky-600 rounded-lg cursor-pointer"
-                                                        title="Edit item"
-                                                    >
-                                                        <Pencil className="w-3.5 h-3.5" />
-                                                    </Button>
-                                                )}
-                                            </div>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </TableShell>
-
-                    {/* Pagination */}
-                    {totalCount > PAGE_SIZE && (
-                        <div className="pt-2">
+                <TableShell
+                    footer={
+                        totalCount > PAGE_SIZE ? (
                             <Pagination
                                 page={page}
                                 pageSize={PAGE_SIZE}
                                 count={totalCount}
                                 onPageChange={setPage}
                             />
-                        </div>
-                    )}
-                </div>
+                        ) : undefined
+                    }
+                >
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead className="pl-4">
+                                    SKU &amp; Item Name
+                                </TableHead>
+                                <TableHead>
+                                    Category
+                                </TableHead>
+                                <TableHeadNumeric>
+                                    Available On-Hand
+                                </TableHeadNumeric>
+                                <TableHeadNumeric>
+                                    Reorder Level
+                                </TableHeadNumeric>
+                                <TableHead>
+                                    Stock Health
+                                </TableHead>
+                                <TableCellAction>
+                                    Actions
+                                </TableCellAction>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody striped>
+                            {items.map((item) => (
+                                <TableRow
+                                    key={item.id}
+                                >
+                                    {/* SKU & Item Name */}
+                                    <TableCell className="pl-4">
+                                        <div className="font-semibold text-xs text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                                            <span>{item.name}</span>
+                                            <code className="text-[10px] font-mono text-slate-400 bg-slate-100 dark:bg-slate-800 px-1 py-0.2 rounded">
+                                                {item.sku}
+                                            </code>
+                                        </div>
+                                        {/* Sub-locations breakdown */}
+                                        <ItemLocations itemId={item.id} unit={item.unit} />
+                                    </TableCell>
+
+                                    {/* Category */}
+                                    <TableCell className="text-xs text-slate-600 dark:text-slate-400 font-medium">
+                                        {item.category_name}
+                                    </TableCell>
+
+                                    {/* Available On-Hand */}
+                                    <TableCellNumeric>
+                                        <span className="text-xs font-bold text-slate-900 dark:text-white">
+                                            {formatQuantity(item.on_hand)}
+                                        </span>{" "}
+                                        <span className="text-[11px] text-slate-400">{item.unit}</span>
+                                    </TableCellNumeric>
+
+                                    {/* Reorder Level */}
+                                    <TableCellNumeric className="text-xs text-slate-500 font-medium">
+                                        {item.reorder_level ? (
+                                            <span>{formatQuantity(item.reorder_level)} {item.unit}</span>
+                                        ) : (
+                                            <span className="text-slate-400">—</span>
+                                        )}
+                                    </TableCellNumeric>
+
+                                    {/* Stock Health */}
+                                    <TableCell>
+                                        {item.low_stock ? (
+                                            <Badge className="bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300/80 font-semibold text-[11px]">
+                                                Low Stock
+                                            </Badge>
+                                        ) : !item.is_active ? (
+                                            <Badge variant="outline" className="text-[11px] text-slate-400 border-slate-300">
+                                                Inactive
+                                            </Badge>
+                                        ) : (
+                                            <Badge className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300/80 font-semibold text-[11px]">
+                                                Adequate
+                                            </Badge>
+                                        )}
+                                    </TableCell>
+
+                                    {/* Actions */}
+                                    <TableCellAction>
+                                        <div className="flex items-center justify-end gap-1">
+                                            {can("receive_stock") && (
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => setStockAction({ item, action: "receive" })}
+                                                    className="h-8 px-2 text-xs font-semibold text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 cursor-pointer"
+                                                >
+                                                    <ArrowDownRight className="w-3 h-3 mr-1" />
+                                                    <span>Receive</span>
+                                                </Button>
+                                            )}
+                                            {can("issue_stock") && (
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => setStockAction({ item, action: "issue" })}
+                                                    className="h-8 px-2 text-xs font-semibold text-sky-600 hover:text-sky-700 hover:bg-sky-50 cursor-pointer"
+                                                >
+                                                    <ArrowUpRight className="w-3 h-3 mr-1" />
+                                                    <span>Issue</span>
+                                                </Button>
+                                            )}
+                                            {canManage && (
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    onClick={() => {
+                                                        setDialogItem(item);
+                                                        setItemDialogOpen(true);
+                                                    }}
+                                                    className="h-8 w-8 p-0 text-slate-500 hover:text-sky-600 rounded-lg cursor-pointer"
+                                                    title="Edit item"
+                                                >
+                                                    <Pencil className="w-3.5 h-3.5" />
+                                                </Button>
+                                            )}
+                                        </div>
+                                    </TableCellAction>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </TableShell>
             )}
 
             {/* Dialogs */}

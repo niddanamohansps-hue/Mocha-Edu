@@ -8,11 +8,9 @@ import {
     Dialog,
     DialogBody,
     DialogContent,
-    DialogDescription,
     DialogFooter,
-    DialogHeader,
-    DialogTitle,
 } from "@/components/ui/dialog";
+import { ModalHeader } from "@/components/ui/modal-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -159,17 +157,16 @@ export function ParentFormDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-2xl max-h-[90vh] p-0 flex flex-col overflow-hidden rounded-2xl">
-                <DialogHeader className="px-6 py-4.5 border-b border-slate-100 dark:border-slate-800 shrink-0">
-                    <DialogTitle className="text-lg font-bold text-slate-900 dark:text-white">
-                        {isEdit ? "Edit Parent Details" : "Add New Parent / Guardian"}
-                    </DialogTitle>
-                    <DialogDescription className="text-xs text-slate-500">
-                        {isEdit
+            <DialogContent className="max-w-2xl max-h-[90vh] p-0 flex flex-col overflow-hidden rounded-2xl" showCloseButton={false}>
+                <ModalHeader
+                    title={isEdit ? "Edit Parent Details" : "Add New Parent / Guardian"}
+                    subtitle={
+                        isEdit
                             ? "Update contact information, profile data, and employment details."
-                            : "Create a new parent profile. You can link students directly after saving."}
-                    </DialogDescription>
-                </DialogHeader>
+                            : "Create a new parent profile. You can link students directly after saving."
+                    }
+                    onClose={() => onOpenChange(false)}
+                />
 
                 <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 min-h-0 overflow-hidden">
                     <DialogBody className="flex-1 overflow-y-auto px-6 py-5 [scrollbar-width:thin] space-y-6">
@@ -358,7 +355,7 @@ export function ParentFormDialog({
                         <Button
                             type="submit"
                             disabled={isSubmitting}
-                            className="bg-sky-600 hover:bg-sky-700 text-white min-w-[120px]"
+                            className="min-w-[120px]"
                         >
                             {isSubmitting ? (
                                 <>

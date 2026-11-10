@@ -231,7 +231,7 @@ export default function FeeStructuresPage() {
                     <Button
                         asChild
                         size="sm"
-                        className="h-9 px-4 gap-1.5 bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs rounded-lg shadow-sm cursor-pointer transition active:scale-95"
+                        className="gap-1.5"
                     >
                         <Link href="/dashboard/fees/collect">
                             <Coins className="h-3.5 w-3.5" />
@@ -305,7 +305,7 @@ export default function FeeStructuresPage() {
                                 type="submit"
                                 size="sm"
                                 disabled={creatingHead || !newHeadName.trim()}
-                                className="h-9 px-3 gap-1 bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs rounded-lg shadow-2xs"
+                                className="gap-1"
                             >
                                 {creatingHead ? (
                                     <LoaderCircle className="h-3.5 w-3.5 animate-spin" />

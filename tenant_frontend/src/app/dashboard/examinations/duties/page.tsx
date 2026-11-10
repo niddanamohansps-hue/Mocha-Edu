@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { TableShell } from "@/components/common/table/TableShell";
 import { LoadingState } from "@/components/feedback/LoadingState";
 import { EmptyState } from "@/components/feedback/EmptyState";
 import { useDutyRoster, useMyDuties } from "@/hooks/useExamAllocation";
@@ -34,41 +35,45 @@ export default function ExamDutiesPage() {
 
 function DutyTable({ rows, withStaff, attendance = false }: { rows: DutyRow[]; withStaff: boolean; attendance?: boolean }) {
     return (
-        <Table>
-            <TableHeader>
-                <TableRow>
-                    {withStaff && <TableHead>Staff</TableHead>}
-                    <TableHead>Date</TableHead>
-                    <TableHead>Time</TableHead>
-                    <TableHead>Examination</TableHead>
-                    <TableHead>Room</TableHead>
-                    <TableHead>Role</TableHead>
-                    {attendance && <TableHead />}
-                </TableRow>
-            </TableHeader>
-            <TableBody>
-                {rows.map((row) => (
-                    <TableRow key={row.id}>
-                        {withStaff && <TableCell className="font-medium">{row.staff} <span className="text-xs text-slate-400">{row.employee_id}</span></TableCell>}
-                        <TableCell>{row.date}</TableCell>
-                        <TableCell>{time(row.start_time)} - {time(row.end_time)}</TableCell>
-                        <TableCell>{row.examination}</TableCell>
-                        <TableCell>{row.room}</TableCell>
-                        <TableCell>{row.role === "chief" ? "Chief invigilator" : "Invigilator"}</TableCell>
-                        {attendance && (
-                            <TableCell className="no-print">
-                                <Button asChild size="sm" variant="outline">
-                                    <Link href={`/dashboard/examinations/hall-attendance?sitting=${row.sitting}&room=${row.room_id}`}>Take attendance</Link>
-                                </Button>{" "}
-                                <Button asChild size="sm" variant="outline">
-                                    <Link href={`/dashboard/examinations/room-report?sitting=${row.sitting}&room=${row.room_id}`}>Room report</Link>
-                                </Button>
-                            </TableCell>
-                        )}
+        <TableShell>
+            <Table>
+                <TableHeader>
+                    <TableRow>
+                        {withStaff && <TableHead className="pl-4">Staff</TableHead>}
+                        <TableHead className={!withStaff ? "pl-4" : undefined}>Date</TableHead>
+                        <TableHead>Time</TableHead>
+                        <TableHead>Examination</TableHead>
+                        <TableHead>Room</TableHead>
+                        <TableHead>Role</TableHead>
+                        {attendance && <TableHead className="text-right pr-4">Actions</TableHead>}
                     </TableRow>
-                ))}
-            </TableBody>
-        </Table>
+                </TableHeader>
+                <TableBody>
+                    {rows.map((row) => (
+                        <TableRow key={row.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40">
+                            {withStaff && <TableCell className="font-medium pl-4">{row.staff} <span className="text-xs text-slate-400 font-mono">({row.employee_id})</span></TableCell>}
+                            <TableCell className={`font-mono text-xs ${!withStaff ? "pl-4" : ""}`}>{row.date}</TableCell>
+                            <TableCell className="font-mono text-xs">{time(row.start_time)} - {time(row.end_time)}</TableCell>
+                            <TableCell className="font-medium text-slate-900 dark:text-slate-100">{row.examination}</TableCell>
+                            <TableCell>{row.room}</TableCell>
+                            <TableCell>{row.role === "chief" ? "Chief invigilator" : "Invigilator"}</TableCell>
+                            {attendance && (
+                                <TableCell className="no-print text-right pr-4">
+                                    <div className="flex items-center justify-end gap-1.5">
+                                        <Button asChild size="sm" variant="outline" className="h-8 text-xs font-semibold">
+                                            <Link href={`/dashboard/examinations/hall-attendance?sitting=${row.sitting}&room=${row.room_id}`}>Take attendance</Link>
+                                        </Button>{" "}
+                                        <Button asChild size="sm" variant="outline" className="h-8 text-xs font-semibold">
+                                            <Link href={`/dashboard/examinations/room-report?sitting=${row.sitting}&room=${row.room_id}`}>Room report</Link>
+                                        </Button>
+                                    </div>
+                                </TableCell>
+                            )}
+                        </TableRow>
+                    ))}
+                </TableBody>
+            </Table>
+        </TableShell>
     );
 }
 

@@ -54,35 +54,9 @@ import { Pagination } from "@/components/ui/pagination";
 import { LoadingState } from "@/components/feedback/LoadingState";
 import { EmptyState } from "@/components/feedback/EmptyState";
 import { ErrorState } from "@/components/feedback/ErrorState";
+import { Avatar } from "@/components/ui/avatar";
 
 const PAGE_SIZE = 15;
-
-const AVATAR_PALETTES = [
-    { bg: "bg-sky-100 dark:bg-sky-950/70", text: "text-sky-700 dark:text-sky-300", border: "border-sky-300/60 dark:border-sky-800" },
-    { bg: "bg-emerald-100 dark:bg-emerald-950/70", text: "text-emerald-700 dark:text-emerald-300", border: "border-emerald-300/60 dark:border-emerald-800" },
-    { bg: "bg-indigo-100 dark:bg-indigo-950/70", text: "text-indigo-700 dark:text-indigo-300", border: "border-indigo-300/60 dark:border-indigo-800" },
-    { bg: "bg-purple-100 dark:bg-purple-950/70", text: "text-purple-700 dark:text-purple-300", border: "border-purple-300/60 dark:border-purple-800" },
-    { bg: "bg-amber-100 dark:bg-amber-950/70", text: "text-amber-700 dark:text-amber-300", border: "border-amber-300/60 dark:border-amber-800" },
-    { bg: "bg-rose-100 dark:bg-rose-950/70", text: "text-rose-700 dark:text-rose-300", border: "border-rose-300/60 dark:border-rose-800" },
-    { bg: "bg-teal-100 dark:bg-teal-950/70", text: "text-teal-700 dark:text-teal-300", border: "border-teal-300/60 dark:border-teal-800" },
-];
-
-function getAvatarStyle(name?: string | null) {
-    if (!name || typeof name !== "string") return AVATAR_PALETTES[0];
-    let hash = 0;
-    for (let i = 0; i < name.length; i++) {
-        hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    const index = Math.abs(hash) % AVATAR_PALETTES.length;
-    return AVATAR_PALETTES[index];
-}
-
-function getInitials(name: string) {
-    if (!name) return "ST";
-    const parts = name.trim().split(/\s+/);
-    if (parts.length >= 2) return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
-    return name.slice(0, 2).toUpperCase();
-}
 
 function formatDateDisplay(iso: string | null) {
     if (!iso) return "—";
@@ -173,7 +147,7 @@ export default function CertificatesPage() {
                         asChild
                         variant="outline"
                         size="sm"
-                        className="h-9 px-3 gap-1.5 text-xs font-semibold border-slate-200 dark:border-slate-800 cursor-pointer shadow-2xs"
+                        className="gap-1.5"
                     >
                         <Link href="/dashboard/id-cards">
                             <User className="h-3.5 w-3.5 text-slate-500" />
@@ -184,7 +158,7 @@ export default function CertificatesPage() {
                         <Button
                             asChild
                             size="sm"
-                            className="h-9 px-4 gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs rounded-lg shadow-sm cursor-pointer transition active:scale-95"
+                            className="gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white"
                         >
                             <Link href="/dashboard/certificates/new">
                                 <Plus className="h-3.5 w-3.5 stroke-[2.5]" />
@@ -284,125 +258,115 @@ export default function CertificatesPage() {
                     className="py-16 text-slate-500"
                 />
             ) : (
-                <div className="space-y-3">
-                    <TableShell>
-                        <Table>
-                            <TableHeader className="bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200/80 dark:border-slate-800">
-                                <TableRow>
-                                    <TableHead className="py-3 pl-4 text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                        Certificate # &amp; Date
-                                    </TableHead>
-                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                        Recipient Details
-                                    </TableHead>
-                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                        Certificate Type
-                                    </TableHead>
-                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                        Verification Status
-                                    </TableHead>
-                                    <TableHead className="text-right pr-4 text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                        Actions
-                                    </TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {results.map((c) => {
-                                    const recipientName = c.holder_name || "—";
-                                    const avatarStyle = getAvatarStyle(recipientName);
-                                    const initials = getInitials(recipientName);
-
-                                    return (
-                                        <TableRow
-                                            key={c.id}
-                                            className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 border-b border-slate-100 dark:border-slate-800/70"
-                                        >
-                                            {/* Certificate Number */}
-                                            <TableCell className="py-3 pl-4">
-                                                <code className="text-xs font-mono font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-1.5 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">
-                                                    {c.certificate_number}
-                                                </code>
-                                                <div className="text-[10px] text-slate-400 flex items-center gap-1 mt-1 font-medium">
-                                                    <Calendar className="w-3 h-3" />
-                                                    <span>{formatDateDisplay(c.issue_date)}</span>
-                                                </div>
-                                            </TableCell>
-
-                                            {/* Recipient with Avatar */}
-                                            <TableCell className="py-3">
-                                                <div className="flex items-center gap-2.5">
-                                                    <div
-                                                        className={`h-8 w-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 border ${avatarStyle.bg} ${avatarStyle.text} ${avatarStyle.border}`}
-                                                    >
-                                                        {initials}
-                                                    </div>
-                                                    <div>
-                                                        <div className="font-semibold text-xs text-slate-900 dark:text-slate-100">
-                                                            {recipientName}
-                                                        </div>
-                                                        <div className="text-[10px] font-mono text-slate-400">
-                                                            {c.student ? "Student" : "Staff Member"}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </TableCell>
-
-                                            {/* Certificate Type */}
-                                            <TableCell className="py-3">
-                                                <span className="font-semibold text-xs text-slate-800 dark:text-slate-200">
-                                                    {CERTIFICATE_TYPE_LABELS[c.certificate_type] || c.certificate_type}
-                                                </span>
-                                            </TableCell>
-
-                                            {/* Status Badge */}
-                                            <TableCell className="py-3">
-                                                <CertificateStatusBadge status={c.status} />
-                                            </TableCell>
-
-                                            {/* Actions */}
-                                            <TableCell className="py-3 pr-4 text-right">
-                                                <div className="flex items-center justify-end gap-1">
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={() => setPrintCert(c)}
-                                                        className="h-8 px-2 text-xs text-slate-600 hover:text-indigo-600 rounded-lg"
-                                                        title="Print Certificate"
-                                                    >
-                                                        <Printer className="w-3.5 h-3.5" />
-                                                    </Button>
-                                                    <Button
-                                                        asChild
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        className="h-8 px-2 text-xs text-slate-600 hover:text-indigo-600 rounded-lg"
-                                                    >
-                                                        <Link href={`/dashboard/certificates/${c.id}`}>
-                                                            <Eye className="w-3.5 h-3.5 mr-1" />
-                                                            <span>Details</span>
-                                                        </Link>
-                                                    </Button>
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                    );
-                                })}
-                            </TableBody>
-                        </Table>
-                    </TableShell>
-
-                    {/* Pagination */}
-                    {totalCount > PAGE_SIZE && (
-                        <div className="pt-2">
+                <TableShell
+                    footer={
+                        totalCount > PAGE_SIZE ? (
                             <Pagination
                                 page={filters.page || 1}
                                 pageSize={PAGE_SIZE}
                                 count={totalCount}
                                 onPageChange={handlePageChange}
                             />
-                        </div>
-                    )}
-                </div>
+                        ) : undefined
+                    }
+                >
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead className="pl-4">
+                                    Certificate # &amp; Date
+                                </TableHead>
+                                <TableHead>
+                                    Recipient Details
+                                </TableHead>
+                                <TableHead>
+                                    Certificate Type
+                                </TableHead>
+                                <TableHead>
+                                    Verification Status
+                                </TableHead>
+                                <TableHead className="text-right pr-4">
+                                    Actions
+                                </TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody striped>
+                            {results.map((c) => {
+                                const recipientName = c.holder_name || "—";
+
+                                return (
+                                    <TableRow
+                                        key={c.id}
+                                    >
+                                        {/* Certificate Number */}
+                                        <TableCell className="pl-4">
+                                            <code className="text-xs font-mono font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-1.5 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">
+                                                {c.certificate_number}
+                                            </code>
+                                            <div className="text-[10px] text-slate-400 flex items-center gap-1 mt-1 font-medium">
+                                                <Calendar className="w-3 h-3" />
+                                                <span>{formatDateDisplay(c.issue_date)}</span>
+                                            </div>
+                                        </TableCell>
+
+                                        {/* Recipient with Avatar */}
+                                        <TableCell>
+                                            <div className="flex items-center gap-2.5">
+                                                <Avatar name={recipientName} size="sm" />
+                                                <div>
+                                                    <div className="font-semibold text-xs text-slate-900 dark:text-slate-100">
+                                                        {recipientName}
+                                                    </div>
+                                                    <div className="text-[10px] font-mono text-slate-400">
+                                                        {c.student ? "Student" : "Staff Member"}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </TableCell>
+
+                                        {/* Certificate Type */}
+                                        <TableCell>
+                                            <span className="font-semibold text-xs text-slate-800 dark:text-slate-200">
+                                                {CERTIFICATE_TYPE_LABELS[c.certificate_type] || c.certificate_type}
+                                            </span>
+                                        </TableCell>
+
+                                        {/* Status Badge */}
+                                        <TableCell>
+                                            <CertificateStatusBadge status={c.status} />
+                                        </TableCell>
+
+                                        {/* Actions */}
+                                        <TableCell className="pr-4 text-right">
+                                            <div className="flex items-center justify-end gap-1">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => setPrintCert(c)}
+                                                    className="h-8 px-2 text-xs text-slate-600 hover:text-indigo-600 rounded-lg"
+                                                    title="Print Certificate"
+                                                >
+                                                    <Printer className="w-3.5 h-3.5" />
+                                                </Button>
+                                                <Button
+                                                    asChild
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-8 px-2 text-xs text-slate-600 hover:text-indigo-600 rounded-lg"
+                                                >
+                                                    <Link href={`/dashboard/certificates/${c.id}`}>
+                                                        <Eye className="w-3.5 h-3.5 mr-1" />
+                                                        <span>Details</span>
+                                                    </Link>
+                                                </Button>
+                                            </div>
+                                        </TableCell>
+                                    </TableRow>
+                                );
+                            })}
+                        </TableBody>
+                    </Table>
+                </TableShell>
             )}
 
             {/* Official Printable Certificate Modal */}

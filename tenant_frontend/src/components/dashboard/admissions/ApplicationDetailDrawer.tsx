@@ -325,9 +325,9 @@ export default function ApplicationDetailDrawer({
                                             size="sm"
                                             variant="outline"
                                             onClick={() => setDecisionOpen(true)}
-                                            className="rounded-lg h-9 font-medium text-xs text-slate-700 dark:text-slate-200"
+                                            className="gap-1.5"
                                         >
-                                            <Shield className="w-3.5 h-3.5 mr-1 text-sky-600" />
+                                            <Shield className="w-3.5 h-3.5 text-sky-600" />
                                             Make Decision
                                         </Button>
                                     )}
@@ -336,9 +336,9 @@ export default function ApplicationDetailDrawer({
                                         <Button
                                             size="sm"
                                             onClick={() => setEnrollOpen(true)}
-                                            className="bg-sky-600 hover:bg-sky-700 text-white rounded-lg h-9 font-medium text-xs shadow-xs"
+                                            className="gap-1.5"
                                         >
-                                            <GraduationCap className="w-3.5 h-3.5 mr-1" />
+                                            <GraduationCap className="w-3.5 h-3.5" />
                                             Enroll Student
                                         </Button>
                                     )}

@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Pagination } from "@/components/ui/pagination";
+import { TableShell } from "@/components/common/table/TableShell";
 import { LoadingState } from "@/components/feedback/LoadingState";
 import { EmptyState } from "@/components/feedback/EmptyState";
 import { ErrorState } from "@/components/feedback/ErrorState";
@@ -57,15 +58,26 @@ export default function FacultyDirectoryPage() {
                 </div>
             </div>
 
-            <div className="bg-white dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden">
+            <TableShell
+                footer={
+                    data && (
+                        <Pagination
+                            page={page}
+                            pageSize={PAGE_SIZE}
+                            count={data.count}
+                            onPageChange={handlePageChange}
+                        />
+                    )
+                }
+            >
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>Name</TableHead>
+                            <TableHead className="pl-4">Name</TableHead>
                             <TableHead>Designation</TableHead>
                             <TableHead>Employee ID</TableHead>
                             <TableHead>Specialization</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
+                            <TableHead className="text-right pr-4">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -77,18 +89,18 @@ export default function FacultyDirectoryPage() {
                             </TableRow>
                         )}
                         {!isLoading && instructors?.map((instructor) => (
-                            <TableRow key={instructor.id}>
-                                <TableCell className="font-medium">
+                            <TableRow key={instructor.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40">
+                                <TableCell className="font-medium pl-4">
                                     {instructor.staff_member.profile_details.first_name} {instructor.staff_member.profile_details.last_name}
                                 </TableCell>
                                 <TableCell>{instructor.staff_member.designation}</TableCell>
-                                <TableCell>{instructor.staff_member.employee_id}</TableCell>
+                                <TableCell className="font-mono text-xs">{instructor.staff_member.employee_id}</TableCell>
                                 <TableCell>{instructor.specialization}</TableCell>
-                                <TableCell className="text-right">
+                                <TableCell className="text-right pr-4">
                                     <Link href={`/dashboard/instructors/${instructor.id}`}>
-                                        <Button variant="ghost" size="sm" className="gap-2">
+                                        <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs font-semibold">
                                             View Profile
-                                            <ArrowRight className="h-4 w-4" />
+                                            <ArrowRight className="h-3.5 w-3.5" />
                                         </Button>
                                     </Link>
                                 </TableCell>
@@ -106,16 +118,7 @@ export default function FacultyDirectoryPage() {
                         )}
                     </TableBody>
                 </Table>
-                {data && (
-                    <Pagination
-                        page={page}
-                        pageSize={PAGE_SIZE}
-                        count={data.count}
-                        onPageChange={handlePageChange}
-                        className="border-t border-slate-200 dark:border-slate-800"
-                    />
-                )}
-            </div>
+            </TableShell>
         </div>
     );
 }
