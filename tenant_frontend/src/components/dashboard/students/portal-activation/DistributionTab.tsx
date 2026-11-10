@@ -26,6 +26,7 @@ import {
     TableRow
 } from "@/components/ui/table";
 import { toast } from "sonner";
+import { downloadCsv } from "@/lib/csv";
 import { ErrorState } from "@/components/feedback/ErrorState";
 
 export default function DistributionTab() {
@@ -35,6 +36,16 @@ export default function DistributionTab() {
     const copyToClipboard = (text: string, label: string) => {
         navigator.clipboard.writeText(text);
         toast.success(`${label} copied!`);
+    };
+
+    // The login details still to hand out, as a sheet the office can print or share class by class.
+    const exportList = () => {
+        if (!pendingCreds || pendingCreds.length === 0) return;
+        downloadCsv(`student_credentials_${new Date().toISOString().slice(0, 10)}.csv`, [
+            ["Full Name", "Enrollment ID", "Username", "Initial Password"],
+            ...pendingCreds.map((c) => [c.full_name, c.enrollment_id, c.username, c.initial_password]),
+        ]);
+        toast.success("Login details downloaded");
     };
 
     const togglePasswordVisibility = (id: string) => {
@@ -55,7 +66,7 @@ export default function DistributionTab() {
                             </CardDescription>
                         </div>
                         <div className="flex gap-2">
-                            <Button variant="outline" size="lg" onClick={() => toast.info("Export CSV coming soon")}>
+                            <Button variant="outline" size="lg" onClick={exportList} disabled={!pendingCreds || pendingCreds.length === 0}>
                                 Export List
                             </Button>
                         </div>

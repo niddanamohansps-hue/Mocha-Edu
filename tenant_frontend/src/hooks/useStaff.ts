@@ -226,12 +226,22 @@ export const useDeleteInstructor = () => {
 // === DISTRIBUTION ===
 
 
+/** A staff login not handed out yet (the person has not set their own password). */
+export interface PendingStaffCredential {
+    id: string;
+    full_name: string;
+    employee_id: string;
+    username: string;
+    initial_password: string;
+    designation: string;
+}
+
 export const usePendingStaffCredentials = () => {
     return useQuery({
         queryKey: ["staff-credentials"],
         queryFn: async () => {
             const response = await axiosInstance.get("/staff/credential-distribution/");
-            return response.data;
+            return response.data as PendingStaffCredential[];
         }
     });
 };
