@@ -350,11 +350,13 @@ class RecheckRequestSerializer(serializers.ModelSerializer):
 
 class ExamResultSerializer(serializers.ModelSerializer):
     student_name = serializers.SerializerMethodField()
+    # The name a student or parent sees: they cannot read the staff list of examinations.
+    examination_name = serializers.CharField(source="examination.name", read_only=True)
 
     class Meta:
         model = ExamResult
         fields = [
-            "id", "examination", "student", "student_name", "academic_year",
+            "id", "examination", "examination_name", "student", "student_name", "academic_year",
             "total_marks_obtained", "total_max_marks", "percentage", "overall_grade",
             "is_pass", "subject_breakdown", "published_at",
         ]

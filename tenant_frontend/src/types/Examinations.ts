@@ -123,6 +123,8 @@ export interface SubjectResultBreakdown {
 export interface ExamResult {
     id: string;
     examination: string;
+    /** The examination's name (students and parents cannot read the staff list of examinations). */
+    examination_name?: string;
     student: string;
     student_name: string;
     academic_year: string;

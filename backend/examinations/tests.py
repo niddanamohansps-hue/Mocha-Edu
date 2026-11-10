@@ -532,6 +532,9 @@ class ExamAuthorizationTest(ExamFixtureMixin, TransactionTestCase):
         resp = client.get(f"/api/examinations/students/{self.student.id}/results/", HTTP_HOST=self.DOMAIN)
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(len(resp.data), 1)
+        # A student cannot read the staff list of examinations, so each result names its own examination
+        # (the recheck request lists exams by this name).
+        self.assertEqual(resp.data[0]["examination_name"], self.examination.name)
 
     def test_student_cannot_view_another_students_results_idor(self):
         with tenant_context(self.school):

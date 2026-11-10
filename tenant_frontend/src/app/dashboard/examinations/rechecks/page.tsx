@@ -10,7 +10,7 @@ import { EmptyState } from "@/components/feedback/EmptyState";
 import { ErrorState } from "@/components/feedback/ErrorState";
 import { Field, FILTER_SELECT_CLASS, FormDialog, Pager, SELECT_CLASS, formatDateTime } from "@/components/dashboard/inventory/shared";
 import { useMe } from "@/hooks/useAuth";
-import { useCollectRecheckFee, useDecideRecheck, useRefundRecheckFee, useExaminations, useRechecks, useRequestRecheck, useStudentResults } from "@/hooks/useExaminations";
+import { useCollectRecheckFee, useDecideRecheck, useRefundRecheckFee, useRechecks, useRequestRecheck, useStudentResults } from "@/hooks/useExaminations";
 import { usePermissions } from "@/providers/PermissionProvider";
 import { RecheckRequest, RecheckStatus } from "@/types/Examinations";
 
@@ -57,14 +57,12 @@ function DecideDialog({ recheck, decision, onClose }: { recheck: RecheckRequest;
 /** A student asks about one subject of a published examination, from their own results. */
 function AskDialog({ studentId, onClose }: { studentId: string; onClose: () => void }) {
     const results = useStudentResults(studentId);
-    const { data: examinations } = useExaminations();
     const ask = useRequestRecheck();
     const [resultId, setResultId] = useState("");
     const [subject, setSubject] = useState("");
     const [reason, setReason] = useState("");
     const [error, setError] = useState<string | null>(null);
     const result = results.data?.find((r) => r.id === resultId);
-    const examName = (id: string) => examinations?.find((e) => e.id === id)?.name ?? "Examination";
     return (
         <FormDialog
             open onOpenChange={(o) => !o && onClose()}
@@ -82,7 +80,7 @@ function AskDialog({ studentId, onClose }: { studentId: string; onClose: () => v
                     <Field label="Examination" htmlFor="ak-exam">
                         <select id="ak-exam" className={SELECT_CLASS} value={resultId} onChange={(e) => { setResultId(e.target.value); setSubject(""); }}>
                             <option value="">Choose an examination</option>
-                            {(results.data ?? []).map((r) => <option key={r.id} value={r.id}>{examName(r.examination)} ({r.academic_year})</option>)}
+                            {(results.data ?? []).map((r) => <option key={r.id} value={r.id}>{r.examination_name || "Examination"} ({r.academic_year})</option>)}
                         </select>
                     </Field>
                     <Field label="Subject" htmlFor="ak-subject">
