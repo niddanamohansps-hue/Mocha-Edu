@@ -36,6 +36,7 @@ INSTRUCTOR_DEFAULTS = {
     "view_calendar_events", "view_admissions", "review_admission_applications",
     "view_own_leaves", "apply_staff_leave", "cancel_own_leave", "view_homework", "manage_homework",
     "view_ptm", "record_ptm_feedback", "record_interview_feedback", "report_exam_malpractice",
+    "view_health_records",
 }
 STUDENT_DEFAULTS = {"view_own_fees", "pay_own_fees", "view_calendar_events", "view_own_homework"}
 PARENT_DEFAULTS = {
