@@ -52,6 +52,9 @@ export const getMenuItems = (
     if (can("manage_student_promotion")) {
         studentChildren.push({ label: "Promotion & Transfer", href: "/dashboard/students/promotion" });
     }
+    if (can("view_health_records") || can("manage_health_records")) {
+        studentChildren.push({ label: "Health Records", href: "/dashboard/health" });
+    }
 
     if (studentChildren.length > 0) {
         menuItems.push({
@@ -333,6 +336,7 @@ export const getMenuItems = (
         if (can("view_child_ptm")) {
             parentPortalChildren.push({ label: "PTM Meetings", href: "/dashboard/parent-portal/ptm" });
         }
+        parentPortalChildren.push({ label: "Health", href: "/dashboard/parent-portal/health" });
 
         menuItems.push({
             label: "Parent Portal",
@@ -561,7 +565,7 @@ const MENU_ORDER: { group: string; labels: string[] }[] = [
  * listed ones, so a new link never disappears or reshuffles the rest.
  */
 const CHILD_ORDER: Record<string, string[]> = {
-    "Student Management": ["Student Directory", "Admissions", "Admission Follow-ups", "Seats & Admissions Report", "Parents & Guardians", "Promotion & Transfer"],
+    "Student Management": ["Student Directory", "Admissions", "Admission Follow-ups", "Seats & Admissions Report", "Parents & Guardians", "Promotion & Transfer", "Health Records"],
     Staff: ["Staff Directory", "Faculty Directory", "Recruitment", "My Interviews", "Joining Documents", "Leave Management"],
     "School Setup": ["Academic Structure", "Academic Calendar"],
     "Course Content": ["Study Materials", "Manage Content", "Assignments", "Homework", "Grade Submissions"],

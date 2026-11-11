@@ -119,6 +119,7 @@ TENANT_APPS = (
     "front_office",
     "ptm",
     "recruitment",
+    "health",
 )
 
 INSTALLED_APPS = list(SHARED_APPS) + [

@@ -494,6 +494,19 @@ SYSTEM_PERMISSIONS = [
         "module": "Parent Portal",
         "description": "Allows a parent to initiate online payment for their linked child's fees",
     },
+    # Health
+    {
+        "codename": "view_health_records",
+        "name": "View Health Records",
+        "module": "Health",
+        "description": "See students' allergies, medical conditions and health incidents",
+    },
+    {
+        "codename": "manage_health_records",
+        "name": "Manage Health Records",
+        "module": "Health",
+        "description": "Edit students' health information and record health incidents",
+    },
     # Fees
     {
         "codename": "view_fees",

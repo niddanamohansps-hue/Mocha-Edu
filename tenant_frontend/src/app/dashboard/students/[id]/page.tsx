@@ -13,6 +13,7 @@ import { ErrorState } from "@/components/feedback/ErrorState";
 import { StudentParentsCard } from "@/components/dashboard/families/StudentParentsCard";
 import { ReceiptModal } from "@/components/dashboard/fees/ReceiptModal";
 import { StudentIDCardModal } from "@/components/dashboard/students/StudentIDCardModal";
+import { StudentHealthPanel } from "@/components/dashboard/health/StudentHealthPanel";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -45,6 +46,7 @@ import {
     FileText,
     UserPlus,
     User,
+    HeartPulse,
 } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 
@@ -266,6 +268,15 @@ export default function Student360Page({ params }: Student360PageProps) {
                         <CreditCard className="h-3.5 w-3.5 mr-2" />
                         4. Fee Ledger &amp; Dues
                     </TabsTrigger>
+                    {(can("view_health_records") || can("manage_health_records")) && (
+                        <TabsTrigger
+                            value="health"
+                            className="rounded-lg text-xs font-semibold px-4 py-2 data-[state=active]:bg-sky-50 dark:data-[state=active]:bg-sky-950/60 data-[state=active]:text-sky-600 dark:data-[state=active]:text-sky-300 transition-all cursor-pointer"
+                        >
+                            <HeartPulse className="h-3.5 w-3.5 mr-2" />
+                            5. Health
+                        </TabsTrigger>
+                    )}
                 </TabsList>
 
                 {/* Tab 1: Overview & Bio */}
@@ -689,6 +700,11 @@ export default function Student360Page({ params }: Student360PageProps) {
                         </div>
                     )}
                 </TabsContent>
+                {(can("view_health_records") || can("manage_health_records")) && (
+                    <TabsContent value="health" className="space-y-6">
+                        <StudentHealthPanel studentId={id} />
+                    </TabsContent>
+                )}
             </Tabs>
 
             {/* Official Receipt Dialog */}

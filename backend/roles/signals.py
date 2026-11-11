@@ -59,6 +59,7 @@ SYSTEM_ROLES = [
             "record_ptm_feedback",
             "record_interview_feedback",
             "report_exam_malpractice",
+            "view_health_records",
         ],
     },
     {

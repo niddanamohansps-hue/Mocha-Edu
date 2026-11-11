@@ -10,6 +10,7 @@ import {
     GraduationCap,
     Clock,
     Video,
+    HeartPulse,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -21,6 +22,7 @@ const NAV_ITEMS = [
     { href: "/dashboard/parent-portal/results", label: "Results & Reports", icon: GraduationCap },
     { href: "/dashboard/parent-portal/timetable", label: "Timetable", icon: Clock },
     { href: "/dashboard/parent-portal/ptm", label: "PTM Meetings", icon: Video },
+    { href: "/dashboard/parent-portal/health", label: "Health", icon: HeartPulse },
 ];
 
 export function ParentPortalNav() {
