@@ -197,6 +197,7 @@ flowchart TD
 - **Inventory:** stock items and locations, suppliers and purchases, assets with assignment and maintenance.
 - **Expenses:** categories, payment accounts, cashbook.
 - **Data import:** CSV import of students, staff and opening balances.
+- **Health records:** each student's allergies, conditions, medicines and doctor, an incident log that cannot be deleted, and a per-section list of students to know about. Teachers read, a nurse or the office edits, and a parent reads their own child's.
 - **Audit logs:** who changed what.
 - **System Health:** API traffic, errors and background-job heartbeat. The full view is for platform operators. School owners see their own school.
 
@@ -204,7 +205,6 @@ flowchart TD
 
 These gaps were found in the code. They are candidates, not commitments.
 
-- **Student health records:** no records for allergies, medical conditions or incidents.
 - **Hostel:** no rooms, allocation or hostel fees.
 - **Learning extensions:** no quizzes inside course content and no lesson ordering or progress tracking beyond homework progress.
 
