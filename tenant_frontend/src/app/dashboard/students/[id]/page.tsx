@@ -14,6 +14,7 @@ import { StudentParentsCard } from "@/components/dashboard/families/StudentParen
 import { ReceiptModal } from "@/components/dashboard/fees/ReceiptModal";
 import { StudentIDCardModal } from "@/components/dashboard/students/StudentIDCardModal";
 import { StudentHealthPanel } from "@/components/dashboard/health/StudentHealthPanel";
+import { StudentHostelCard } from "@/components/dashboard/hostel/StudentHostelCard";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -281,6 +282,7 @@ export default function Student360Page({ params }: Student360PageProps) {
 
                 {/* Tab 1: Overview & Bio */}
                 <TabsContent value="overview" className="space-y-6">
+                    {(can("view_hostel") || can("manage_hostel")) && <StudentHostelCard studentId={id} />}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {/* Personal Identification */}
                         <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">

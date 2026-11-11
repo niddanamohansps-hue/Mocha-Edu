@@ -494,6 +494,19 @@ SYSTEM_PERMISSIONS = [
         "module": "Parent Portal",
         "description": "Allows a parent to initiate online payment for their linked child's fees",
     },
+    # Hostel
+    {
+        "codename": "view_hostel",
+        "name": "View Hostel",
+        "module": "Hostel",
+        "description": "See hostels, rooms and which students board where",
+    },
+    {
+        "codename": "manage_hostel",
+        "name": "Manage Hostel",
+        "module": "Hostel",
+        "description": "Set up hostels and rooms, allocate and move students, charge hostel fees",
+    },
     # Health
     {
         "codename": "view_health_records",

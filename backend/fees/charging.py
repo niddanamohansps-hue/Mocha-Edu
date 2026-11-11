@@ -114,7 +114,8 @@ class ChargePlan:
         }
 
 
-def plan_charge(structure):
+def plan_charge(structure, enrollments=None):
+    """enrollments: who to charge (StudentLevel rows); default = the structure's class."""
     from .models import StudentConcession, StudentFee
 
     if not structure.is_active:
@@ -123,7 +124,7 @@ def plan_charge(structure):
     if lines[0].amount <= 0 and len(lines) == 1:
         raise serializers.ValidationError("This fee structure has no amount.")
 
-    enrollments = list(target_enrollments(structure))
+    enrollments = list(target_enrollments(structure) if enrollments is None else enrollments)
     student_ids = [e.student_id for e in enrollments]
     existing = set(
         StudentFee.objects.filter(
@@ -163,12 +164,13 @@ def plan_charge(structure):
 
 
 @transaction.atomic
-def charge_structure(structure):
+def charge_structure(structure, enrollments_for=None):
+    """enrollments_for(structure) -> who to charge; default = the structure's class."""
     from .models import FeeStructure, StudentFee
 
     # One charge at a time per structure, so two clicks cannot double-charge.
     structure = FeeStructure.objects.select_for_update().get(id=structure.id)
-    plan = plan_charge(structure)
+    plan = plan_charge(structure, enrollments_for(structure) if enrollments_for else None)
     StudentFee.objects.bulk_create([
         StudentFee(
             student=enrollment.student,

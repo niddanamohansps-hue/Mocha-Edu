@@ -8,6 +8,7 @@ import {
     School,
     Lock,
     Bus,
+    BedDouble,
     Baby,
     Receipt,
     CalendarCheck,
@@ -499,6 +500,11 @@ export const getMenuItems = (
         });
     }
 
+    // 12.5 Hostel
+    if (can("view_hostel") || can("manage_hostel")) {
+        menuItems.push({ label: "Hostel", icon: BedDouble, href: "/dashboard/hostel" });
+    }
+
     // 13. Transport - everything sits behind view_transport; each tab hides what the person cannot do.
     if (can("view_transport")) {
         menuItems.push({
@@ -555,7 +561,7 @@ const MENU_ORDER: { group: string; labels: string[] }[] = [
     { group: "Academics", labels: ["School Setup", "Course Content", "Timetable", "Attendance", "Examinations", "Homework"] },
     { group: "Communication", labels: ["Announcements", "PTM Meetings"] },
     { group: "Finance", labels: ["Fees", "Expenses & Cashbook", "Payroll"] },
-    { group: "Operations", labels: ["Front Office", "Certificates", "Inventory", "Transport", "Library"] },
+    { group: "Operations", labels: ["Front Office", "Certificates", "Inventory", "Transport", "Hostel", "Library"] },
     { group: "Admin", labels: ["Administration", "Portal Access"] },
 ];
 

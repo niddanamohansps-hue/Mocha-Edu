@@ -9,6 +9,7 @@ import ChildSwitcher from "@/components/parent-portal/ChildSwitcher";
 import { LoadingState } from "@/components/feedback/LoadingState";
 import { EmptyState } from "@/components/feedback/EmptyState";
 import { StudentHealthPanel } from "@/components/dashboard/health/StudentHealthPanel";
+import { StudentHostelCard } from "@/components/dashboard/hostel/StudentHostelCard";
 
 export default function ParentHealthPage() {
     const { can } = usePermissions();
@@ -36,7 +37,10 @@ export default function ParentHealthPage() {
             {isLoading ? (
                 <LoadingState />
             ) : childId ? (
-                <StudentHealthPanel key={childId} studentId={childId} />
+                <div key={childId} className="space-y-6">
+                    <StudentHostelCard studentId={childId} />
+                    <StudentHealthPanel studentId={childId} />
+                </div>
             ) : (
                 <EmptyState title="No children linked" description="Ask the school to link your child to your account." />
             )}
