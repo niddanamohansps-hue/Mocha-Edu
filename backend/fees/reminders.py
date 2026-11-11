@@ -44,7 +44,7 @@ CANDIDATE_LIMIT = 2000
 
 def alert_today():
     """Today's date on the school calendar."""
-    zone = ZoneInfo(getattr(settings, "ALERT_TIME_ZONE", "Asia/Kathmandu"))
+    zone = ZoneInfo(getattr(settings, "ALERT_TIME_ZONE", "Asia/Kolkata"))
     return timezone.now().astimezone(zone).date()
 
 

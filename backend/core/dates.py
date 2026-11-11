@@ -11,7 +11,7 @@ from django.utils import timezone
 
 
 def school_zone():
-    return ZoneInfo(getattr(settings, "ALERT_TIME_ZONE", "Asia/Kathmandu"))
+    return ZoneInfo(getattr(settings, "ALERT_TIME_ZONE", "Asia/Kolkata"))
 
 
 def school_today():

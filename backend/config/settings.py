@@ -233,7 +233,7 @@ LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"
 # School calendar used by automated alerts to decide what "today" is (fee reminders). Stage 2 uses
 # one zone for every school; a per-school zone is a later change.
-ALERT_TIME_ZONE = config("ALERT_TIME_ZONE", default="Asia/Kathmandu")
+ALERT_TIME_ZONE = config("ALERT_TIME_ZONE", default="Asia/Kolkata")
 USE_I18N = True
 USE_TZ = True
 

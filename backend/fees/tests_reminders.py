@@ -297,12 +297,13 @@ class EligibilityTests(ReminderFixture):
 
 
 class SchoolCalendarTests(TransactionTestCase):
+    @override_settings(ALERT_TIME_ZONE="Asia/Kolkata")
     def test_today_follows_the_school_calendar_not_utc(self):
         cases = {
-            datetime(2026, 3, 10, 18, 0, tzinfo=dt_timezone.utc): date(2026, 3, 10),  # 23:45 in Nepal
-            datetime(2026, 3, 10, 18, 14, tzinfo=dt_timezone.utc): date(2026, 3, 10),  # 23:59
-            datetime(2026, 3, 10, 18, 15, tzinfo=dt_timezone.utc): date(2026, 3, 11),  # 00:00
-            datetime(2026, 3, 10, 19, 0, tzinfo=dt_timezone.utc): date(2026, 3, 11),  # 00:45
+            datetime(2026, 3, 10, 18, 0, tzinfo=dt_timezone.utc): date(2026, 3, 10),  # 23:30 in India
+            datetime(2026, 3, 10, 18, 29, tzinfo=dt_timezone.utc): date(2026, 3, 10),  # 23:59
+            datetime(2026, 3, 10, 18, 30, tzinfo=dt_timezone.utc): date(2026, 3, 11),  # 00:00
+            datetime(2026, 3, 10, 19, 0, tzinfo=dt_timezone.utc): date(2026, 3, 11),  # 00:30
         }
         for moment, expected in cases.items():
             with self.subTest(moment=moment), mock.patch("fees.reminders.timezone.now", return_value=moment):
@@ -314,8 +315,11 @@ class SchoolCalendarTests(TransactionTestCase):
         with mock.patch("fees.reminders.timezone.now", return_value=moment):
             self.assertEqual(reminders.alert_today(), date(2026, 3, 10))
 
-    def test_the_default_zone_is_kathmandu(self):
-        self.assertEqual(settings.ALERT_TIME_ZONE, "Asia/Kathmandu")
+    def test_the_built_in_default_zone_is_india(self):
+        from config import settings as project_settings
+        import inspect
+
+        self.assertIn('default="Asia/Kolkata"', inspect.getsource(project_settings))
 
 
 class TaskTests(ReminderFixture):
