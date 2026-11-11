@@ -330,7 +330,7 @@ class StudentPaymentsView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        qs = Payment.objects.filter(student=student).select_related("student__profile").prefetch_related(
+        qs = Payment.objects.filter(student=student).select_related("student__profile", "online_order", "reversal").prefetch_related(
             "allocations__student_fee__fee_head"
         )
         return Response(PaymentSerializer(qs, many=True).data)

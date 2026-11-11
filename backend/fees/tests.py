@@ -713,6 +713,39 @@ class ReversePaymentTests(FeesFixtureMixin, TransactionTestCase):
             with self.assertRaises(DRFValidationError):
                 reverse_payment(payment=reversal, recorded_by=self.finance_staff_member)
 
+    def test_gateway_payment_cannot_be_reversed_here(self):
+        from django.utils import timezone
+
+        sf = self._assign_fee(self.student1, amount_due=Decimal("500"))
+        with tenant_context(self.school):
+            payment = record_payment(
+                student=self.student1, amount=Decimal("500"), method="online",
+                allocations=[{"student_fee_id": sf.id, "amount": Decimal("500")}],
+                recorded_by=self.finance_staff_member,
+            )
+            OnlinePaymentOrder.objects.create(
+                student=self.student1, amount=Decimal("500"), gateway="razorpay", status="success", allocations_snapshot=[],
+                expires_at=timezone.now(), completed_at=timezone.now(), payment=payment,
+            )
+        client = self._client_as(self.owner_user)
+        resp = client.post(f"/api/fees/payments/{payment.id}/reverse/", {"reason": "parent asked"}, HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("Refund it in Razorpay first", str(resp.data))
+        with tenant_context(self.school):
+            self.assertFalse(Payment.objects.filter(reverses=payment).exists())
+            self.assertEqual(get_outstanding_balance(sf), Decimal("0"))
+
+    def test_desk_payment_marked_online_can_still_be_reversed(self):
+        sf = self._assign_fee(self.student1, amount_due=Decimal("500"))
+        with tenant_context(self.school):
+            payment = record_payment(
+                student=self.student1, amount=Decimal("500"), method="online",
+                allocations=[{"student_fee_id": sf.id, "amount": Decimal("500")}],
+                recorded_by=self.finance_staff_member,
+            )
+            reverse_payment(payment=payment, recorded_by=self.finance_staff_member)
+            self.assertEqual(get_outstanding_balance(sf), Decimal("500"))
+
     def test_reverse_endpoint_requires_permission(self):
         sf = self._assign_fee(self.student1, amount_due=Decimal("500"))
         with tenant_context(self.school):
@@ -2444,3 +2477,31 @@ class OnlinePaymentCeleryReconciliationTests(FeesFixtureMixin, TransactionTestCa
             order.refresh_from_db()
             self.assertEqual(order.status, "expired")
             self.assertIn("gateway has no record of this transaction", order.reconciliation_reason)
+
+
+class PaymentHistoryGatewayFlagTests(FeesFixtureMixin, TransactionTestCase):
+    def test_history_says_which_payments_were_paid_through_a_gateway(self):
+        from django.utils import timezone
+
+        sf = self._assign_fee(self.student1, amount_due=Decimal("800"))
+        with tenant_context(self.school):
+            desk = record_payment(
+                student=self.student1, amount=Decimal("300"), method="cash",
+                allocations=[{"student_fee_id": sf.id, "amount": Decimal("300")}],
+                recorded_by=self.finance_staff_member,
+            )
+            online = record_payment(
+                student=self.student1, amount=Decimal("500"), method="online",
+                allocations=[{"student_fee_id": sf.id, "amount": Decimal("500")}],
+                recorded_by=self.finance_staff_member,
+            )
+            OnlinePaymentOrder.objects.create(
+                student=self.student1, amount=Decimal("500"), gateway="razorpay", status="success", allocations_snapshot=[],
+                expires_at=timezone.now(), completed_at=timezone.now(), payment=online,
+            )
+        client = self._client_as(self.owner_user)
+        resp = client.get(f"/api/fees/students/{self.student1.id}/payments/", HTTP_HOST=self.DOMAIN)
+        self.assertEqual(resp.status_code, 200)
+        flags = {row["id"]: row["paid_via_gateway"] for row in resp.data}
+        self.assertIsNone(flags[str(desk.id)])
+        self.assertEqual(flags[str(online.id)], "Razorpay")

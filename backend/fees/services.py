@@ -494,6 +494,15 @@ def reverse_payment(*, payment, recorded_by, reason=""):
         raise serializers.ValidationError("A reversal payment cannot itself be reversed.")
     if Payment.objects.filter(reverses=payment).exists():
         raise serializers.ValidationError("This payment has already been reversed.")
+    # A gateway payment sits in the gateway, not the school's cash box. Reversing
+    # it here would mark the fee unpaid while the parent's money is never returned.
+    order = getattr(payment, "online_order", None)
+    if order is not None:
+        gateway = order.get_gateway_display()
+        raise serializers.ValidationError(
+            f"This fee was paid online through {gateway}. Refund it in {gateway} first; "
+            "it cannot be reversed here."
+        )
 
     reversal = Payment.objects.create(
         student=payment.student,

@@ -916,7 +916,12 @@ function CollectPaymentContent() {
 
                                                 <TableCell className="text-right pr-5 py-3">
                                                     <div className="flex items-center justify-end gap-1.5">
-                                                    {canCollect && p.status === "completed" && !p.reverses && !p.is_reversed && (
+                                                    {canCollect && p.status === "completed" && !p.reverses && !p.is_reversed && p.paid_via_gateway && (
+                                                        <span className="text-[11px] text-slate-500 dark:text-slate-400" title={`Refund this in ${p.paid_via_gateway}; it cannot be reversed here.`}>
+                                                            Paid via {p.paid_via_gateway}
+                                                        </span>
+                                                    )}
+                                                    {canCollect && p.status === "completed" && !p.reverses && !p.is_reversed && !p.paid_via_gateway && (
                                                         <>
                                                             <Input
                                                                 placeholder="Reason"

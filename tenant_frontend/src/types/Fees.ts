@@ -90,6 +90,8 @@ export interface Payment {
     recorded_by: string | null;
     allocations: PaymentAllocation[];
     is_reversed: boolean;
+    /** Gateway name when paid online; refund it there, it cannot be reversed here. */
+    paid_via_gateway?: string | null;
     created_at: string;
 }
 

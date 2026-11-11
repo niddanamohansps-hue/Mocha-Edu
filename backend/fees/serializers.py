@@ -153,12 +153,13 @@ class PaymentSerializer(serializers.ModelSerializer):
     student_name = serializers.SerializerMethodField()
     allocations = PaymentAllocationSerializer(many=True, read_only=True)
     is_reversed = serializers.SerializerMethodField()
+    paid_via_gateway = serializers.SerializerMethodField()
 
     class Meta:
         model = Payment
         fields = [
             "id", "student", "student_name", "amount", "method", "status", "receipt_number",
-            "reference_note", "reverses", "recorded_by", "allocations", "is_reversed", "created_at",
+            "reference_note", "reverses", "recorded_by", "allocations", "is_reversed", "paid_via_gateway", "created_at",
         ]
         read_only_fields = fields
 
@@ -168,6 +169,11 @@ class PaymentSerializer(serializers.ModelSerializer):
 
     def get_is_reversed(self, obj):
         return hasattr(obj, "reversal")
+
+    def get_paid_via_gateway(self, obj):
+        """Gateway name when the parent paid online; these are refunded in the gateway, not reversed here."""
+        order = getattr(obj, "online_order", None)
+        return order.get_gateway_display() if order else None
 
 
 class OnlinePaymentOrderSerializer(serializers.ModelSerializer):
