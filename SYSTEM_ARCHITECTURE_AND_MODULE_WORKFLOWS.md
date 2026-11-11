@@ -151,7 +151,9 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    Heads["Fee heads and structures"] --> Due["Student fees<br/>due dates, discounts"]
+    Heads["Fee heads and structures<br/>optional instalments"] --> Charge["Charge to class<br/>preview, safe to repeat"]
+    Conc["Concessions and scholarships<br/>percentage or fixed"] --> Charge
+    Charge --> Due["Student fees<br/>one per instalment, discounts"]
     Lib["Library fines"] --> Due
     Trans["Transport bills"] --> Due
     Due --> Desk["Collect at the desk<br/>receipt"]
@@ -164,6 +166,7 @@ flowchart LR
 ```
 
 - Online payments settle exactly once, even with duplicate callbacks, a late webhook or the parent's browser never returning. Pending orders are reconciled in the background.
+- A structure can be split into instalments (for example 40/30/30 across three terms). Charging it to its class creates one student fee per instalment for every active student, with each student's concessions taken off; running it again only adds what is missing, such as students who joined later. The instalments are fixed once anyone has been charged.
 - Library fines and transport bills each create a student fee, so they appear in the same dues and receipts.
 
 ### 3.7 Learning: course content, homework and assignments
@@ -201,7 +204,6 @@ flowchart TD
 
 These gaps were found in the code. They are candidates, not commitments.
 
-- **Fee instalment plans and scholarships:** fees have due dates and a per-fee discount, but no instalment schedule or scholarship records.
 - **Student health records:** no records for allergies, medical conditions or incidents.
 - **Hostel:** no rooms, allocation or hostel fees.
 - **Learning extensions:** no quizzes inside course content and no lesson ordering or progress tracking beyond homework progress.
