@@ -129,6 +129,16 @@ INSTALLED_APPS = list(SHARED_APPS) + [
 TENANT_MODEL = "organizations.Organization"
 TENANT_DOMAIN_MODEL = "organizations.Domain"
 
+# New schools get <subdomain>.<TENANT_BASE_DOMAIN>; the welcome email links to TENANT_LOGIN_URL_TEMPLATE.
+# The defaults suit local development only.
+TENANT_BASE_DOMAIN = config("TENANT_BASE_DOMAIN", default="localhost")
+TENANT_LOGIN_URL_TEMPLATE = config("TENANT_LOGIN_URL_TEMPLATE", default="http://{domain}:3555/login")
+if not DEBUG and not _RUNNING_TESTS and TENANT_BASE_DOMAIN == "localhost":
+    raise ImproperlyConfigured(
+        "TENANT_BASE_DOMAIN must be your real domain when DEBUG=False (for example edusekai.in); "
+        "otherwise new schools get addresses ending in .localhost."
+    )
+
 # Faster tests (opt-in): create each test school by copying one migrated base schema instead of running
 # every migration again. Only while running tests and only with EDUSEKAI_TEST_CLONE_TENANTS=1; real schools
 # are always created by running the migrations. See config/test_runner.py.

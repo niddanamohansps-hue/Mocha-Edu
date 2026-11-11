@@ -17,10 +17,12 @@ class CheckDomainView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Check for subdomain.localhost or full domain
+        # A full hostname, or a bare subdomain under the platform's base domain.
+        from django.conf import settings
+
         exists = Domain.objects.filter(
             models.Q(domain__iexact=domain_name)
-            | models.Q(domain__iexact=f"{domain_name}.localhost")
+            | models.Q(domain__iexact=f"{domain_name}.{settings.TENANT_BASE_DOMAIN}")
         ).exists()
 
         return Response({"exists": exists})

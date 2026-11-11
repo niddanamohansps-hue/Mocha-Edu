@@ -50,6 +50,22 @@ class OrganizationDomainTests(TransactionTestCase):
         resp = self._check(domain="orgp04")
         self.assertTrue(resp.data["exists"])
 
+    @override_settings(TENANT_BASE_DOMAIN="edusekai.example")
+    def test_bare_subdomain_uses_the_configured_base_domain(self):
+        Domain.objects.create(domain="orgp04b.edusekai.example", tenant=self.public_org)
+        try:
+            self.assertTrue(self._check(domain="orgp04b").data["exists"])
+            self.assertFalse(self._check(domain="orgp04").data["exists"])
+        finally:
+            Domain.objects.filter(domain="orgp04b.edusekai.example").delete()
+
+    @override_settings(TENANT_BASE_DOMAIN="edusekai.example", TENANT_LOGIN_URL_TEMPLATE="https://{domain}/login")
+    def test_new_school_address_and_login_link_use_the_settings(self):
+        from accounts import provisioning
+
+        self.assertEqual(provisioning.base_domain(), "edusekai.example")
+        self.assertEqual(provisioning.login_url("greenfield.edusekai.example"), "https://greenfield.edusekai.example/login")
+
     def test_lookup_is_case_insensitive(self):
         resp = self._check(domain="ORGP04.LOCALHOST")
         self.assertTrue(resp.data["exists"])

@@ -4,6 +4,7 @@
 what is missing or finds what a previous attempt already created. Tenant creation runs schema DDL,
 so the whole thing cannot be one database transaction.
 """
+from django.conf import settings
 from django.db import IntegrityError
 from django_tenants.utils import tenant_context
 
@@ -11,8 +12,15 @@ from accounts.models import User
 from organizations.models import Domain, Organization
 from roles.models import Role, UserRole
 
-BASE_DOMAIN = "localhost"
-LOGIN_URL_TEMPLATE = "http://{domain}:3555/login"
+
+
+def base_domain():
+    """The domain each school's subdomain sits under, e.g. "edusekai.in" for greenfield.edusekai.in."""
+    return settings.TENANT_BASE_DOMAIN
+
+
+def login_url(full_domain_name):
+    return settings.TENANT_LOGIN_URL_TEMPLATE.format(domain=full_domain_name)
 
 
 class ProvisioningError(Exception):
@@ -42,7 +50,7 @@ def provision_organization(
     """
     from profiles.models import Profile  # imported here: profiles depends on accounts
 
-    full_domain_name = f"{subdomain}.{BASE_DOMAIN}"
+    full_domain_name = f"{subdomain}.{base_domain()}"
     user = User.objects.filter(email=email).first()
 
     # Everything that can be known to be wrong is checked before the (slow, hard to undo) tenant
@@ -87,5 +95,5 @@ def provision_organization(
         "organization": organization,
         "domain": domain,
         "user": user,
-        "domain_url": LOGIN_URL_TEMPLATE.format(domain=full_domain_name),
+        "domain_url": login_url(full_domain_name),
     }
