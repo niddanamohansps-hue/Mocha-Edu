@@ -193,6 +193,7 @@ flowchart TD
 
 - **Front office:** visitor log with badges, student gate passes with a picked-up-by record, postal in and out.
 - **Library:** catalogue, copies, loans and returns, fines.
+- **Hostel:** hostels (boys, girls or mixed) and rooms with a number of beds; a full room is refused and each student has one room at a time, with the history kept. Each hostel links to a fee structure and charges only its current boarders, through the same instalment and concession logic as class fees.
 - **Transport:** vehicles, drivers, routes and stops, student assignment, transport bills.
 - **Inventory:** stock items and locations, suppliers and purchases, assets with assignment and maintenance.
 - **Expenses:** categories, payment accounts, cashbook.
@@ -205,7 +206,6 @@ flowchart TD
 
 These gaps were found in the code. They are candidates, not commitments.
 
-- **Hostel:** no rooms, allocation or hostel fees.
 - **Learning extensions:** no quizzes inside course content and no lesson ordering or progress tracking beyond homework progress.
 
 ## 5. Notes
