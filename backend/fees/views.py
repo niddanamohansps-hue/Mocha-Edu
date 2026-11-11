@@ -160,7 +160,7 @@ class StudentFeesView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        qs = StudentFee.objects.filter(student=student).select_related("fee_head")
+        qs = StudentFee.objects.filter(student=student).select_related("fee_head", "installment")
         academic_year = request.query_params.get("academic_year")
         if academic_year:
             qs = qs.filter(academic_year=academic_year)

@@ -163,6 +163,14 @@ class StudentFee(models.Model):
     level_name = models.CharField(max_length=50, blank=True)
     section_name = models.CharField(max_length=50, blank=True)
 
+    installment = models.ForeignKey(
+        "fees.FeeInstallment",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="student_fees",
+        help_text="Set when this fee is one instalment of a structure charged to a class.",
+    )
     amount_due = models.DecimalField(max_digits=10, decimal_places=2)
     discount_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0"))
     discount_reason = models.CharField(max_length=255, blank=True)
@@ -435,3 +443,91 @@ class FeeCallNote(models.Model):
     class Meta:
         ordering = ["-created_at"]
         indexes = [models.Index(fields=["student", "-created_at"], name="feecall_student_idx")]
+
+
+class FeeInstallment(models.Model):
+    """One part of a FeeStructure's amount, with its own due date. Charging the
+    structure creates one StudentFee per instalment, so dues, reminders, online
+    payment and receipts all work per instalment unchanged."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    fee_structure = models.ForeignKey(FeeStructure, on_delete=models.CASCADE, related_name="installments")
+    name = models.CharField(max_length=60)
+    percent = models.DecimalField(max_digits=5, decimal_places=2)
+    due_date = models.DateField()
+    position = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ["fee_structure", "position", "due_date"]
+        constraints = [
+            models.UniqueConstraint(fields=["fee_structure", "name"], name="fee_installment_unique_name"),
+            models.CheckConstraint(
+                condition=models.Q(percent__gt=0) & models.Q(percent__lte=100), name="fee_installment_percent_range"
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.fee_structure} - {self.name}"
+
+
+CONCESSION_KIND_CHOICES = [
+    ("percent", "Percentage"),
+    ("fixed", "Fixed amount"),
+]
+
+
+class ConcessionType(models.Model):
+    """A school's named concession or scholarship, e.g. "Sibling 10%" or "Merit Rs 5,000"."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=100, unique=True)
+    kind = models.CharField(max_length=10, choices=CONCESSION_KIND_CHOICES)
+    value = models.DecimalField(max_digits=10, decimal_places=2)
+    fee_head = models.ForeignKey(
+        FeeHead, on_delete=models.PROTECT, null=True, blank=True, related_name="concession_types",
+        help_text="Limit to one fee head; empty means every fee head.",
+    )
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+        constraints = [
+            models.CheckConstraint(condition=models.Q(value__gt=0), name="concession_value_positive"),
+            models.CheckConstraint(
+                condition=~models.Q(kind="percent") | models.Q(value__lte=100), name="concession_percent_max_100"
+            ),
+        ]
+
+    def __str__(self):
+        return self.name
+
+
+class StudentConcession(models.Model):
+    """A concession given to one student for one academic year. Applied as a
+    discount when fees are charged to the student's class."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    student = models.ForeignKey("students.Student", on_delete=models.PROTECT, related_name="concessions")
+    concession_type = models.ForeignKey(ConcessionType, on_delete=models.PROTECT, related_name="grants")
+    academic_year = models.CharField(max_length=20)
+    note = models.CharField(max_length=255, blank=True)
+    is_active = models.BooleanField(default=True)
+    granted_by = models.ForeignKey(
+        "staff.StaffMember", on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["student", "concession_type", "academic_year"], name="student_concession_unique_per_year"
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.student_id} - {self.concession_type} ({self.academic_year})"

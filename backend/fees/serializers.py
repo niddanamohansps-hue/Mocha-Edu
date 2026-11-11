@@ -38,6 +38,7 @@ class FeeStructureSerializer(serializers.ModelSerializer):
 
 class StudentFeeSerializer(serializers.ModelSerializer):
     fee_head_name = serializers.CharField(source="fee_head.name", read_only=True)
+    installment_name = serializers.CharField(source="installment.name", read_only=True, default=None)
     amount_paid = serializers.SerializerMethodField()
     outstanding_balance = serializers.SerializerMethodField()
 
@@ -45,7 +46,7 @@ class StudentFeeSerializer(serializers.ModelSerializer):
         model = StudentFee
         fields = [
             "id", "student", "fee_structure", "fee_head", "fee_head_name", "academic_year",
-            "level_name", "section_name", "amount_due", "discount_amount", "discount_reason",
+            "installment", "installment_name", "level_name", "section_name", "amount_due", "discount_amount", "discount_reason",
             "due_date", "status", "cancellation_reason", "cancelled_at",
             "amount_paid", "outstanding_balance", "created_at", "updated_at",
         ]

@@ -1,4 +1,5 @@
 from django.urls import include, path
+from .charging_views import ChargeStructureView, ConcessionTypeViewSet, InstallmentPlanView, StudentConcessionViewSet
 from rest_framework.routers import DefaultRouter
 
 from .gateway_views import (
@@ -36,6 +37,8 @@ from .views import (
 router = DefaultRouter()
 router.register(r"heads", FeeHeadViewSet, basename="fee-head")
 router.register(r"structures", FeeStructureViewSet, basename="fee-structure")
+router.register(r"concession-types", ConcessionTypeViewSet, basename="concession-type")
+router.register(r"concessions", StudentConcessionViewSet, basename="student-concession")
 
 
 from .paylink_views import PayLinkDetailView, PayLinkStartView
@@ -67,5 +70,7 @@ urlpatterns = [
     path("reports/follow-ups/", FollowUpDeskView.as_view(), name="fee-follow-up-desk"),
     path("reports/collection/", CollectionSummaryView.as_view(), name="fee-collection-summary"),
     path("students/<uuid:student_id>/calls/", StudentCallsView.as_view(), name="student-fee-calls"),
+    path("structures/<uuid:structure_id>/installments/", InstallmentPlanView.as_view(), name="fee-structure-installments"),
+    path("structures/<uuid:structure_id>/charge/", ChargeStructureView.as_view(), name="fee-structure-charge"),
     path("", include(router.urls)),
 ]

@@ -50,6 +50,8 @@ import { EmptyState } from "@/components/feedback/EmptyState";
 import { ErrorState } from "@/components/feedback/ErrorState";
 import { LoadingState } from "@/components/feedback/LoadingState";
 import { formatIndianCurrency } from "@/lib/currency";
+import { ChargeClassDialog } from "@/components/dashboard/fees/ChargeClassDialog";
+import type { FeeStructure } from "@/types/Fees";
 import { toast } from "sonner";
 
 function getFrequencyBadge(frequency: string) {
@@ -139,6 +141,7 @@ export default function FeeStructuresPage() {
     const { mutate: createStructure, isPending: creatingStructure } = useCreateFeeStructure();
 
     const [newHeadName, setNewHeadName] = useState("");
+    const [chargeTarget, setChargeTarget] = useState<FeeStructure | null>(null);
     const [form, setForm] = useState({
         fee_head: "",
         amount: "",
@@ -495,9 +498,14 @@ export default function FeeStructuresPage() {
                                     <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                                         Payment Due Date
                                     </TableHead>
-                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider pr-4">
+                                    <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                                         Applicable Level
                                     </TableHead>
+                                    {canManage && (
+                                        <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider pr-4 text-right">
+                                            Charge
+                                        </TableHead>
+                                    )}
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -526,11 +534,18 @@ export default function FeeStructuresPage() {
                                             {formatDateDisplay(s.due_date)}
                                         </TableCell>
 
-                                        <TableCell className="py-3 pr-4">
+                                        <TableCell className="py-3">
                                             <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
                                                 {s.level_name || "All Grade Levels"}
                                             </span>
                                         </TableCell>
+                                        {canManage && (
+                                            <TableCell className="py-3 pr-4 text-right">
+                                                <Button variant="outline" size="sm" onClick={() => setChargeTarget(s)}>
+                                                    Instalments &amp; charge
+                                                </Button>
+                                            </TableCell>
+                                        )}
                                     </TableRow>
                                 ))}
                             </TableBody>
@@ -538,6 +553,7 @@ export default function FeeStructuresPage() {
                     </TableShell>
                 )}
             </div>
+            {chargeTarget && <ChargeClassDialog structure={chargeTarget} onClose={() => setChargeTarget(null)} />}
         </div>
     );
 }

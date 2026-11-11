@@ -349,6 +349,9 @@ export const getMenuItems = (
     if (can("manage_fee_structures") || can("view_fees")) {
         feesChildren.push({ label: "Fee Structures", href: "/dashboard/fees/structures" });
     }
+    if (can("manage_fee_structures") || can("view_fees")) {
+        feesChildren.push({ label: "Concessions & Scholarships", href: "/dashboard/fees/concessions" });
+    }
     if (can("view_financial_reports")) {
         feesChildren.push({ label: "Fee Collection", href: "/dashboard/fees/collection" });
         feesChildren.push({ label: "Fee Follow-ups", href: "/dashboard/fees/follow-ups" });
@@ -573,7 +576,7 @@ const CHILD_ORDER: Record<string, string[]> = {
         "Marks Entry", "Marks Progress", "Mark Sheets", "Moderation",
         "My Exams", "Results", "Rank List", "Analytics", "Supplementary", "Rechecks",
     ],
-    Fees: ["Student Fees / Collect Payment", "Fee Collection", "Fee Follow-ups", "Fee Dues", "Outstanding Report", "My Fees", "Fee Structures", "Payment Gateways"],
+    Fees: ["Student Fees / Collect Payment", "Fee Collection", "Fee Follow-ups", "Fee Dues", "Outstanding Report", "My Fees", "Fee Structures", "Concessions & Scholarships", "Payment Gateways"],
     Payroll: ["Payroll runs", "Salaries", "My payslips", "Setup"],
     Inventory: ["Stock", "Movements", "Purchases", "Assets", "Setup"],
     Certificates: ["Certificates", "ID Cards"],
